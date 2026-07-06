@@ -1,0 +1,29 @@
+@import "preline/variants.css";
+
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@source "../node_modules/preline/dist/*.js";
+
+body {
+  font-family: "Inter", sans-serif;
+  font-family: "Manrope", sans-serif;
+}
+
+.custom-scrollbar::-webkit-scrollbar {
+  width: 4px;
+}
+
+.custom-scrollbar::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.custom-scrollbar::-webkit-scrollbar-thumb {
+  border-radius: 9999px;
+  background-color: #4b4f57; 
+}
+
+.dark .custom-scrollbar::-webkit-scrollbar-thumb {
+  background-color: #404040;
+}
