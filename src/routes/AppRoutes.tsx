@@ -13,8 +13,7 @@ import CallingPage from "@/pages/dashboard/communications/CallingPage";
 import WhatsAppPage from "@/pages/dashboard/communications/WhatsAppPage";
 import ProtectedRoute from "@/routes/ProtectedRoute";
 import { LeadsPage } from "@/pages/dashboard/LeadsPage";
-// Tickets hidden 2026-07-05: backend ticket router disabled + table empty.
-// import { TicketsPage } from "@/pages/dashboard/TicketsPage";
+import { TicketsPage } from "@/pages/dashboard/TicketsPage";
 
 const AppRoutes = () => {
   return (
@@ -53,8 +52,8 @@ const AppRoutes = () => {
           <Route path="email/sender" element={<SenderConfigPage />} />
           <Route path="email/templates" element={<TemplatesPage />} />
 
-          {/* TICKETS — hidden 2026-07-05 (backend router disabled + table empty) */}
-          {/* <Route path="tickets" element={<TicketsPage />} /> */}
+          {/* TICKETS — shown; backend ticket router is still disabled */}
+          <Route path="tickets" element={<TicketsPage />} />
 
           {/* SETTINGS */}
           <Route path="settings" element={<SettingsPage />} />

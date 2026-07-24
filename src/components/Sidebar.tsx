@@ -1,6 +1,6 @@
 import { useState } from "react";
 import {
-  Home, MessageSquare, Settings, LogOut, Users, Mail, Radio, ChevronDown,
+  Home, MessageSquare, Settings, LogOut, Users, Mail, Radio, ChevronDown, Ticket,
 } from "lucide-react";
 import { useNavigate, useLocation } from "react-router-dom";
 import authApi from "@/api/authApi";
@@ -34,6 +34,7 @@ export function Sidebar({ isOpen, onClose, isCollapsed }: SidebarProps) {
     { id: "home", icon: Home, label: "Home", path: "/dashboard" },
     { id: "conversations", icon: MessageSquare, label: "Conversations", path: "/dashboard/conversations" },
     { id: "leads", icon: Users, label: "Leads", path: "/dashboard/leads" },
+    { id: "tickets", icon: Ticket, label: "Tickets", path: "/dashboard/tickets" },
     {
       id: "communications", icon: Radio, label: "Communications", path: "/dashboard/communications",
       children: [
@@ -48,7 +49,6 @@ export function Sidebar({ isOpen, onClose, isCollapsed }: SidebarProps) {
         { id: "templates", label: "Templates", path: "/dashboard/email/templates" },
       ],
     },
-    // Tickets hidden 2026-07-05: backend ticket router disabled + table empty. Re-enable (and re-add `Ticket` icon import) when a ticket producer exists.
     { id: "settings", icon: Settings, label: "Settings", path: "/dashboard/settings" },
   ];
 

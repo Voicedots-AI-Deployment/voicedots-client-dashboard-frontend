@@ -4,6 +4,7 @@ import {
     Loader2,
     Ticket as TicketIcon,
     Phone,
+    Info,
 } from "lucide-react";
 import ticketsApi from "@/api/tickets";
 import { TicketDetailsDrawer } from "@/components/TicketDetailsDrawer";
@@ -125,6 +126,17 @@ export function TicketsPage() {
                     </div>
                 </div>
 
+                {/* Ticketing has no producer yet and its API router is still
+                    disabled, so the list stays empty — say so rather than
+                    leaving an unexplained blank page. */}
+                <div className="flex items-start gap-2 rounded-xl border border-indigo-200 dark:border-indigo-900 bg-indigo-50 dark:bg-indigo-900/20 px-4 py-3 text-sm text-indigo-800 dark:text-indigo-300 shrink-0">
+                    <Info size={16} className="mt-0.5 shrink-0" />
+                    <span>
+                        Support ticketing is being enabled for your account. Tickets raised by the
+                        assistant will show up here once it's active.
+                    </span>
+                </div>
+
                 {/* ================= KPI SECTION ================= */}
                 {!loading && (
                     <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 shrink-0">
@@ -150,7 +162,7 @@ export function TicketsPage() {
                             <Loader2 className="animate-spin text-gray-400 w-8 h-8" />
                         </div>
                     ) : filteredTickets.length === 0 ? (
-                        <div className="text-center py-20 text-gray-500 text-sm bg-gray-50 rounded-2xl border border-dashed border-gray-200/60">
+                        <div className="text-center py-20 text-gray-500 dark:text-gray-400 text-sm bg-gray-50 dark:bg-slate-900 rounded-2xl border border-dashed border-gray-200/60 dark:border-slate-700">
                             <TicketIcon className="mx-auto h-10 w-10 text-gray-300 mb-3" />
                             <p>No tickets found</p>
                         </div>
