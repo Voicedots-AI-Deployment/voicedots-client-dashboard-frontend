@@ -38,12 +38,12 @@ export function AvgCallDurationChart({ data }: Props) {
   }, [data]);
 
   return (
-    <div className="group relative flex flex-col rounded-[24px] bg-white/80 p-4 sm:p-6 shadow-[0_8px_30px_rgb(0,0,0,0.015)] ring-1 ring-slate-100 backdrop-blur-sm transition-all duration-500 hover:-translate-y-1.5 hover:shadow-[0_20px_50px_rgba(0,0,0,0.1)] hover:ring-slate-200 overflow-hidden">
+    <div className="group relative flex flex-col rounded-[24px] bg-white/80 p-4 sm:p-6 shadow-[0_8px_30px_rgb(0,0,0,0.015)] ring-1 ring-slate-100 backdrop-blur-sm transition-all duration-500 hover:-translate-y-1.5 hover:shadow-[0_20px_50px_rgba(0,0,0,0.1)] hover:ring-slate-200 overflow-hidden dark:bg-slate-900/80 dark:ring-slate-700">
       <div className="mb-6 flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
         <div className="flex flex-col">
           <div className="flex items-center gap-2">
             <div className="h-2 w-2 rounded-full bg-amber-500"></div>
-            <h3 className="text-[14px] font-bold tracking-tight text-slate-900">Call Duration</h3>
+            <h3 className="text-[14px] font-bold tracking-tight text-slate-900 dark:text-slate-100">Call Duration</h3>
           </div>
           <p className="mt-0.5 text-[11px] font-medium text-slate-400">Average call duration over time</p>
         </div>
@@ -104,7 +104,7 @@ export function AvgCallDurationChart({ data }: Props) {
                 const { active, payload } = props;
                 if (active && payload && payload.length) {
                   return (
-                    <div className="rounded-2xl border border-slate-100 bg-white/95 p-3 shadow-2xl backdrop-blur-md ring-1 ring-slate-200/50">
+                    <div className="rounded-2xl border border-slate-100 bg-white/95 p-3 shadow-2xl backdrop-blur-md ring-1 ring-slate-200/50 dark:bg-slate-900/95 dark:border-slate-800">
                       <p className="mb-1 text-[10px] font-black uppercase tracking-wider text-slate-400">
                         {new Date(payload[0].payload.date + "T00:00:00").toLocaleDateString("en-IN", {
                           day: "numeric",

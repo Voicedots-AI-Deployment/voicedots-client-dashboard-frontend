@@ -20,7 +20,7 @@ export function DateRangeFilter({
   return (
     <div className="flex flex-wrap items-center gap-3">
       {/* Presets */}
-      <div className="flex rounded-lg border border-slate-200 overflow-hidden">
+      <div className="flex rounded-lg border border-slate-200 overflow-hidden dark:border-slate-800">
         {[
           { key: "7d", label: "7D" },
           { key: "15d", label: "15D" },
@@ -41,7 +41,7 @@ export function DateRangeFilter({
       </div>
 
       {/* Custom Range */}
-      <div className="flex items-center gap-2 text-sm text-slate-600">
+      <div className="flex items-center gap-2 text-sm text-slate-600 dark:text-slate-400">
         <Calendar size={16} />
         <input
           type="date"
@@ -49,7 +49,7 @@ export function DateRangeFilter({
           onChange={(e) =>
             onDateChange(e.target.value, to || e.target.value)
           }
-          className="rounded-md border border-slate-200 px-2 py-1"
+          className="rounded-md border border-slate-200 px-2 py-1 dark:border-slate-800"
         />
         <span>–</span>
         <input
@@ -58,7 +58,7 @@ export function DateRangeFilter({
           onChange={(e) =>
             onDateChange(from || e.target.value, e.target.value)
           }
-          className="rounded-md border border-slate-200 px-2 py-1"
+          className="rounded-md border border-slate-200 px-2 py-1 dark:border-slate-800"
         />
       </div>
     </div>

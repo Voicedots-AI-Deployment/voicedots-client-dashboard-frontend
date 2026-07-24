@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState, startTransition } from "react";
-import { Bell, Menu, ChevronDown, PanelLeft } from "lucide-react";
+import { Bell, Menu, ChevronDown, PanelLeft, Sun, Moon } from "lucide-react";
+import { useTheme } from "@/context/ThemeContext";
 import { useNavigate } from "react-router-dom";
 import authApi from "@/api/authApi";
 import { useAuth } from "@/context/AuthContext";
@@ -18,6 +19,7 @@ export function TopBar({
   const navigate = useNavigate();
 
   const { user, logout } = useAuth();
+  const { theme, toggleTheme } = useTheme();
   const [profileOpen, setProfileOpen] = useState(false);
   const [notifOpen, setNotifOpen] = useState(false);
   const [hasUnread, setHasUnread] = useState(true);
@@ -81,6 +83,16 @@ export function TopBar({
           className={`flex items-center gap-3 sm:gap-4 transition-all ${isSidebarCollapsed ? "md:mr-2" : ""
             }`}
         >
+          {/* Theme */}
+          <button
+            onClick={toggleTheme}
+            aria-label={theme === "dark" ? "Switch to light theme" : "Switch to dark theme"}
+            title={theme === "dark" ? "Light mode" : "Dark mode"}
+            className="p-2 rounded-lg border border-gray-200 text-gray-600 hover:bg-gray-50 dark:border-slate-700 dark:text-gray-400 dark:hover:bg-slate-800 transition-colors"
+          >
+            {theme === "dark" ? <Sun size={18} /> : <Moon size={18} />}
+          </button>
+
           {/* 🔔 Notifications */}
           <div className="relative" ref={notifRef}>
             <button

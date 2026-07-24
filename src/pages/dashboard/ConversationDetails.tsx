@@ -59,7 +59,7 @@ export function ConversationDetails() {
   const messages = data?.transcription;
 
   return (
-    <div className="flex flex-col bg-white">
+    <div className="flex flex-col bg-white dark:bg-slate-900">
       {/* BACK */}
       <div className="border-b px-4 py-3 shrink-0 flex justify-between items-center">
         <button
@@ -173,7 +173,7 @@ export function ConversationDetails() {
       {/* MOBILE BOTTOM SHEET */}
       {showMobileInfo && (
         <div className="fixed inset-0 z-50 bg-black/40 md:hidden">
-          <div className="absolute bottom-0 w-full bg-white rounded-t-xl p-4 max-h-[80vh] overflow-y-auto">
+          <div className="absolute bottom-0 w-full bg-white rounded-t-xl p-4 max-h-[80vh] overflow-y-auto dark:bg-slate-900">
             <div className="flex justify-between items-center mb-4">
               <h3 className="font-semibold">Lead Info</h3>
               <button onClick={() => setShowMobileInfo(false)}>
@@ -193,7 +193,7 @@ export function ConversationDetails() {
 function LeadInfo({ lead }: any) {
   return (
     <div className="space-y-4">
-      <div className="bg-white border rounded-lg">
+      <div className="bg-white border rounded-lg dark:bg-slate-900">
         <div className="flex gap-3 px-4 py-3 border-b">
           <div className="w-9 h-9 rounded-full bg-blue-100 flex items-center justify-center">
             <User size={16} />
@@ -209,7 +209,7 @@ function LeadInfo({ lead }: any) {
         <InfoRow icon={<Briefcase size={14} />} label="Business" value={lead?.business_description || lead?.business_desc || lead?.summary || "N/A"} />
       </div>
 
-      <div className="bg-white border rounded-lg">
+      <div className="bg-white border rounded-lg dark:bg-slate-900">
         <div className="flex gap-2 px-4 py-3 border-b">
           <FileText size={14} />
           <p className="font-semibold text-sm">Call Summary</p>

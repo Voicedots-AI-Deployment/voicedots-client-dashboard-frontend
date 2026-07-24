@@ -90,7 +90,7 @@ export function TicketsPage() {
                 {/* ================= HEADER ================= */}
                 <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4 shrink-0">
                     <div>
-                        <h1 className="text-2xl md:text-3xl font-bold text-gray-900">
+                        <h1 className="text-2xl md:text-3xl font-bold text-gray-900 dark:text-gray-100">
                             Support Tickets
                         </h1>
                         <p className="text-sm text-gray-500 mt-1">
@@ -120,7 +120,7 @@ export function TicketsPage() {
                 outline-none
                 focus:ring-2 focus:ring-black/5
                 transition-shadow
-              "
+               dark:bg-slate-900"
                         />
                     </div>
                 </div>
@@ -128,15 +128,15 @@ export function TicketsPage() {
                 {/* ================= KPI SECTION ================= */}
                 {!loading && (
                     <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 shrink-0">
-                        <div className="bg-white border border-gray-200/60 rounded-2xl p-4 sm:p-5 hover:border-gray-300 transition-colors">
+                        <div className="bg-white border border-gray-200/60 rounded-2xl p-4 sm:p-5 hover:border-gray-300 transition-colors dark:bg-slate-900">
                             <p className="text-[10px] uppercase tracking-wider font-bold text-gray-400 mb-1">Total</p>
-                            <p className="text-2xl sm:text-3xl font-bold text-gray-900">{totalTickets}</p>
+                            <p className="text-2xl sm:text-3xl font-bold text-gray-900 dark:text-gray-100">{totalTickets}</p>
                         </div>
-                        <div className="bg-white border border-gray-200/60 rounded-2xl p-4 sm:p-5 hover:border-blue-200 transition-colors">
+                        <div className="bg-white border border-gray-200/60 rounded-2xl p-4 sm:p-5 hover:border-blue-200 transition-colors dark:bg-slate-900">
                             <p className="text-[10px] uppercase tracking-wider font-bold text-gray-400 mb-1">Open</p>
                             <p className="text-2xl sm:text-3xl font-bold text-blue-600">{openTickets}</p>
                         </div>
-                        <div className="bg-white border border-gray-200/60 rounded-2xl p-4 sm:p-5 hover:border-green-200 transition-colors">
+                        <div className="bg-white border border-gray-200/60 rounded-2xl p-4 sm:p-5 hover:border-green-200 transition-colors dark:bg-slate-900">
                             <p className="text-[10px] uppercase tracking-wider font-bold text-gray-400 mb-1">Closed</p>
                             <p className="text-2xl sm:text-3xl font-bold text-green-600">{closedTickets}</p>
                         </div>
@@ -171,7 +171,7 @@ export function TicketsPage() {
                   hover:bg-gray-50 hover:border-gray-300
                   group
                   gap-3
-                "
+                 dark:bg-slate-900"
                             >
                                 {/* LEFT: User Info */}
                                 <div className="flex items-center gap-3 min-w-0 flex-1">
@@ -187,7 +187,7 @@ export function TicketsPage() {
                                     </div>
 
                                     <div className="min-w-0">
-                                        <p className="font-semibold text-gray-900 truncate text-sm sm:text-base">
+                                        <p className="font-semibold text-gray-900 truncate text-sm sm:text-base dark:text-gray-100">
                                             {ticket.name}
                                         </p>
                                         <p className="text-[10px] sm:text-xs text-gray-500 truncate mt-0.5">
@@ -198,7 +198,7 @@ export function TicketsPage() {
 
                                 {/* MIDDLE: Category (Desktop) */}
                                 <div className="hidden md:flex flex-col min-w-0 w-1/4">
-                                    <p className="text-sm font-medium text-gray-700 truncate">{ticket.category}</p>
+                                    <p className="text-sm font-medium text-gray-700 truncate dark:text-gray-300">{ticket.category}</p>
                                     <p className="text-[10px] text-gray-500 truncate mt-0.5 capitalize">{ticket.sub_category}</p>
                                 </div>
 

@@ -40,12 +40,12 @@ export function ConversationsVolumeChart({ data }: Props) {
   }, [data]);
 
   return (
-    <div className="group relative flex flex-col rounded-[24px] bg-white/80 p-4 sm:p-6 shadow-[0_8px_30px_rgb(0,0,0,0.015)] ring-1 ring-slate-100 backdrop-blur-sm transition-all duration-500 hover:-translate-y-1.5 hover:shadow-[0_20px_50px_rgba(0,0,0,0.1)] hover:ring-slate-200 overflow-hidden">
+    <div className="group relative flex flex-col rounded-[24px] bg-white/80 p-4 sm:p-6 shadow-[0_8px_30px_rgb(0,0,0,0.015)] ring-1 ring-slate-100 backdrop-blur-sm transition-all duration-500 hover:-translate-y-1.5 hover:shadow-[0_20px_50px_rgba(0,0,0,0.1)] hover:ring-slate-200 overflow-hidden dark:bg-slate-900/80 dark:ring-slate-700">
       <div className="mb-6 flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
         <div className="flex flex-col">
           <div className="flex items-center gap-2">
             <div className="h-2 w-2 rounded-full bg-indigo-500"></div>
-            <h3 className="text-[14px] font-bold tracking-tight text-slate-900">Conversation Volume</h3>
+            <h3 className="text-[14px] font-bold tracking-tight text-slate-900 dark:text-slate-100">Conversation Volume</h3>
           </div>
           <p className="mt-0.5 text-[11px] font-medium text-slate-400">Daily call volume trend</p>
         </div>
@@ -55,9 +55,9 @@ export function ConversationsVolumeChart({ data }: Props) {
             <span className="text-[10px] font-bold uppercase tracking-tight text-indigo-400">Total Calls</span>
             <span className="text-[14px] sm:text-[15px] font-black text-indigo-600">{stats.total}</span>
           </div>
-          <div className="flex items-center gap-2 rounded-2xl bg-slate-50 px-3 py-1.5 ring-1 ring-slate-100">
+          <div className="flex items-center gap-2 rounded-2xl bg-slate-50 px-3 py-1.5 ring-1 ring-slate-100 dark:ring-slate-800">
             <span className="text-[10px] font-bold uppercase tracking-tight text-slate-400">Peak</span>
-            <span className="text-[14px] sm:text-[15px] font-black text-slate-700">{stats.peakVal} <span className="text-[9px] text-slate-300">({stats.peakDate})</span></span>
+            <span className="text-[14px] sm:text-[15px] font-black text-slate-700 dark:text-slate-300">{stats.peakVal} <span className="text-[9px] text-slate-300">({stats.peakDate})</span></span>
           </div>
         </div>
       </div>
@@ -101,7 +101,7 @@ export function ConversationsVolumeChart({ data }: Props) {
                 const { active, payload } = props;
                 if (active && payload && payload.length) {
                   return (
-                    <div className="rounded-xl border border-[#e5e7eb] bg-white p-3 shadow-md">
+                    <div className="rounded-xl border border-[#e5e7eb] bg-white p-3 shadow-md dark:bg-slate-900 dark:border-slate-800">
                       <p className="mb-1 text-[12px] font-medium text-[#64748b]">
                         {new Date(payload[0].payload.date + "T00:00:00").toLocaleDateString("en-IN", {
                           day: "numeric",

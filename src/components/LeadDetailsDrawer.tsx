@@ -80,14 +80,14 @@ export function LeadDetailsDrawer({
         bg-white border-l shadow-2xl z-50
         flex flex-col
         w-full sm:w-[420px]
-      "
+       dark:bg-slate-900"
       style={{
         top: `${TOPBAR_HEIGHT}px`,
         height: `calc(100vh - ${TOPBAR_HEIGHT}px)`,
       }}
     >
       {/* ================= STICKY HEADER ================= */}
-      <div className="sticky top-0 z-10 bg-white border-b px-5 py-4 flex items-start justify-between">
+      <div className="sticky top-0 z-10 bg-white border-b px-5 py-4 flex items-start justify-between dark:bg-slate-900">
         <div className="flex items-start gap-3">
           <div className="w-10 h-10 rounded-full bg-gray-100 flex items-center justify-center text-sm font-semibold">
             {getInitials(lead.name || "Unknown")}
@@ -113,7 +113,7 @@ export function LeadDetailsDrawer({
       </div>
 
       {/* ================= STICKY STATUS ================= */}
-      <div className="sticky top-[73px] z-10 bg-white border-b px-5 py-3 relative">
+      <div className="sticky top-[73px] z-10 bg-white border-b px-5 py-3 relative dark:bg-slate-900">
         <select
           value={lead.status}
           onChange={(e) => handleStatusChange(e.target.value as LeadStatus)}
@@ -138,7 +138,7 @@ export function LeadDetailsDrawer({
       </div>
 
       {/* ================= STICKY ACTIONS ================= */}
-      <div className="sticky top-[130px] z-10 bg-white border-b px-5 py-4 mb-10 grid grid-cols-3 gap-3">
+      <div className="sticky top-[130px] z-10 bg-white border-b px-5 py-4 mb-10 grid grid-cols-3 gap-3 dark:bg-slate-900">
         <Action
           icon={<Phone size={16} />}
           label="Call"
@@ -168,7 +168,7 @@ export function LeadDetailsDrawer({
       </div>
 
       {/* ================= STICKY TABS ================= */}
-      <div className="sticky top-[200px] z-10 bg-white border-b px-5 flex gap-4">
+      <div className="sticky top-[200px] z-10 bg-white border-b px-5 flex gap-4 dark:bg-slate-900">
         {[
           ["details", "Details"],
           ["notes", "Notes"],
@@ -257,7 +257,7 @@ export function LeadDetailsDrawer({
 </div>
 
       {/* ================= STICKY FOOTER ================= */}
-      <div className="border-t px-5 py-4 bg-white">
+      <div className="border-t px-5 py-4 bg-white dark:bg-slate-900">
         <p className="text-xs text-gray-500 mb-2">Next Suggested Action</p>
 
         <div className="flex gap-3">
@@ -282,7 +282,7 @@ export function LeadDetailsDrawer({
 
         <div className="mt-3 text-xs text-gray-500">
           Last AI Call:{" "}
-          <span className="text-gray-700">4m 32s · {lead.status}</span>
+          <span className="text-gray-700 dark:text-gray-300">4m 32s · {lead.status}</span>
         </div>
       </div>
     </div>

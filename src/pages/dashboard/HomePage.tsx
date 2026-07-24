@@ -318,7 +318,7 @@ export function HomePage() {
           </div>
         </div>
 
-        <div className="flex flex-col sm:flex-row items-center gap-2 rounded-[22px] bg-white p-2 shadow-sm ring-1 ring-slate-200/60 backdrop-blur-md">
+        <div className="flex flex-col sm:flex-row items-center gap-2 rounded-[22px] bg-white p-2 shadow-sm ring-1 ring-slate-200/60 backdrop-blur-md dark:bg-slate-900">
           <div className="flex items-center p-1 bg-slate-50 rounded-xl">
             {(["7d", "15d", "30d", "all"] as Preset[]).map((p) => (
               <button
@@ -334,11 +334,11 @@ export function HomePage() {
           <div className="flex items-center justify-center gap-3 px-2 py-1 sm:py-0">
             <div className="flex items-center gap-2 group">
               <Calendar size={14} className="text-slate-400 group-hover:text-blue-500 transition-colors" />
-              <input type="date" value={from} onChange={(e) => { setPreset("custom"); setRange({ from: e.target.value, to }); }} className="bg-transparent text-[11px] font-bold text-slate-600 outline-none w-28 cursor-pointer hover:text-slate-900" />
+              <input type="date" value={from} onChange={(e) => { setPreset("custom"); setRange({ from: e.target.value, to }); }} className="bg-transparent text-[11px] font-bold text-slate-600 outline-none w-28 cursor-pointer hover:text-slate-900 dark:text-slate-100" />
             </div>
             <span className="text-slate-300 font-bold">→</span>
             <div className="flex items-center gap-2 group">
-              <input type="date" value={to} onChange={(e) => { setPreset("custom"); setRange({ from, to: e.target.value }); }} className="bg-transparent text-[11px] font-bold text-slate-600 outline-none w-28 cursor-pointer hover:text-slate-900" />
+              <input type="date" value={to} onChange={(e) => { setPreset("custom"); setRange({ from, to: e.target.value }); }} className="bg-transparent text-[11px] font-bold text-slate-600 outline-none w-28 cursor-pointer hover:text-slate-900 dark:text-slate-100" />
             </div>
           </div>
         </div>
@@ -346,9 +346,9 @@ export function HomePage() {
 
       <div className="grid grid-cols-1 gap-5 sm:grid-cols-2 lg:grid-cols-3">
         {stats.map((stat) => (
-          <motion.div key={stat.label} variants={item} className="group relative overflow-hidden rounded-[32px] bg-white p-6 shadow-[0_8px_30px_rgb(0,0,0,0.02)] ring-1 ring-slate-200/60 transition-all duration-500 hover:-translate-y-2 hover:shadow-[0_20px_50px_rgba(0,0,0,0.1)] hover:ring-slate-300 cursor-pointer">
+          <motion.div key={stat.label} variants={item} className="group relative overflow-hidden rounded-[32px] bg-white p-6 shadow-[0_8px_30px_rgb(0,0,0,0.02)] ring-1 ring-slate-200/60 transition-all duration-500 hover:-translate-y-2 hover:shadow-[0_20px_50px_rgba(0,0,0,0.1)] hover:ring-slate-300 cursor-pointer dark:bg-slate-900">
             <div className="flex items-start justify-between mb-4">
-              <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-white text-slate-900 ring-1 ring-slate-200 transition-transform duration-500 group-hover:scale-110 group-hover:rotate-3 shadow-sm">
+              <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-white text-slate-900 ring-1 ring-slate-200 transition-transform duration-500 group-hover:scale-110 group-hover:rotate-3 shadow-sm dark:bg-slate-900 dark:ring-slate-700 dark:text-slate-100">
                 <stat.icon className="h-6 w-6" />
               </div>
               <div className={`flex items-center gap-1 rounded-full px-2 py-1 text-[10px] font-black tracking-tighter ${stat.trend.up ? "bg-emerald-50 text-emerald-600 ring-1 ring-emerald-100" : "bg-red-50 text-red-600 ring-1 ring-red-100"}`}>
@@ -358,7 +358,7 @@ export function HomePage() {
             <div className="space-y-1">
               <p className="text-[10px] font-bold tracking-[0.1em] text-slate-400 uppercase">{stat.label}</p>
               <div className="flex items-end justify-between gap-3">
-                <h2 className="text-2xl font-black tracking-tight text-slate-900 group-hover:text-blue-600 transition-colors">{stat.value}</h2>
+                <h2 className="text-2xl font-black tracking-tight text-slate-900 group-hover:text-blue-600 transition-colors dark:text-slate-100">{stat.value}</h2>
                 <div className="pb-1.5 opacity-40 group-hover:opacity-100 transition-opacity duration-500 overflow-hidden">
                   <MiniSparkline
                     data={filteredData.map(p => ({

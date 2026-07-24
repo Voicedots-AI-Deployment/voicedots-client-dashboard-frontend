@@ -112,8 +112,8 @@ export function ConversationsPage() {
 
         {/* FILTERS */}
         <div className="flex flex-wrap items-center gap-3">
-          <div className="flex items-center bg-white border border-slate-200 rounded-xl h-10 shadow-sm overflow-hidden ring-1 ring-slate-100">
-            <div className="flex flex-col px-3 border-r border-slate-100 group">
+          <div className="flex items-center bg-white border border-slate-200 rounded-xl h-10 shadow-sm overflow-hidden ring-1 ring-slate-100 dark:bg-slate-900 dark:border-slate-800 dark:ring-slate-800">
+            <div className="flex flex-col px-3 border-r border-slate-100 group dark:border-slate-800">
               <span className="text-[9px] text-slate-400 font-extrabold uppercase tracking-widest leading-none mt-1.5 group-hover:text-blue-500 transition-colors">From</span>
               <input 
                 type="date" 
@@ -149,7 +149,7 @@ export function ConversationsPage() {
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
               placeholder="Search conversations..."
-              className="w-full h-11 pl-10 pr-4 rounded-xl border border-slate-200 bg-white text-sm font-medium outline-none focus:ring-2 focus:ring-slate-100 shadow-sm transition-all hover:border-slate-300"
+              className="w-full h-11 pl-10 pr-4 rounded-xl border border-slate-200 bg-white text-sm font-medium outline-none focus:ring-2 focus:ring-slate-100 shadow-sm transition-all hover:border-slate-300 dark:bg-slate-900 dark:border-slate-800 dark:ring-slate-800"
             />
           </div>
         </div>
@@ -165,11 +165,11 @@ export function ConversationsPage() {
 
       {/* PAGINATION */}
       {!isLoading && pagination.pages > 1 && (
-          <div className="flex flex-col md:flex-row items-center justify-between gap-4 px-4 py-4 md:py-6 bg-white border border-slate-200 rounded-2xl shadow-sm overflow-hidden mt-4">
+          <div className="flex flex-col md:flex-row items-center justify-between gap-4 px-4 py-4 md:py-6 bg-white border border-slate-200 rounded-2xl shadow-sm overflow-hidden mt-4 dark:bg-slate-900 dark:border-slate-800">
             <div className="flex items-center gap-2">
               <p className="text-[10px] sm:text-xs font-bold text-slate-500 uppercase tracking-widest">Page <span className="text-indigo-600">{pagination.page}</span> of <span className="text-indigo-600">{pagination.pages}</span></p>
               <div className="h-4 w-px bg-slate-200 mx-2"></div>
-              <p className="text-[10px] sm:text-xs font-bold text-slate-400">Total <span className="text-slate-900 font-black">{pagination.total}</span> conversations</p>
+              <p className="text-[10px] sm:text-xs font-bold text-slate-400">Total <span className="text-slate-900 font-black dark:text-slate-100">{pagination.total}</span> conversations</p>
             </div>
             <div className="flex items-center gap-2">
               <button disabled={pagination.page <= 1} onClick={() => { setPagination(p => ({...p, page: Math.max(1, p.page - 1)})); fetchConversations(pop() ?? null, pagination.page - 1); }} className="flex items-center justify-center px-4 h-9 bg-indigo-600 text-white rounded-xl text-[10px] sm:text-xs font-black uppercase transition-all hover:bg-indigo-700 shadow-lg shadow-indigo-100 disabled:opacity-40">Prev</button>

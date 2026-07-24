@@ -46,7 +46,7 @@ export function ConversationCard({
         hover:shadow-xl hover:shadow-indigo-500/5
         hover:border-indigo-100/50
         hover:-translate-y-0.5
-      "
+       dark:bg-slate-900 dark:border-slate-800"
     >
       <div className="flex items-center justify-between gap-6">
         {/* LEFT CONTENT */}
@@ -56,14 +56,14 @@ export function ConversationCard({
             <span className="text-xs text-slate-400 font-black px-2 py-0.5 rounded-md bg-slate-50 group-hover:bg-indigo-50 group-hover:text-indigo-600 transition-colors">
               {index}
             </span>
-            <p className="truncate text-base font-bold text-slate-900 group-hover:text-indigo-600 transition-colors">
+            <p className="truncate text-base font-bold text-slate-900 group-hover:text-indigo-600 transition-colors dark:text-slate-100">
               {conversation.title || "Untitled Conversation"}
             </p>
           </div>
 
           {/* Meta */}
           <div className="mt-2 flex flex-wrap items-center gap-x-6 gap-y-2">
-            <div className="flex items-center gap-2 px-2 py-1 rounded-lg bg-slate-50/50 border border-slate-100 text-[11px] font-mono text-slate-400">
+            <div className="flex items-center gap-2 px-2 py-1 rounded-lg bg-slate-50/50 border border-slate-100 text-[11px] font-mono text-slate-400 dark:border-slate-800">
               <span className="opacity-50">ID:</span>
               <span className="truncate max-w-[120px] sm:max-w-none">{conversation.conversation_id}</span>
             </div>

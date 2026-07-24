@@ -166,8 +166,8 @@ export default function SettingsPage() {
       <div className="space-y-8">
         
         {/* Profile Section */}
-        <section className="bg-white border border-slate-200 rounded-2xl overflow-hidden transition-all duration-300 hover:shadow-xl hover:shadow-indigo-500/5 hover:-translate-y-0.5">
-          <div className="px-6 py-4 border-b border-slate-100">
+        <section className="bg-white border border-slate-200 rounded-2xl overflow-hidden transition-all duration-300 hover:shadow-xl hover:shadow-indigo-500/5 hover:-translate-y-0.5 dark:bg-slate-900 dark:border-slate-800">
+          <div className="px-6 py-4 border-b border-slate-100 dark:border-slate-800">
             <h2 className="text-xs font-black text-slate-400 uppercase tracking-widest">Profile Information</h2>
           </div>
           
@@ -262,7 +262,7 @@ export default function SettingsPage() {
                   type="password"
                   value={profileCurrentPassword}
                   onChange={(e) => setProfileCurrentPassword(e.target.value)}
-                  className="w-full bg-white border border-amber-200 rounded-lg px-4 py-2 text-sm outline-none focus:ring-2 focus:ring-amber-500/20 focus:border-amber-500"
+                  className="w-full bg-white border border-amber-200 rounded-lg px-4 py-2 text-sm outline-none focus:ring-2 focus:ring-amber-500/20 focus:border-amber-500 dark:bg-slate-900"
                   placeholder="Enter current password"
                 />
               </div>
@@ -281,8 +281,8 @@ export default function SettingsPage() {
         </section>
 
         {/* Security Section */}
-        <section className="bg-white border border-slate-200 rounded-2xl overflow-hidden transition-all duration-300 hover:shadow-xl hover:shadow-indigo-500/5 hover:-translate-y-0.5">
-          <div className="px-6 py-4 border-b border-slate-100 flex items-center gap-3">
+        <section className="bg-white border border-slate-200 rounded-2xl overflow-hidden transition-all duration-300 hover:shadow-xl hover:shadow-indigo-500/5 hover:-translate-y-0.5 dark:bg-slate-900 dark:border-slate-800">
+          <div className="px-6 py-4 border-b border-slate-100 flex items-center gap-3 dark:border-slate-800">
              <Shield className="text-indigo-600" size={18} />
             <h2 className="text-xs font-black text-slate-400 uppercase tracking-widest">Security & Password</h2>
           </div>

@@ -3,8 +3,19 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <meta name="color-scheme" content="light">
+    <meta name="color-scheme" content="light dark">
     <link rel="icon" type="image/svg+xml" href="/voicedotslogo.svg" />
+    <script>
+      // Apply the saved/OS theme before first paint so the page never flashes
+      // the wrong one. ThemeContext takes over from here.
+      (function () {
+        try {
+          var dark = localStorage.getItem("theme") === "dark";
+          document.documentElement.classList.toggle("dark", dark);
+          document.documentElement.style.colorScheme = dark ? "dark" : "light";
+        } catch (e) {}
+      })();
+    </script>
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
     <link

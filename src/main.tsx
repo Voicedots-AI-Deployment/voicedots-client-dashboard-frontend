@@ -4,6 +4,7 @@ import { BrowserRouter } from "react-router-dom";
 import { HeroUIProvider } from "@heroui/react";
 import  App from "./App";
 import { AuthProvider } from "./context/AuthContext";
+import { ThemeProvider } from "./context/ThemeContext";
 import "./index.css";
 // import $ from 'jquery';
 // import _ from 'lodash';
@@ -21,12 +22,14 @@ window.VanillaCalendarPro = VanillaCalendarPro;
 
 ReactDOM.createRoot(document.getElementById("root")!).render(
   <React.StrictMode>
-    <HeroUIProvider>
-      <BrowserRouter>
-        <AuthProvider>
-          <App />
-        </AuthProvider>
-      </BrowserRouter>
-    </HeroUIProvider>
+    <ThemeProvider>
+      <HeroUIProvider>
+        <BrowserRouter>
+          <AuthProvider>
+            <App />
+          </AuthProvider>
+        </BrowserRouter>
+      </HeroUIProvider>
+    </ThemeProvider>
   </React.StrictMode>
 );

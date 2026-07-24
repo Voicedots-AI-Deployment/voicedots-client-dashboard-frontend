@@ -7,6 +7,7 @@ import { HomePage } from "@/pages/dashboard/HomePage";
 import { ConversationsPage } from "@/pages/dashboard/ConversationsPage";
 import { ConversationDetails } from "@/pages/dashboard/ConversationDetails";
 import SettingsPage from "@/pages/dashboard/SettingsPage";
+import CommunicationsPage from "@/pages/dashboard/CommunicationsPage";
 import ProtectedRoute from "@/routes/ProtectedRoute";
 import { LeadsPage } from "@/pages/dashboard/LeadsPage";
 // Tickets hidden 2026-07-05: backend ticket router disabled + table empty.
@@ -38,6 +39,9 @@ const AppRoutes = () => {
 
           {/* LEADS */}
           <Route path="leads" element={<LeadsPage />} />
+
+          {/* COMMUNICATIONS */}
+          <Route path="communications" element={<CommunicationsPage />} />
 
           {/* TICKETS — hidden 2026-07-05 (backend router disabled + table empty) */}
           {/* <Route path="tickets" element={<TicketsPage />} /> */}
