@@ -1,4 +1,7 @@
-import { Home, MessageSquare, Settings, LogOut, Users, Mail } from "lucide-react";
+import { useState } from "react";
+import {
+  Home, MessageSquare, Settings, LogOut, Users, Mail, Radio, ChevronDown,
+} from "lucide-react";
 import { useNavigate, useLocation } from "react-router-dom";
 import authApi from "@/api/authApi";
 import SidebarLogo from "./SideBarLogo";
@@ -9,18 +12,57 @@ interface SidebarProps {
   isCollapsed: boolean;
 }
 
+interface NavChild {
+  id: string;
+  label: string;
+  path: string;
+}
+
+interface NavItem {
+  id: string;
+  icon: typeof Home;
+  label: string;
+  path: string;
+  children?: NavChild[];
+}
+
 export function Sidebar({ isOpen, onClose, isCollapsed }: SidebarProps) {
   const navigate = useNavigate();
   const location = useLocation();
 
-  const navItems = [
+  const navItems: NavItem[] = [
     { id: "home", icon: Home, label: "Home", path: "/dashboard" },
     { id: "conversations", icon: MessageSquare, label: "Conversations", path: "/dashboard/conversations" },
     { id: "leads", icon: Users, label: "Leads", path: "/dashboard/leads" },
-    { id: "communications", icon: Mail, label: "Communications", path: "/dashboard/communications" },
+    {
+      id: "communications", icon: Radio, label: "Communications", path: "/dashboard/communications",
+      children: [
+        { id: "calling", label: "AI Calling", path: "/dashboard/communications/calling" },
+        { id: "whatsapp", label: "WhatsApp", path: "/dashboard/communications/whatsapp" },
+      ],
+    },
+    {
+      id: "email", icon: Mail, label: "Email Services", path: "/dashboard/email",
+      children: [
+        { id: "sender", label: "Sender Config", path: "/dashboard/email/sender" },
+        { id: "templates", label: "Templates", path: "/dashboard/email/templates" },
+      ],
+    },
     // Tickets hidden 2026-07-05: backend ticket router disabled + table empty. Re-enable (and re-add `Ticket` icon import) when a ticket producer exists.
     { id: "settings", icon: Settings, label: "Settings", path: "/dashboard/settings" },
   ];
+
+  // Groups start open when you're inside them.
+  const [openGroups, setOpenGroups] = useState<Record<string, boolean>>(() =>
+    Object.fromEntries(
+      navItems.filter((i) => i.children).map((i) => [i.id, location.pathname.startsWith(i.path)])
+    )
+  );
+
+  const go = (path: string) => {
+    navigate(path);
+    onClose();
+  };
 
   return (
     <>
@@ -37,17 +79,56 @@ export function Sidebar({ isOpen, onClose, isCollapsed }: SidebarProps) {
 
           <nav className="flex-1 px-3 space-y-1.5 overflow-y-auto mt-6">
             {navItems.map((item) => {
-              const isActive = item.path === "/dashboard" ? location.pathname === "/dashboard" : location.pathname.startsWith(item.path);
+              const isActive = item.path === "/dashboard"
+                ? location.pathname === "/dashboard"
+                : location.pathname.startsWith(item.path);
+              const hasChildren = !!item.children?.length;
+              // Collapsed rail has no room for sub-items: jump to the first child.
+              const expanded = hasChildren && !isCollapsed && openGroups[item.id];
+
               return (
-                <button
-                  key={item.id}
-                  type="button"
-                  onClick={(e) => { e.stopPropagation(); navigate(item.path); onClose(); }}
-                  className={`w-full flex items-center gap-x-3.5 py-3 px-4 text-sm font-semibold rounded-xl transition-all duration-200 ${isActive ? "bg-indigo-600 text-white shadow-lg shadow-indigo-100 dark:shadow-none" : "text-slate-600 hover:bg-slate-50 dark:text-slate-400 dark:hover:bg-slate-800"} ${isCollapsed ? "md:justify-center md:px-0" : ""}`}
-                >
-                  <item.icon size={20} strokeWidth={isActive ? 2.5 : 2} />
-                  {!isCollapsed && <span>{item.label}</span>}
-                </button>
+                <div key={item.id}>
+                  <button
+                    type="button"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      if (hasChildren && !isCollapsed) {
+                        setOpenGroups((g) => ({ ...g, [item.id]: !g[item.id] }));
+                        if (!location.pathname.startsWith(item.path)) go(item.children![0].path);
+                      } else {
+                        go(hasChildren ? item.children![0].path : item.path);
+                      }
+                    }}
+                    className={`w-full flex items-center gap-x-3.5 py-3 px-4 text-sm font-semibold rounded-xl transition-all duration-200 ${isActive ? "bg-indigo-600 text-white shadow-lg shadow-indigo-100 dark:shadow-none" : "text-slate-600 hover:bg-slate-50 dark:text-slate-400 dark:hover:bg-slate-800"} ${isCollapsed ? "md:justify-center md:px-0" : ""}`}
+                  >
+                    <item.icon size={20} strokeWidth={isActive ? 2.5 : 2} />
+                    {!isCollapsed && <span className="flex-1 text-left">{item.label}</span>}
+                    {!isCollapsed && hasChildren && (
+                      <ChevronDown
+                        size={16}
+                        className={`transition-transform ${expanded ? "rotate-180" : ""}`}
+                      />
+                    )}
+                  </button>
+
+                  {expanded && (
+                    <div className="mt-1 ms-6 ps-3 border-s border-slate-200 dark:border-slate-800 space-y-1">
+                      {item.children!.map((child) => {
+                        const childActive = location.pathname === child.path;
+                        return (
+                          <button
+                            key={child.id}
+                            type="button"
+                            onClick={(e) => { e.stopPropagation(); go(child.path); }}
+                            className={`w-full text-left py-2 px-3 text-[13px] font-medium rounded-lg transition-colors ${childActive ? "bg-indigo-50 text-indigo-700 dark:bg-indigo-900/30 dark:text-indigo-300" : "text-slate-500 hover:bg-slate-50 dark:text-slate-400 dark:hover:bg-slate-800"}`}
+                          >
+                            {child.label}
+                          </button>
+                        );
+                      })}
+                    </div>
+                  )}
+                </div>
               );
             })}
           </nav>

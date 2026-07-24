@@ -7,7 +7,10 @@ import { HomePage } from "@/pages/dashboard/HomePage";
 import { ConversationsPage } from "@/pages/dashboard/ConversationsPage";
 import { ConversationDetails } from "@/pages/dashboard/ConversationDetails";
 import SettingsPage from "@/pages/dashboard/SettingsPage";
-import CommunicationsPage from "@/pages/dashboard/CommunicationsPage";
+import SenderConfigPage from "@/pages/dashboard/email/SenderConfigPage";
+import TemplatesPage from "@/pages/dashboard/email/TemplatesPage";
+import CallingPage from "@/pages/dashboard/communications/CallingPage";
+import WhatsAppPage from "@/pages/dashboard/communications/WhatsAppPage";
 import ProtectedRoute from "@/routes/ProtectedRoute";
 import { LeadsPage } from "@/pages/dashboard/LeadsPage";
 // Tickets hidden 2026-07-05: backend ticket router disabled + table empty.
@@ -40,8 +43,15 @@ const AppRoutes = () => {
           {/* LEADS */}
           <Route path="leads" element={<LeadsPage />} />
 
-          {/* COMMUNICATIONS */}
-          <Route path="communications" element={<CommunicationsPage />} />
+          {/* COMMUNICATIONS — AI calling + WhatsApp (shown; not wired yet) */}
+          <Route path="communications" element={<Navigate to="/dashboard/communications/calling" replace />} />
+          <Route path="communications/calling" element={<CallingPage />} />
+          <Route path="communications/whatsapp" element={<WhatsAppPage />} />
+
+          {/* EMAIL SERVICES */}
+          <Route path="email" element={<Navigate to="/dashboard/email/sender" replace />} />
+          <Route path="email/sender" element={<SenderConfigPage />} />
+          <Route path="email/templates" element={<TemplatesPage />} />
 
           {/* TICKETS — hidden 2026-07-05 (backend router disabled + table empty) */}
           {/* <Route path="tickets" element={<TicketsPage />} /> */}

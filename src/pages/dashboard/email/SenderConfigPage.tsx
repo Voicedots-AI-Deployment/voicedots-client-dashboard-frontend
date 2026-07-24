@@ -1,10 +1,9 @@
 import { useEffect, useState } from "react";
 import {
-  Mail, Loader2, CheckCircle2, AlertCircle, ShieldCheck, RefreshCw,
-  FileText, Trash2, Globe, Send,
+  Mail, Loader2, CheckCircle2, AlertCircle, ShieldCheck, RefreshCw, Globe, Send,
 } from "lucide-react";
 import communicationAPI, {
-  type EmailSettings, type EmailTemplateSummary, type DnsRecord,
+  type EmailSettings, type DnsRecord,
 } from "@/api/communication";
 
 const card =
@@ -34,7 +33,7 @@ function statusPill(status: string | null) {
   );
 }
 
-export default function CommunicationsPage() {
+export default function SenderConfigPage() {
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [verifying, setVerifying] = useState(false);
@@ -49,8 +48,6 @@ export default function CommunicationsPage() {
   const [autoReply, setAutoReply] = useState(false);
 
   const [dnsRecords, setDnsRecords] = useState<DnsRecord[]>([]);
-  const [templates, setTemplates] = useState<EmailTemplateSummary[]>([]);
-  const [templatesError, setTemplatesError] = useState("");
 
   const hydrate = (s: EmailSettings) => {
     setSettings(s);
@@ -72,12 +69,6 @@ export default function CommunicationsPage() {
       setError(e?.response?.data?.detail || "Could not load email settings.");
     } finally {
       setLoading(false);
-    }
-    try {
-      setTemplates(await communicationAPI.listTemplates());
-      setTemplatesError("");
-    } catch {
-      setTemplatesError("Templates are unavailable right now.");
     }
   };
 
@@ -124,15 +115,6 @@ export default function CommunicationsPage() {
     }
   };
 
-  const removeTemplate = async (id: string) => {
-    try {
-      await communicationAPI.deleteTemplate(id);
-      setTemplates((t) => t.filter((x) => x.id !== id));
-    } catch {
-      setTemplatesError("Could not delete that template.");
-    }
-  };
-
   if (loading) {
     return (
       <div className="flex items-center justify-center py-24 text-slate-500 dark:text-slate-400">
@@ -144,9 +126,9 @@ export default function CommunicationsPage() {
   return (
     <div className="space-y-6">
       <div>
-        <h1 className="text-2xl font-bold text-slate-900 dark:text-slate-100">Communications</h1>
+        <h1 className="text-2xl font-bold text-slate-900 dark:text-slate-100">Sender Configuration</h1>
         <p className="text-sm text-slate-500 dark:text-slate-400 mt-1">
-          Configure the address your emails are sent from, verify your sending domain, and manage templates.
+          Manage your sending identity and verify your sending domain.
         </p>
       </div>
 
@@ -274,45 +256,6 @@ export default function CommunicationsPage() {
         </div>
       </section>
 
-      {/* ── Templates ── */}
-      <section className={card}>
-        <div className={cardHead}>
-          <FileText size={14} className="text-indigo-500" />
-          <h2 className={headText}>Email Templates</h2>
-        </div>
-        <div className="p-6">
-          {templatesError && (
-            <p className="text-sm text-amber-600 dark:text-amber-400 mb-4">{templatesError}</p>
-          )}
-          {templates.length === 0 ? (
-            <div className="text-center py-8">
-              <FileText className="mx-auto text-slate-300 dark:text-slate-700" size={32} />
-              <p className="mt-3 text-sm text-slate-600 dark:text-slate-300 font-medium">No templates yet</p>
-              <p className="text-xs text-slate-500 dark:text-slate-400 mt-1">
-                Templates you create appear here.
-              </p>
-            </div>
-          ) : (
-            <ul className="divide-y divide-slate-100 dark:divide-slate-800">
-              {templates.map((t) => (
-                <li key={t.id} className="py-3 flex items-center justify-between gap-4">
-                  <div className="min-w-0">
-                    <p className="text-sm font-semibold text-slate-800 dark:text-slate-200 truncate">{t.name}</p>
-                    <p className="text-xs text-slate-500 dark:text-slate-400 truncate">
-                      {t.subject || "No subject"}
-                      {t.updated_at && ` · updated ${new Date(t.updated_at).toLocaleDateString()}`}
-                    </p>
-                  </div>
-                  <button onClick={() => removeTemplate(t.id)} title="Delete template"
-                    className="p-2 rounded-lg text-slate-400 hover:text-red-600 hover:bg-red-50 dark:hover:bg-red-900/20 transition-colors shrink-0">
-                    <Trash2 size={16} />
-                  </button>
-                </li>
-              ))}
-            </ul>
-          )}
-        </div>
-      </section>
     </div>
   );
 }
