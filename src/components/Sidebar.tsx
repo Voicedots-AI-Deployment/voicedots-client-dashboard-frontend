@@ -41,8 +41,8 @@ export function Sidebar({ isOpen, onClose, isCollapsed }: SidebarProps) {
       children: [
         { id: "calling", label: "AI Calling", path: "/dashboard/communications/calling" },
         { id: "whatsapp", label: "WhatsApp", path: "/dashboard/communications/whatsapp" },
-        { id: "sender", label: "Email — Sender Config", path: "/dashboard/email/sender" },
-        { id: "templates", label: "Email — Templates", path: "/dashboard/email/templates" },
+        { id: "sender", label: "Email Config", path: "/dashboard/email/sender" },
+        { id: "templates", label: "Email Templates", path: "/dashboard/email/templates" },
       ],
     },
     { id: "settings", icon: Settings, label: "Settings", path: "/dashboard/settings" },
@@ -72,7 +72,7 @@ export function Sidebar({ isOpen, onClose, isCollapsed }: SidebarProps) {
       />
 
       <aside
-        className={`fixed inset-y-0 start-0 z-[70] transition-all duration-300 transform bg-[#0B0B13] border-e border-white/5 w-72 md:w-auto ${isOpen ? "translate-x-0" : "-translate-x-full"} ${isCollapsed ? "md:w-20" : "md:w-64"} md:translate-x-0 md:sticky md:top-0 md:h-screen md:block`}
+        className={`fixed inset-y-0 start-0 z-[70] transition-all duration-300 transform bg-[#0B0B13] border-e border-white/5 w-72 ${isOpen ? "translate-x-0" : "-translate-x-full"} ${isCollapsed ? "md:w-20" : "md:w-64"} md:translate-x-0 md:sticky md:top-0 md:h-screen md:block`}
       >
         <div className="flex flex-col h-full py-6">
           <SidebarLogo isCollapsed={isCollapsed} onClose={onClose} />
