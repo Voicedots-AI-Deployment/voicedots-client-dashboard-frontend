@@ -1,6 +1,7 @@
 import { apiClient } from './apiClient';
 import type { GetKpisResult, KpiSummary } from "@/types/conversation.types";
 
+
 // eslint-disable-next-line @typescript-eslint/no-unused-vars
 const getApiVersion = (agentId?: string | null): string => {
   if (agentId && agentId.startsWith("voicedots_agent_")) {

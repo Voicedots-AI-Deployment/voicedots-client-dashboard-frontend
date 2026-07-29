@@ -1,5 +1,5 @@
 import React from 'react';
-import { X } from 'lucide-react'; 
+import { X } from 'lucide-react';
 
 interface SidebarLogoProps {
   isCollapsed: boolean;
@@ -7,48 +7,40 @@ interface SidebarLogoProps {
   className?: string;
 }
 
-const SidebarLogo: React.FC<SidebarLogoProps> = ({ 
-  isCollapsed, 
-  onClose, 
-  className = "" 
+/** A single letter carrying a small purple accent dot in its top-left corner. */
+const DottedLetter: React.FC<{ letter: string }> = ({ letter }) => (
+  <span className="relative inline-block">
+    <span
+      className="absolute -top-0.5 -left-0.5 h-1.5 w-1.5 rounded-full bg-gradient-to-br from-[#8B5CF6] to-[#4B22F4] shadow-[0_0_8px_rgba(123,63,228,0.9)]"
+    />
+    {letter}
+  </span>
+);
+
+const SidebarLogo: React.FC<SidebarLogoProps> = ({
+  isCollapsed,
+  onClose,
+  className = "",
 }) => {
   return (
-    <div className={`px-6 mb-8 flex items-center justify-between ${className}`}>
-      
-      {/* Logo Container */}
+    <div className={`px-6 flex items-center justify-between ${className}`}>
+      {/* Wordmark */}
       <div className="flex items-center">
-        {/* Icon logo */}
-        <h1
-          className="
-            text-2xl md:text-4xl font-bold tracking-tighter mb-6
-            bg-clip-text
-            bg-gradient-to-b
-            from-foreground to-foreground/60
-          "
-          >
-            <img
-              src="/voicedotslogo.svg"
-              alt="V"
-              className="h-[1.1em] w-auto inline-block align-middle -translate-y-[0.1em] mr-[-0.3em]"
-            />
-            {!isCollapsed ? "oiceDots" : null}
-          </h1>
-
-        {/* Text logo
-        {!isCollapsed && (
-          <img
-            src={logoText}
-            alt="Voicedots"
-            className="h-8 md:h-10 object-contain mt-1.5"
-          />
-        )} */}
+        <h1 className="text-2xl md:text-[28px] font-extrabold tracking-tight text-white leading-none select-none">
+          <DottedLetter letter="V" />
+          {!isCollapsed && (
+            <>
+              oice<DottedLetter letter="D" />ots
+            </>
+          )}
+        </h1>
       </div>
 
       {/* Mobile close button */}
       <button
         onClick={onClose}
         aria-label="Close sidebar"
-        className="md:hidden text-gray-500 hover:text-gray-800 dark:text-gray-400 transition-colors"
+        className="md:hidden text-slate-400 hover:text-white transition-colors"
       >
         <X size={20} />
       </button>

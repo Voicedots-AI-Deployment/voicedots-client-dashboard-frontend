@@ -1,6 +1,5 @@
 import { useEffect, useRef, useState, startTransition } from "react";
-import { Bell, Menu, ChevronDown, PanelLeft, Sun, Moon } from "lucide-react";
-import { useTheme } from "@/context/ThemeContext";
+import { Bell, Menu, ChevronDown, PanelLeft } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import authApi from "@/api/authApi";
 import { useAuth } from "@/context/AuthContext";
@@ -19,7 +18,6 @@ export function TopBar({
   const navigate = useNavigate();
 
   const { user, logout } = useAuth();
-  const { theme, toggleTheme } = useTheme();
   const [profileOpen, setProfileOpen] = useState(false);
   const [notifOpen, setNotifOpen] = useState(false);
   const [hasUnread, setHasUnread] = useState(true);
@@ -59,20 +57,20 @@ export function TopBar({
   }, [notifOpen]);
 
   return (
-    <header className="sticky top-0 inset-x-0 z-50 w-full bg-white border-b border-gray-200 dark:bg-slate-900 dark:border-slate-700">
+    <header className="sticky top-0 inset-x-0 z-50 w-full bg-[#0B0B13]/80 backdrop-blur-xl">
       <nav className="relative w-full px-4 h-16 flex items-center justify-between">
         {/* LEFT */}
         <div className="flex items-center gap-2">
           <button
             onClick={onMenuClick}
-            className="md:hidden p-2 rounded-lg border bg-white text-gray-700 hover:bg-gray-50 dark:bg-slate-900 dark:border-slate-700 dark:text-gray-400"
+            className="md:hidden h-10 w-10 rounded-full border border-white/10 bg-white/[0.03] text-slate-300 hover:bg-white/[0.07] flex items-center justify-center transition-colors"
           >
             <Menu size={20} />
           </button>
 
           <button
             onClick={onToggleSidebar}
-            className="hidden md:flex p-2 rounded-lg border border-gray-200 text-gray-600 hover:bg-gray-50 dark:border-slate-700 dark:text-gray-400 dark:hover:bg-slate-800"
+            className="hidden md:flex h-10 w-10 rounded-full border border-white/10 bg-white/[0.03] text-slate-300 hover:bg-white/[0.07] items-center justify-center transition-colors"
           >
             <PanelLeft size={20} />
           </button>
@@ -83,16 +81,6 @@ export function TopBar({
           className={`flex items-center gap-3 sm:gap-4 transition-all ${isSidebarCollapsed ? "md:mr-2" : ""
             }`}
         >
-          {/* Theme */}
-          <button
-            onClick={toggleTheme}
-            aria-label={theme === "dark" ? "Switch to light theme" : "Switch to dark theme"}
-            title={theme === "dark" ? "Light mode" : "Dark mode"}
-            className="p-2 rounded-lg border border-gray-200 text-gray-600 hover:bg-gray-50 dark:border-slate-700 dark:text-gray-400 dark:hover:bg-slate-800 transition-colors"
-          >
-            {theme === "dark" ? <Sun size={18} /> : <Moon size={18} />}
-          </button>
-
           {/* 🔔 Notifications */}
           <div className="relative" ref={notifRef}>
             <button
@@ -100,11 +88,11 @@ export function TopBar({
                 setNotifOpen(!notifOpen);
                 setProfileOpen(false);
               }}
-              className="relative h-9 w-9 rounded-full border border-gray-200 flex items-center justify-center bg-white hover:bg-gray-50 dark:bg-slate-900 dark:border-slate-700 dark:text-gray-400"
+              className="relative h-10 w-10 rounded-full border border-white/10 flex items-center justify-center bg-white/[0.03] text-slate-300 hover:bg-white/[0.07] transition-colors"
             >
               <Bell size={18} />
               {hasUnread && (
-                <span className="absolute top-0 right-0 h-2.5 w-2.5 rounded-full bg-red-500 ring-2 ring-white dark:ring-slate-900" />
+                <span className="absolute top-1.5 right-1.5 h-2.5 w-2.5 rounded-full bg-[#7B3FE4] ring-2 ring-[#0B0B13]" />
               )}
             </button>
 
@@ -120,23 +108,22 @@ export function TopBar({
                   w-[calc(100vw-1rem)] md:w-72
                   max-w-md
                   rounded-2xl
-                  border border-gray-200
-                  bg-white
-                  shadow-xl
-                  dark:bg-slate-900 dark:border-slate-700
+                  border border-white/10
+                  bg-[#161722]
+                  shadow-2xl shadow-black/50
                   z-50
                 "
               >
-                <div className="px-4 py-3 border-b border-gray-200 dark:border-slate-700">
-                  <p className="text-sm font-semibold text-gray-800 dark:text-white">
+                <div className="px-4 py-3 border-b border-white/5">
+                  <p className="text-sm font-semibold text-white">
                     Notifications
                   </p>
                 </div>
 
                 <div className="py-2">
-                  <div className="px-4 py-3 text-sm text-gray-700 dark:text-gray-300">
+                  <div className="px-4 py-3 text-sm text-slate-300">
                     🎉 Welcome to{" "}
-                    <span className="font-semibold">Voicedots</span>
+                    <span className="font-semibold text-white">Voicedots</span>
                   </div>
                 </div>
               </div>
@@ -150,9 +137,9 @@ export function TopBar({
                 setProfileOpen(!profileOpen);
                 setNotifOpen(false);
               }}
-              className="inline-flex items-center gap-2 rounded-full border border-gray-200 bg-white px-2 sm:px-3 py-1.5 text-sm font-semibold text-gray-800 shadow-sm hover:bg-gray-50 dark:bg-slate-900 dark:border-slate-700 dark:text-white dark:hover:bg-slate-800"
+              className="inline-flex items-center gap-2 rounded-full border border-white/10 bg-white/[0.03] px-2 sm:px-3 py-1.5 text-sm font-semibold text-white hover:bg-white/[0.07] transition-colors"
             >
-              <div className="h-8 w-8 rounded-full bg-blue-600 flex items-center justify-center text-white text-xs overflow-hidden">
+              <div className="h-8 w-8 rounded-full bg-gradient-to-br from-[#7B3FE4] to-[#4B22F4] flex items-center justify-center text-white text-xs overflow-hidden">
                 {user?.profile_picture ? (
                   <img src={user.profile_picture} alt="Profile" className="w-full h-full object-cover" />
                 ) : (
@@ -161,13 +148,13 @@ export function TopBar({
               </div>
 
               {/* Hide name on small screens */}
-              <span className="hidden md:block text-gray-600 dark:text-gray-400">
+              <span className="hidden md:block text-slate-200">
                 {user?.name || "User"}
               </span>
 
               <ChevronDown
                 size={14}
-                className={`text-gray-400 transition ${profileOpen ? "rotate-180" : ""
+                className={`text-slate-400 transition ${profileOpen ? "rotate-180" : ""
                   }`}
               />
             </button>
@@ -178,18 +165,17 @@ export function TopBar({
                   absolute right-0 mt-2
                   w-[calc(100vw-1rem)] sm:w-56
                   rounded-2xl
-                  border border-gray-200
-                  bg-white
-                  shadow-xl
-                  dark:bg-slate-900 dark:border-slate-700
+                  border border-white/10
+                  bg-[#161722]
+                  shadow-2xl shadow-black/50
                   z-50
                 "
               >
-                <div className="p-4 border-b border-gray-200 dark:border-slate-700">
-                  <p className="text-sm font-semibold text-gray-800 dark:text-white">
+                <div className="p-4 border-b border-white/5">
+                  <p className="text-sm font-semibold text-white">
                     {user?.name || "User"}
                   </p>
-                  <p className="text-xs text-gray-500 dark:text-gray-400">
+                  <p className="text-xs text-slate-400">
                     {user?.email || ""}
                   </p>
                 </div>
@@ -198,7 +184,7 @@ export function TopBar({
                   {/* Pricing (disabled) */}
                   <button
                     disabled
-                    className="w-full text-left px-4 py-2 text-sm text-gray-400 cursor-not-allowed"
+                    className="w-full text-left px-4 py-2 text-sm text-slate-600 cursor-not-allowed"
                   >
                     Pricing
                   </button>
@@ -209,13 +195,13 @@ export function TopBar({
                       setProfileOpen(false);
                       navigate("/dashboard/settings");
                     }}
-                    className="w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-gray-100 dark:text-gray-300 dark:hover:bg-slate-800"
+                    className="w-full text-left px-4 py-2 text-sm text-slate-300 hover:bg-white/[0.05]"
                   >
                     Settings
                   </button>
                 </div>
 
-                <div className="border-t border-gray-200 dark:border-slate-700">
+                <div className="border-t border-white/5">
                   {/* Logout */}
                   <button
                     onClick={() => {
@@ -225,7 +211,7 @@ export function TopBar({
                         navigate("/login", { replace: true });
                       });
                     }}
-                    className="w-full text-left px-4 py-2 text-sm text-red-500 hover:bg-red-50 dark:hover:bg-slate-800"
+                    className="w-full text-left px-4 py-2 text-sm text-red-400 hover:bg-red-500/10"
                   >
                     Logout
                   </button>
