@@ -11,11 +11,11 @@ import { Phone, User, Hash, Bot, Info } from "lucide-react";
  */
 
 const card =
-  "bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl overflow-hidden";
+  "bg-[#161722] ring-1 ring-white/5 rounded-2xl overflow-hidden";
 const label =
-  "text-[10px] font-bold uppercase tracking-widest text-slate-500 dark:text-slate-400";
+  "text-[10px] font-bold uppercase tracking-widest text-slate-400";
 const input =
-  "mt-1.5 w-full rounded-xl px-3 py-2.5 text-sm bg-slate-50 dark:bg-slate-800/60 border border-slate-200 dark:border-slate-700 text-slate-900 dark:text-slate-100 placeholder:text-slate-400 outline-none disabled:opacity-60 disabled:cursor-not-allowed transition";
+  "mt-1.5 w-full rounded-xl px-3 py-2.5 text-sm bg-[#0B0B13] ring-1 ring-white/5 text-white placeholder:text-slate-400 outline-none disabled:opacity-60 disabled:cursor-not-allowed transition";
 
 export default function CallingPage() {
   const [name, setName] = useState("");
@@ -24,13 +24,13 @@ export default function CallingPage() {
   return (
     <div className="space-y-6">
       <div>
-        <h1 className="text-2xl font-bold text-slate-900 dark:text-slate-100">AI Calling</h1>
-        <p className="text-sm text-slate-500 dark:text-slate-400 mt-1">
+        <h1 className="text-2xl font-bold text-white">AI Calling</h1>
+        <p className="text-sm text-slate-400 mt-1">
           Initiate outgoing voice engagement using your pre-configured conversational AI agents.
         </p>
       </div>
 
-      <div className="flex items-start gap-2 rounded-xl border border-indigo-200 dark:border-indigo-900 bg-indigo-50 dark:bg-indigo-900/20 px-4 py-3 text-sm text-indigo-800 dark:text-indigo-300">
+      <div className="flex items-start gap-2 rounded-xl border border-indigo-200 bg-[#7B3FE4]/15 px-4 py-3 text-sm text-indigo-800">
         <Info size={16} className="mt-0.5 shrink-0" />
         <span>
           Outbound calling is being enabled for your account. The setup is shown here so you can see
@@ -39,9 +39,9 @@ export default function CallingPage() {
       </div>
 
       <section className={card}>
-        <div className="px-6 py-4 border-b border-slate-200 dark:border-slate-800 flex items-center gap-2">
-          <Phone size={14} className="text-indigo-500" />
-          <h2 className="text-xs font-black text-slate-400 dark:text-slate-500 uppercase tracking-widest">
+        <div className="px-6 py-4 border-b border-white/5 flex items-center gap-2">
+          <Phone size={14} className="text-[#B79BFF]" />
+          <h2 className="text-xs font-black text-slate-400 uppercase tracking-widest">
             New Outbound Call
           </h2>
         </div>
@@ -88,7 +88,7 @@ export default function CallingPage() {
           <button
             type="submit"
             disabled
-            className="w-full flex items-center justify-center gap-2 py-2.5 px-4 bg-indigo-600 text-white rounded-xl font-semibold text-sm shadow-md disabled:opacity-50 disabled:cursor-not-allowed"
+            className="w-full flex items-center justify-center gap-2 py-2.5 px-4 bg-gradient-to-r from-[#7B3FE4] to-[#4B22F4] text-white rounded-xl font-semibold text-sm shadow-md disabled:opacity-50 disabled:cursor-not-allowed"
           >
             <Phone size={16} /> Initiate Call
           </button>

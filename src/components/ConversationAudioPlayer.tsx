@@ -101,12 +101,12 @@ export function ConversationAudioPlayer({
           </button>
 
           <div className="flex flex-wrap items-center gap-2">
-            <span className="inline-flex items-center gap-1 rounded-full bg-gray-100 px-2.5 py-1 text-[11px] text-gray-700 dark:text-gray-300">
+            <span className="inline-flex items-center gap-1 rounded-full bg-white/[0.04] px-2.5 py-1 text-[11px] text-slate-600">
               <Clock size={12} />
               Start: <span className="font-medium">{startTime}</span>
             </span>
 
-            <span className="inline-flex items-center gap-1 rounded-full bg-gray-100 px-2.5 py-1 text-[11px] text-gray-700 dark:text-gray-300">
+            <span className="inline-flex items-center gap-1 rounded-full bg-white/[0.04] px-2.5 py-1 text-[11px] text-slate-600">
               <Clock size={12} />
               End: <span className="font-medium">{endTime}</span>
             </span>
@@ -124,7 +124,7 @@ export function ConversationAudioPlayer({
         </div>
 
         <div className="flex items-center gap-3">
-          <span className="text-gray-500">
+          <span className="text-slate-500">
             {format(current)} / {format(duration)}
           </span>
           <MoreHorizontal size={14} className="opacity-60" />

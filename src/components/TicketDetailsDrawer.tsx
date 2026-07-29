@@ -54,48 +54,38 @@ export function TicketDetailsDrawer({
 
     return (
         <div
-            className="
-        fixed right-0 bottom-0
-        bg-white border-l shadow-2xl z-50
-        flex flex-col
-        w-full sm:w-[420px]
-       dark:bg-slate-900"
+            className="fixed right-0 bottom-0 bg-[#161722] border-l shadow-2xl z-50 flex flex-col w-full sm:w-[420px]"
             style={{
                 top: `${TOPBAR_HEIGHT}px`,
                 height: `calc(100vh - ${TOPBAR_HEIGHT}px)`,
             }}
         >
             {/* ================= STICKY HEADER ================= */}
-            <div className="sticky top-0 z-10 bg-white border-b px-5 py-4 flex items-start justify-between dark:bg-slate-900">
+            <div className="sticky top-0 z-10 bg-[#161722] border-b px-5 py-4 flex items-start justify-between">
                 <div className="flex items-start gap-3">
                     <div className="w-10 h-10 rounded-full bg-blue-50 text-blue-700 flex items-center justify-center text-sm font-semibold">
                         {getInitials(ticket.name)}
                     </div>
                     <div>
                         <p className="font-semibold leading-tight">{ticket.name}</p>
-                        <p className="text-xs text-gray-500">{ticket.email}</p>
+                        <p className="text-xs text-slate-500">{ticket.email}</p>
                     </div>
                 </div>
 
-                <button onClick={onClose} className="p-1 text-gray-400 hover:text-gray-600">
+                <button onClick={onClose} className="p-1 text-slate-500 hover:text-slate-500">
                     <X size={18} />
                 </button>
             </div>
 
             {/* ================= STICKY STATUS ACTION ================= */}
-            <div className="sticky top-[73px] z-10 bg-white border-b px-5 py-3 flex items-center justify-between dark:bg-slate-900">
+            <div className="sticky top-[73px] z-10 bg-[#161722] border-b px-5 py-3 flex items-center justify-between">
                 <div>
-                    <span className="text-xs text-gray-500 block mb-0.5">Current Status</span>
+                    <span className="text-xs text-slate-500 block mb-0.5">Current Status</span>
                     <select
                         value={ticket.status}
                         onChange={(e) => handleStatusToggle(e.target.value)}
                         disabled={updating}
-                        className={`text-sm px-3 py-1.5 rounded-lg font-bold uppercase tracking-wider outline-none transition-colors border-none cursor-pointer ${ticket.status?.toLowerCase() === "open"
-                            ? "bg-blue-50 text-blue-700 focus:ring-2 focus:ring-blue-600/20"
-                            : ticket.status?.toLowerCase() === "in progress"
-                                ? "bg-yellow-50 text-yellow-700 focus:ring-2 focus:ring-yellow-600/20"
-                                : "bg-green-50 text-green-700 focus:ring-2 focus:ring-green-600/20"
-                            } disabled:opacity-50`}
+                        className={`text-sm px-3 py-1.5 rounded-lg font-bold uppercase tracking-wider outline-none transition-colors border-none cursor-pointer ${ticket.status?.toLowerCase() === "open" ? "bg-blue-50 text-blue-700 focus:ring-2 focus:ring-blue-600/20" : ticket.status?.toLowerCase() === "in progress" ? "bg-yellow-50 text-yellow-700 focus:ring-2 focus:ring-yellow-600/20" : "bg-green-50 text-green-700 focus:ring-2 focus:ring-green-600/20" } disabled:opacity-50`}
                     >
                         <option value="Open">OPEN</option>
                         <option value="In Progress">IN PROGRESS</option>
@@ -106,7 +96,7 @@ export function TicketDetailsDrawer({
             </div>
 
             {/* ================= STICKY TABS ================= */}
-            <div className="sticky top-[140px] z-10 bg-white border-b px-5 flex gap-4 mt-2 dark:bg-slate-900">
+            <div className="sticky top-[140px] z-10 bg-[#161722] border-b px-5 flex gap-4 mt-2">
                 {[
                     ["details", "Details"],
                     ["notes", "Internal Notes"],
@@ -114,10 +104,7 @@ export function TicketDetailsDrawer({
                     <button
                         key={key}
                         onClick={() => setTab(key as any)}
-                        className={`py-3 text-sm transition-colors ${tab === key
-                            ? "border-b-2 border-black font-semibold text-black"
-                            : "text-gray-500 hover:text-gray-800"
-                            }`}
+                        className={`py-3 text-sm transition-colors ${tab === key ? "border-b-2 border-black font-semibold text-black" : "text-slate-500 hover:text-slate-100" }`}
                     >
                         {label}
                     </button>
@@ -137,9 +124,9 @@ export function TicketDetailsDrawer({
                         </div>
 
                         <div className="pt-4 border-t">
-                            <p className="text-gray-500 mb-2 font-medium">Description</p>
-                            <div className="bg-gray-50 p-4 rounded-xl border border-gray-100">
-                                <p className="text-gray-700 leading-relaxed whitespace-pre-wrap dark:text-gray-300">
+                            <p className="text-slate-500 mb-2 font-medium">Description</p>
+                            <div className="bg-[#0B0B13] p-4 rounded-xl border border-white/5">
+                                <p className="text-slate-600 leading-relaxed whitespace-pre-wrap">
                                     {ticket.description}
                                 </p>
                             </div>
@@ -158,11 +145,11 @@ export function TicketDetailsDrawer({
             </div>
 
             {/* ================= STICKY FOOTER ================= */}
-            <div className="border-t px-5 py-4 bg-white flex gap-3 dark:bg-slate-900">
-                <button className="flex-1 flex items-center justify-center gap-2 border rounded-xl py-2.5 text-sm font-medium hover:bg-gray-50 transition text-gray-700 dark:text-gray-300">
+            <div className="border-t px-5 py-4 bg-[#161722] flex gap-3">
+                <button className="flex-1 flex items-center justify-center gap-2 border rounded-xl py-2.5 text-sm font-medium hover:bg-[#0B0B13] transition text-slate-600">
                     <Phone size={16} /> Call User
                 </button>
-                <button className="flex-1 flex items-center justify-center gap-2 border rounded-xl py-2.5 text-sm font-medium hover:bg-gray-50 transition text-gray-700 dark:text-gray-300">
+                <button className="flex-1 flex items-center justify-center gap-2 border rounded-xl py-2.5 text-sm font-medium hover:bg-[#0B0B13] transition text-slate-600">
                     <Mail size={16} /> Email User
                 </button>
             </div>
@@ -181,8 +168,8 @@ function InfoRow({
 }) {
     return (
         <div className="flex justify-between items-start gap-4">
-            <span className="text-gray-500 shrink-0">{label}</span>
-            <span className="font-medium text-right text-gray-900 break-words w-full dark:text-gray-100">{value}</span>
+            <span className="text-slate-500 shrink-0">{label}</span>
+            <span className="font-medium text-right text-white break-words w-full">{value}</span>
         </div>
     );
 }

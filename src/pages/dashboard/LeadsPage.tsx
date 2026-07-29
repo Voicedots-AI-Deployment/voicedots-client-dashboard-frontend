@@ -120,18 +120,18 @@ export function LeadsPage() {
           </div>
 
           <div className="flex flex-wrap items-center justify-center md:justify-end gap-3 px-2">
-            <div className="flex items-center bg-white border border-slate-200 rounded-xl h-11 shadow-sm overflow-hidden ring-1 ring-slate-100 dark:bg-slate-900 dark:border-slate-800 dark:ring-slate-800">
-              <div className="flex flex-col px-3 border-r border-slate-100 group dark:border-slate-800">
-                <span className="text-[9px] text-slate-400 font-extrabold uppercase tracking-widest leading-none mt-1.5 group-hover:text-blue-500 transition-colors">From</span>
+            <div className="flex items-center bg-[#161722] border border-white/5 rounded-xl h-11 shadow-sm overflow-hidden ring-1 ring-white/5">
+              <div className="flex flex-col px-3 border-r border-white/5 group">
+                <span className="text-[9px] text-slate-500 font-extrabold uppercase tracking-widest leading-none mt-1.5 group-hover:text-blue-500 transition-colors">From</span>
                 <input type="date" value={startDate} onChange={(e) => setStartDate(e.target.value)} className="text-xs outline-none bg-transparent font-semibold py-0.5 cursor-pointer" />
               </div>
               <div className="flex flex-col px-3 group">
-                <span className="text-[9px] text-slate-400 font-extrabold uppercase tracking-widest leading-none mt-1.5 group-hover:text-blue-500 transition-colors">To</span>
+                <span className="text-[9px] text-slate-500 font-extrabold uppercase tracking-widest leading-none mt-1.5 group-hover:text-blue-500 transition-colors">To</span>
                 <input type="date" value={endDate} onChange={(e) => setEndDate(e.target.value)} className="text-xs outline-none bg-transparent font-semibold py-0.5 cursor-pointer" />
               </div>
             </div>
 
-            <select value={statusFilter} onChange={(e) => setStatusFilter(e.target.value)} className={`h-11 px-4 rounded-xl border text-sm outline-none font-bold shadow-sm min-w-[130px] transition-all hover:border-slate-300 ${statusFilter === "Qualified" ? "bg-green-50 text-green-700 border-green-200" : statusFilter === "Unqualified" ? "bg-red-50 text-red-700 border-red-200" : statusFilter === "Follow Up" ? "bg-blue-50 text-blue-700 border-blue-200" : "bg-white text-slate-700 border-slate-200"}`}>
+            <select value={statusFilter} onChange={(e) => setStatusFilter(e.target.value)} className={`h-11 px-4 rounded-xl border text-sm outline-none font-bold shadow-sm min-w-[130px] transition-all hover:border-slate-300 ${statusFilter === "Qualified" ? "bg-green-50 text-green-700 border-green-200" : statusFilter === "Unqualified" ? "bg-red-50 text-red-700 border-red-200" : statusFilter === "Follow Up" ? "bg-blue-50 text-blue-700 border-blue-200" : "bg-[#161722] text-slate-600 border-white/5"}`}>
               <option value="">All Status</option>
               <option value="Qualified">Qualified</option>
               <option value="Unqualified">Unqualified</option>
@@ -139,8 +139,8 @@ export function LeadsPage() {
             </select>
 
             <div className="relative min-w-[200px] flex-1 md:flex-none">
-              <Search size={16} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400" />
-              <input placeholder="Search leads..." value={search} onChange={(e) => setSearch(e.target.value)} className="w-full h-11 pl-10 pr-4 rounded-xl border border-slate-200 bg-white text-sm font-medium outline-none focus:ring-2 focus:ring-slate-100 shadow-sm transition-all hover:border-slate-300 dark:bg-slate-900 dark:border-slate-800 dark:ring-slate-800" />
+              <Search size={16} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-500" />
+              <input placeholder="Search leads..." value={search} onChange={(e) => setSearch(e.target.value)} className="w-full h-11 pl-10 pr-4 rounded-xl border border-white/5 bg-[#161722] text-sm font-medium outline-none focus:ring-2 focus:ring-white/5 shadow-sm transition-all hover:border-slate-300" />
             </div>
 
             {(startDate || endDate || statusFilter) && (
@@ -151,15 +151,15 @@ export function LeadsPage() {
               <button 
                 onClick={() => setExportMenuOpen(!exportMenuOpen)} 
                 disabled={leads.length === 0} 
-                className="flex items-center justify-center gap-2.5 h-11 px-5 bg-indigo-600 text-white rounded-xl text-sm font-bold hover:bg-indigo-700 transition-all disabled:opacity-50 shadow-lg shadow-indigo-100 active:scale-95"
+                className="flex items-center justify-center gap-2.5 h-11 px-5 bg-gradient-to-r from-[#7B3FE4] to-[#4B22F4] text-white rounded-xl text-sm font-bold hover:bg-indigo-700 transition-all disabled:opacity-50 shadow-lg shadow-indigo-100 active:scale-95"
               >
                 <Download size={18} />
                 <span>Export</span>
               </button>
               {exportMenuOpen && (
-                <div className="absolute top-full right-0 mt-2 w-48 bg-white border border-slate-200 rounded-xl shadow-xl z-50 p-1 dark:bg-slate-900 dark:border-slate-800">
-                  <button onClick={() => { generateDownload(leads, "leads_current.csv"); setExportMenuOpen(false); }} className="w-full text-left px-4 py-2.5 text-sm font-bold text-slate-700 hover:bg-slate-50 rounded-lg transition-colors border-b border-slate-50 dark:text-slate-300">Current Page</button>
-                  <button onClick={async () => { const all = await fetchLeads(true); if (all) generateDownload(all as Lead[], "leads_all.csv"); setExportMenuOpen(false); }} className="w-full text-left px-4 py-2.5 text-sm font-bold text-slate-700 hover:bg-slate-50 rounded-lg transition-colors dark:text-slate-300">All Leads</button>
+                <div className="absolute top-full right-0 mt-2 w-48 bg-[#161722] border border-white/5 rounded-xl shadow-xl z-50 p-1">
+                  <button onClick={() => { generateDownload(leads, "leads_current.csv"); setExportMenuOpen(false); }} className="w-full text-left px-4 py-2.5 text-sm font-bold text-slate-600 hover:bg-[#0B0B13] rounded-lg transition-colors border-b border-slate-50">Current Page</button>
+                  <button onClick={async () => { const all = await fetchLeads(true); if (all) generateDownload(all as Lead[], "leads_all.csv"); setExportMenuOpen(false); }} className="w-full text-left px-4 py-2.5 text-sm font-bold text-slate-600 hover:bg-[#0B0B13] rounded-lg transition-colors">All Leads</button>
                 </div>
               )}
             </div>
@@ -169,17 +169,17 @@ export function LeadsPage() {
         {!loading && <LeadsKpi totalLeads={pagination.total} qualifiedLeads={pagination.qualified} />}
 
         {!loading && pagination.pages > 1 && (
-          <div className="flex flex-col sm:flex-row items-center justify-between gap-4 px-4 py-4 sm:py-6 bg-white border border-slate-200 rounded-2xl shadow-sm overflow-hidden dark:bg-slate-900 dark:border-slate-800">
+          <div className="flex flex-col sm:flex-row items-center justify-between gap-4 px-4 py-4 sm:py-6 bg-[#161722] border border-white/5 rounded-2xl shadow-sm overflow-hidden">
             <div className="flex items-center gap-2">
               <p className="text-[10px] sm:text-xs font-bold text-slate-500 uppercase tracking-widest">Page <span className="text-indigo-600">{pagination.page}</span> of <span className="text-indigo-600">{pagination.pages}</span></p>
               <div className="h-4 w-px bg-slate-200 mx-2"></div>
-              <p className="text-[10px] sm:text-xs font-bold text-slate-400">Total <span className="text-slate-900 font-black dark:text-slate-100">{pagination.total}</span> leads</p>
+              <p className="text-[10px] sm:text-xs font-bold text-slate-500">Total <span className="text-white font-black">{pagination.total}</span> leads</p>
             </div>
             <div className="flex items-center gap-2">
               <button 
                 disabled={page <= 1} 
                 onClick={() => setPage(p => Math.max(1, p - 1))} 
-                className="flex items-center justify-center px-4 h-9 bg-indigo-600 text-white rounded-xl text-[10px] sm:text-xs font-black uppercase transition-all hover:bg-indigo-700 shadow-lg shadow-indigo-100 disabled:opacity-40"
+                className="flex items-center justify-center px-4 h-9 bg-gradient-to-r from-[#7B3FE4] to-[#4B22F4] text-white rounded-xl text-[10px] sm:text-xs font-black uppercase transition-all hover:bg-indigo-700 shadow-lg shadow-indigo-100 disabled:opacity-40"
               >
                 Prev
               </button>
@@ -187,16 +187,16 @@ export function LeadsPage() {
                 {[...Array(pagination.pages)].map((_, i) => {
                   const pNum = i + 1;
                   if (pNum === 1 || pNum === pagination.pages || (pNum >= page - 1 && pNum <= page + 1)) {
-                    return <button key={pNum} onClick={() => setPage(pNum)} className={`w-9 h-9 flex items-center justify-center rounded-xl text-[10px] sm:text-xs font-black transition-all ${page === pNum ? "bg-indigo-600 text-white shadow-md shadow-indigo-100" : "bg-white border border-slate-200 text-slate-400 hover:text-slate-900"}`}>{pNum}</button>;
+                    return <button key={pNum} onClick={() => setPage(pNum)} className={`w-9 h-9 flex items-center justify-center rounded-xl text-[10px] sm:text-xs font-black transition-all ${page === pNum ? "bg-gradient-to-r from-[#7B3FE4] to-[#4B22F4] text-white shadow-md shadow-indigo-100" : "bg-[#161722] border border-white/5 text-slate-500 hover:text-white"}`}>{pNum}</button>;
                   }
-                  if (pNum === 2 || pNum === pagination.pages - 1) return <span key={pNum} className="text-slate-300 font-bold px-1">.</span>;
+                  if (pNum === 2 || pNum === pagination.pages - 1) return <span key={pNum} className="text-slate-600 font-bold px-1">.</span>;
                   return null;
                 })}
               </div>
               <button 
                 disabled={page >= pagination.pages} 
                 onClick={() => setPage(p => Math.min(pagination.pages, p + 1))} 
-                className="flex items-center justify-center px-4 h-9 bg-indigo-600 text-white rounded-xl text-[10px] sm:text-xs font-black uppercase transition-all hover:bg-indigo-700 shadow-lg shadow-indigo-100 disabled:opacity-40"
+                className="flex items-center justify-center px-4 h-9 bg-gradient-to-r from-[#7B3FE4] to-[#4B22F4] text-white rounded-xl text-[10px] sm:text-xs font-black uppercase transition-all hover:bg-indigo-700 shadow-lg shadow-indigo-100 disabled:opacity-40"
               >
                 Next
               </button>
@@ -210,8 +210,8 @@ export function LeadsPage() {
               <Loader2 className="animate-spin text-indigo-400" size={32} />
             </div>
           ) : filteredLeads.length === 0 ? (
-            <div className="flex flex-col items-center justify-center py-24 bg-white border border-dashed border-slate-200 rounded-3xl gap-4 dark:bg-slate-900 dark:border-slate-800">
-              <div className="p-4 rounded-full bg-slate-50 text-slate-300">
+            <div className="flex flex-col items-center justify-center py-24 bg-[#161722] border border-dashed border-white/5 rounded-3xl gap-4">
+              <div className="p-4 rounded-full bg-[#0B0B13] text-slate-600">
                 <Search size={32} />
               </div>
               <p className="text-slate-500 font-bold">No leads found</p>
@@ -221,30 +221,30 @@ export function LeadsPage() {
               <div
                 key={lead.conversation_id}
                 onClick={() => { setSelectedLead(lead); setDrawerOpen(true); }}
-                className="group flex items-center bg-white border border-slate-100 rounded-2xl px-5 py-4 cursor-pointer transition-all duration-300 hover:shadow-xl hover:shadow-indigo-500/5 hover:border-indigo-100/50 hover:-translate-y-0.5 gap-6 dark:bg-slate-900 dark:border-slate-800"
+                className="group flex items-center bg-[#161722] border border-white/5 rounded-2xl px-5 py-4 cursor-pointer transition-all duration-300 hover:shadow-xl hover:shadow-indigo-500/5 hover:border-indigo-100/50 hover:-translate-y-0.5 gap-6"
               >
                 <div className="flex items-center gap-4 flex-1 min-w-0">
-                  <div className="w-11 h-11 rounded-2xl bg-gradient-to-br from-slate-50 to-slate-100 border border-slate-200 flex items-center justify-center text-sm font-black shrink-0 text-slate-600 shadow-sm group-hover:from-indigo-50 group-hover:to-white group-hover:border-indigo-200 transition-colors dark:border-slate-800 dark:text-slate-400">
+                  <div className="w-11 h-11 rounded-2xl bg-gradient-to-br from-slate-50 to-slate-100 border border-white/5 flex items-center justify-center text-sm font-black shrink-0 text-slate-500 shadow-sm group-hover:from-indigo-50 group-hover:to-white group-hover:border-indigo-200 transition-colors">
                     {(lead.name ?? "?").split(" ").map(n => n[0]).join("").toUpperCase()}
                   </div>
                   <div className="min-w-0">
-                    <p className="font-bold truncate text-slate-900 text-base mb-0.5 group-hover:text-indigo-600 transition-colors dark:text-slate-100">
+                    <p className="font-bold truncate text-white text-base mb-0.5 group-hover:text-indigo-600 transition-colors">
                       {lead.name ?? "Unknown"}
                     </p>
-                    <p className="text-[13px] font-medium text-slate-400 truncate">
+                    <p className="text-[13px] font-medium text-slate-500 truncate">
                       {lead.email ?? "—"}
                     </p>
                   </div>
                 </div>
 
-                <div className="hidden lg:flex items-center gap-10 text-sm text-slate-600 w-[350px] shrink-0 dark:text-slate-400">
+                <div className="hidden lg:flex items-center gap-10 text-sm text-slate-500 w-[350px] shrink-0">
                   <div className="flex items-center gap-2.5 w-[140px] shrink-0">
-                    <div className="p-1.5 rounded-lg bg-slate-50 text-slate-400 group-hover:bg-indigo-50 group-hover:text-indigo-500 transition-colors">
+                    <div className="p-1.5 rounded-lg bg-[#0B0B13] text-slate-500 group-hover:bg-[#7B3FE4]/15 group-hover:text-indigo-500 transition-colors">
                       <Phone size={14} />
                     </div>
-                    <span className="truncate font-bold text-slate-700 dark:text-slate-300">{lead.mobile || lead.phone || "—"}</span>
+                    <span className="truncate font-bold text-slate-600">{lead.mobile || lead.phone || "—"}</span>
                   </div>
-                  <div className="flex items-center gap-2 text-xs text-slate-400 font-bold tracking-tight whitespace-nowrap">
+                  <div className="flex items-center gap-2 text-xs text-slate-500 font-bold tracking-tight whitespace-nowrap">
                     {lead.created_at ? new Date(lead.created_at).toLocaleString(undefined, {
                       dateStyle: 'medium',
                       timeStyle: 'short'
@@ -253,13 +253,7 @@ export function LeadsPage() {
                 </div>
 
                 <div className="w-[130px] flex justify-center shrink-0">
-                  <span className={`text-[10px] uppercase tracking-widest px-4 py-1.5 rounded-xl font-black shadow-sm ${
-                    lead.status === "Qualified" 
-                      ? "bg-emerald-50 text-emerald-600 border border-emerald-100" 
-                      : lead.status === "Unqualified" 
-                      ? "bg-amber-50 text-amber-600 border border-amber-100" 
-                      : "bg-indigo-50 text-indigo-600 border border-indigo-100"
-                  }`}>
+                  <span className={`text-[10px] uppercase tracking-widest px-4 py-1.5 rounded-xl font-black shadow-sm ${ lead.status === "Qualified" ? "bg-emerald-50 text-emerald-600 border border-emerald-100" : lead.status === "Unqualified" ? "bg-amber-50 text-amber-600 border border-amber-100" : "bg-[#7B3FE4]/15 text-indigo-600 border border-indigo-100" }`}>
                     {lead.status}
                   </span>
                 </div>
@@ -267,7 +261,7 @@ export function LeadsPage() {
                 <div className="w-10 flex justify-end shrink-0">
                   <button 
                     onClick={(e) => handleDeleteLead(e, lead.conversation_id)} 
-                    className="w-10 h-10 rounded-xl border border-slate-100 flex items-center justify-center text-slate-300 hover:text-red-500 hover:bg-red-50 hover:border-red-100 transition-all opacity-0 group-hover:opacity-100 translate-x-2 group-hover:translate-x-0 dark:border-slate-800"
+                    className="w-10 h-10 rounded-xl border border-white/5 flex items-center justify-center text-slate-600 hover:text-red-500 hover:bg-red-50 hover:border-red-100 transition-all opacity-0 group-hover:opacity-100 translate-x-2 group-hover:translate-x-0"
                   >
                     <Trash2 size={18} />
                   </button>

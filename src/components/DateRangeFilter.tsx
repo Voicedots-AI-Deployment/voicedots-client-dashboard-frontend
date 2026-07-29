@@ -20,7 +20,7 @@ export function DateRangeFilter({
   return (
     <div className="flex flex-wrap items-center gap-3">
       {/* Presets */}
-      <div className="flex rounded-lg border border-slate-200 overflow-hidden dark:border-slate-800">
+      <div className="flex rounded-lg border border-white/5 overflow-hidden">
         {[
           { key: "7d", label: "7D" },
           { key: "15d", label: "15D" },
@@ -29,11 +29,7 @@ export function DateRangeFilter({
           <button
             key={p.key}
             onClick={() => onPresetChange(p.key as Preset)}
-            className={`px-3 py-1.5 text-sm font-medium ${
-              preset === p.key
-                ? "bg-indigo-600 text-white"
-                : "bg-white text-slate-600 hover:bg-slate-100"
-            }`}
+            className={`px-3 py-1.5 text-sm font-medium ${ preset === p.key ? "bg-gradient-to-r from-[#7B3FE4] to-[#4B22F4] text-white" : "bg-[#161722] text-slate-500 hover:bg-white/[0.04]" }`}
           >
             {p.label}
           </button>
@@ -41,7 +37,7 @@ export function DateRangeFilter({
       </div>
 
       {/* Custom Range */}
-      <div className="flex items-center gap-2 text-sm text-slate-600 dark:text-slate-400">
+      <div className="flex items-center gap-2 text-sm text-slate-500">
         <Calendar size={16} />
         <input
           type="date"
@@ -49,7 +45,7 @@ export function DateRangeFilter({
           onChange={(e) =>
             onDateChange(e.target.value, to || e.target.value)
           }
-          className="rounded-md border border-slate-200 px-2 py-1 dark:border-slate-800"
+          className="rounded-md border border-white/5 px-2 py-1"
         />
         <span>–</span>
         <input
@@ -58,7 +54,7 @@ export function DateRangeFilter({
           onChange={(e) =>
             onDateChange(from || e.target.value, e.target.value)
           }
-          className="rounded-md border border-slate-200 px-2 py-1 dark:border-slate-800"
+          className="rounded-md border border-white/5 px-2 py-1"
         />
       </div>
     </div>

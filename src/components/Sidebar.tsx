@@ -1,6 +1,6 @@
 import { useState } from "react";
 import {
-  Home, MessageSquare, Settings, LogOut, Users, Mail, Radio, ChevronDown, Ticket, BookOpen,
+  Home, MessageSquare, Settings, LogOut, Users, Radio, ChevronDown, Ticket, BookOpen,
 } from "lucide-react";
 import { useNavigate, useLocation } from "react-router-dom";
 import authApi from "@/api/authApi";
@@ -41,23 +41,22 @@ export function Sidebar({ isOpen, onClose, isCollapsed }: SidebarProps) {
       children: [
         { id: "calling", label: "AI Calling", path: "/dashboard/communications/calling" },
         { id: "whatsapp", label: "WhatsApp", path: "/dashboard/communications/whatsapp" },
-      ],
-    },
-    {
-      id: "email", icon: Mail, label: "Email Services", path: "/dashboard/email",
-      children: [
-        { id: "sender", label: "Sender Config", path: "/dashboard/email/sender" },
-        { id: "templates", label: "Templates", path: "/dashboard/email/templates" },
+        { id: "sender", label: "Email — Sender Config", path: "/dashboard/email/sender" },
+        { id: "templates", label: "Email — Templates", path: "/dashboard/email/templates" },
       ],
     },
     { id: "settings", icon: Settings, label: "Settings", path: "/dashboard/settings" },
   ];
 
+  // A group owns its children's routes, which do not all sit under its own path
+  // (the email pages live at /dashboard/email/* but belong to Communications).
+  const inGroup = (item: NavItem) =>
+    location.pathname.startsWith(item.path) ||
+    !!item.children?.some((c) => location.pathname.startsWith(c.path));
+
   // Groups start open when you're inside them.
   const [openGroups, setOpenGroups] = useState<Record<string, boolean>>(() =>
-    Object.fromEntries(
-      navItems.filter((i) => i.children).map((i) => [i.id, location.pathname.startsWith(i.path)])
-    )
+    Object.fromEntries(navItems.filter((i) => i.children).map((i) => [i.id, inGroup(i)]))
   );
 
   const go = (path: string) => {
@@ -82,7 +81,7 @@ export function Sidebar({ isOpen, onClose, isCollapsed }: SidebarProps) {
             {navItems.map((item) => {
               const isActive = item.path === "/dashboard"
                 ? location.pathname === "/dashboard"
-                : location.pathname.startsWith(item.path);
+                : inGroup(item);
               const hasChildren = !!item.children?.length;
               // Collapsed rail has no room for sub-items: jump to the first child.
               const expanded = hasChildren && !isCollapsed && openGroups[item.id];
@@ -95,7 +94,7 @@ export function Sidebar({ isOpen, onClose, isCollapsed }: SidebarProps) {
                       e.stopPropagation();
                       if (hasChildren && !isCollapsed) {
                         setOpenGroups((g) => ({ ...g, [item.id]: !g[item.id] }));
-                        if (!location.pathname.startsWith(item.path)) go(item.children![0].path);
+                        if (!inGroup(item)) go(item.children![0].path);
                       } else {
                         go(hasChildren ? item.children![0].path : item.path);
                       }

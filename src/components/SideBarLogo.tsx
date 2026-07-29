@@ -7,16 +7,11 @@ interface SidebarLogoProps {
   className?: string;
 }
 
-/** A single letter carrying a small purple accent dot in its top-left corner. */
-const DottedLetter: React.FC<{ letter: string }> = ({ letter }) => (
-  <span className="relative inline-block">
-    <span
-      className="absolute -top-0.5 -left-0.5 h-1.5 w-1.5 rounded-full bg-gradient-to-br from-[#8B5CF6] to-[#4B22F4] shadow-[0_0_8px_rgba(123,63,228,0.9)]"
-    />
-    {letter}
-  </span>
-);
-
+/**
+ * The brand mark is the VoiceDots SVG followed by the wordmark, as it has always
+ * been drawn. A substitute built from a letter and two CSS dots is not the logo,
+ * so the asset in /public is used directly.
+ */
 const SidebarLogo: React.FC<SidebarLogoProps> = ({
   isCollapsed,
   onClose,
@@ -24,15 +19,14 @@ const SidebarLogo: React.FC<SidebarLogoProps> = ({
 }) => {
   return (
     <div className={`px-6 flex items-center justify-between ${className}`}>
-      {/* Wordmark */}
       <div className="flex items-center">
-        <h1 className="text-2xl md:text-[28px] font-extrabold tracking-tight text-white leading-none select-none">
-          <DottedLetter letter="V" />
-          {!isCollapsed && (
-            <>
-              oice<DottedLetter letter="D" />ots
-            </>
-          )}
+        <h1 className="text-2xl md:text-[28px] font-bold tracking-tighter text-white leading-none select-none">
+          <img
+            src="/voicedotslogo.svg"
+            alt="VoiceDots"
+            className="h-[1.1em] w-auto inline-block align-middle -translate-y-[0.1em] mr-[-0.3em]"
+          />
+          {!isCollapsed ? "oiceDots" : null}
         </h1>
       </div>
 
