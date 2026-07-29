@@ -1,6 +1,6 @@
 import { useState } from "react";
 import {
-  Home, MessageSquare, Settings, LogOut, Users, Mail, Radio, ChevronDown, Ticket,
+  Home, MessageSquare, Settings, LogOut, Users, Mail, Radio, ChevronDown, Ticket, BookOpen,
 } from "lucide-react";
 import { useNavigate, useLocation } from "react-router-dom";
 import authApi from "@/api/authApi";
@@ -35,6 +35,7 @@ export function Sidebar({ isOpen, onClose, isCollapsed }: SidebarProps) {
     { id: "conversations", icon: MessageSquare, label: "Conversations", path: "/dashboard/conversations" },
     { id: "leads", icon: Users, label: "Leads", path: "/dashboard/leads" },
     { id: "tickets", icon: Ticket, label: "Tickets", path: "/dashboard/tickets" },
+    { id: "knowledge", icon: BookOpen, label: "Knowledge Base", path: "/dashboard/knowledge" },
     {
       id: "communications", icon: Radio, label: "Communications", path: "/dashboard/communications",
       children: [

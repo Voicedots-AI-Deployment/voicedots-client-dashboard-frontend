@@ -14,6 +14,7 @@ import WhatsAppPage from "@/pages/dashboard/communications/WhatsAppPage";
 import ProtectedRoute from "@/routes/ProtectedRoute";
 import { LeadsPage } from "@/pages/dashboard/LeadsPage";
 import { TicketsPage } from "@/pages/dashboard/TicketsPage";
+import KnowledgePage from "@/pages/dashboard/KnowledgePage";
 
 const AppRoutes = () => {
   return (
@@ -54,6 +55,9 @@ const AppRoutes = () => {
 
           {/* TICKETS — shown; backend ticket router is still disabled */}
           <Route path="tickets" element={<TicketsPage />} />
+
+          {/* KNOWLEDGE BASE */}
+          <Route path="knowledge" element={<KnowledgePage />} />
 
           {/* SETTINGS */}
           <Route path="settings" element={<SettingsPage />} />
