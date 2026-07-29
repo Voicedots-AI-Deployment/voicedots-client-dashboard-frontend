@@ -9,7 +9,7 @@ const DashboardLayout = () => {
   const location = useLocation();
 
   return (
-    <div className="flex min-h-screen bg-gray-50 dark:bg-slate-950">
+    <div className="flex min-h-screen bg-[#0B0B13] text-white">
       {/* SIDEBAR */}
       <Sidebar
         isOpen={isSidebarOpen}

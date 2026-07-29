@@ -1,13 +1,12 @@
-import { createContext, useContext, useEffect, useState, type ReactNode } from "react";
+import { createContext, useContext, useEffect, type ReactNode } from "react";
 
 /**
- * Light/dark theme.
+ * Theme is locked to a single premium dark experience.
  *
- * Tailwind is configured with darkMode:'class', and the components already carry
- * `dark:` variants — but nothing ever put the class on <html>, so the dark styles
- * were dead and the app was stuck in light. This provider owns that class.
- *
- * Order of preference: saved choice -> OS setting -> light.
+ * The dashboard UI is designed around the deep-navy (#0B0B13) / gradient
+ * aesthetic, so light mode has been retired. This provider simply keeps the
+ * `dark` class pinned on <html> and exposes a no-op toggle for any legacy
+ * callers of `useTheme`.
  */
 export type Theme = "light" | "dark";
 
@@ -17,50 +16,24 @@ interface ThemeContextValue {
   setTheme: (t: Theme) => void;
 }
 
-const STORAGE_KEY = "theme";
-
 const ThemeContext = createContext<ThemeContextValue | undefined>(undefined);
 
-const readInitialTheme = (): Theme => {
-  try {
-    const saved = localStorage.getItem(STORAGE_KEY);
-    if (saved === "light" || saved === "dark") return saved;
-  } catch {
-    /* localStorage unavailable (private mode) — fall back to the default */
-  }
-  // Default to light rather than following the OS: dark is newly enabled and
-  // wants a visual pass first, so nobody gets it without opting in. Switch this
-  // to the OS preference once dark has been reviewed.
-  return "light";
-};
-
-const applyTheme = (theme: Theme) => {
+const applyDark = () => {
   const root = document.documentElement;
-  root.classList.toggle("dark", theme === "dark");
+  root.classList.add("dark");
   // Keeps native controls (scrollbars, form widgets) in step with the theme.
-  root.style.colorScheme = theme;
+  root.style.colorScheme = "dark";
 };
 
 export function ThemeProvider({ children }: { children: ReactNode }) {
-  const [theme, setThemeState] = useState<Theme>(readInitialTheme);
-
   useEffect(() => {
-    applyTheme(theme);
-  }, [theme]);
+    applyDark();
+  }, []);
 
-  const setTheme = (t: Theme) => {
-    try {
-      localStorage.setItem(STORAGE_KEY, t);
-    } catch {
-      /* ignore — the class still applies for this session */
-    }
-    setThemeState(t);
-  };
-
-  const toggleTheme = () => setTheme(theme === "dark" ? "light" : "dark");
+  const noop = () => {};
 
   return (
-    <ThemeContext.Provider value={{ theme, toggleTheme, setTheme }}>
+    <ThemeContext.Provider value={{ theme: "dark", toggleTheme: noop, setTheme: noop }}>
       {children}
     </ThemeContext.Provider>
   );

@@ -72,7 +72,7 @@ export function Sidebar({ isOpen, onClose, isCollapsed }: SidebarProps) {
       />
 
       <aside
-        className={`fixed inset-y-0 start-0 z-[70] transition-all duration-300 transform bg-white border-e border-slate-200 dark:bg-slate-900 dark:border-slate-800 w-72 md:w-auto ${isOpen ? "translate-x-0" : "-translate-x-full"} ${isCollapsed ? "md:w-20" : "md:w-64"} md:translate-x-0 md:sticky md:top-0 md:h-screen md:block`}
+        className={`fixed inset-y-0 start-0 z-[70] transition-all duration-300 transform bg-[#0B0B13] border-e border-white/5 w-72 md:w-auto ${isOpen ? "translate-x-0" : "-translate-x-full"} ${isCollapsed ? "md:w-20" : "md:w-64"} md:translate-x-0 md:sticky md:top-0 md:h-screen md:block`}
       >
         <div className="flex flex-col h-full py-6">
           <SidebarLogo isCollapsed={isCollapsed} onClose={onClose} />
@@ -99,7 +99,7 @@ export function Sidebar({ isOpen, onClose, isCollapsed }: SidebarProps) {
                         go(hasChildren ? item.children![0].path : item.path);
                       }
                     }}
-                    className={`w-full flex items-center gap-x-3.5 py-3 px-4 text-sm font-semibold rounded-xl transition-all duration-200 ${isActive ? "bg-indigo-600 text-white shadow-lg shadow-indigo-100 dark:shadow-none" : "text-slate-600 hover:bg-slate-50 dark:text-slate-400 dark:hover:bg-slate-800"} ${isCollapsed ? "md:justify-center md:px-0" : ""}`}
+                    className={`w-full flex items-center gap-x-3.5 py-3 px-4 text-sm font-semibold rounded-2xl transition-all duration-200 ${isActive ? "bg-gradient-to-r from-[#7B3FE4] to-[#4B22F4] text-white shadow-lg shadow-[#4B22F4]/30" : "text-slate-400 hover:bg-white/[0.04] hover:text-slate-200"} ${isCollapsed ? "md:justify-center md:px-0" : ""}`}
                   >
                     <item.icon size={20} strokeWidth={isActive ? 2.5 : 2} />
                     {!isCollapsed && <span className="flex-1 text-left">{item.label}</span>}
@@ -112,7 +112,7 @@ export function Sidebar({ isOpen, onClose, isCollapsed }: SidebarProps) {
                   </button>
 
                   {expanded && (
-                    <div className="mt-1 ms-6 ps-3 border-s border-slate-200 dark:border-slate-800 space-y-1">
+                    <div className="mt-1 ms-6 ps-3 border-s border-white/10 space-y-1">
                       {item.children!.map((child) => {
                         const childActive = location.pathname === child.path;
                         return (
@@ -120,7 +120,7 @@ export function Sidebar({ isOpen, onClose, isCollapsed }: SidebarProps) {
                             key={child.id}
                             type="button"
                             onClick={(e) => { e.stopPropagation(); go(child.path); }}
-                            className={`w-full text-left py-2 px-3 text-[13px] font-medium rounded-lg transition-colors ${childActive ? "bg-indigo-50 text-indigo-700 dark:bg-indigo-900/30 dark:text-indigo-300" : "text-slate-500 hover:bg-slate-50 dark:text-slate-400 dark:hover:bg-slate-800"}`}
+                            className={`w-full text-left py-2 px-3 text-[13px] font-medium rounded-lg transition-colors ${childActive ? "bg-[#7B3FE4]/15 text-[#B79BFF]" : "text-slate-500 hover:bg-white/[0.04] hover:text-slate-300"}`}
                           >
                             {child.label}
                           </button>
@@ -133,11 +133,11 @@ export function Sidebar({ isOpen, onClose, isCollapsed }: SidebarProps) {
             })}
           </nav>
 
-          <div className="px-3 mt-auto pt-4 border-t border-slate-100 dark:border-slate-800">
+          <div className="px-3 mt-auto pt-4 border-t border-white/5">
             <button
               type="button"
               onClick={(e) => { e.stopPropagation(); authApi.logout().then(() => navigate("/login", { replace: true })); }}
-              className={`w-full flex items-center gap-x-3.5 py-3 px-4 text-sm font-bold text-red-500 rounded-xl hover:bg-red-50 dark:hover:bg-red-900/10 transition-all ${isCollapsed ? "md:justify-center md:px-0" : ""}`}
+              className={`w-full flex items-center gap-x-3.5 py-3 px-4 text-sm font-bold text-red-500 rounded-2xl hover:bg-red-500/10 transition-all ${isCollapsed ? "md:justify-center md:px-0" : ""}`}
             >
               <LogOut size={20} />
               {!isCollapsed && <span>Logout</span>}
