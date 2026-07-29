@@ -1,0 +1,151 @@
+import { useState } from "react";
+import {
+  Home, MessageSquare, Settings, LogOut, Users, Mail, Radio, ChevronDown, Ticket,
+} from "lucide-react";
+import { useNavigate, useLocation } from "react-router-dom";
+import authApi from "@/api/authApi";
+import SidebarLogo from "./SideBarLogo";
+
+interface SidebarProps {
+  isOpen: boolean;
+  onClose: () => void;
+  isCollapsed: boolean;
+}
+
+interface NavChild {
+  id: string;
+  label: string;
+  path: string;
+}
+
+interface NavItem {
+  id: string;
+  icon: typeof Home;
+  label: string;
+  path: string;
+  children?: NavChild[];
+}
+
+export function Sidebar({ isOpen, onClose, isCollapsed }: SidebarProps) {
+  const navigate = useNavigate();
+  const location = useLocation();
+
+  const navItems: NavItem[] = [
+    { id: "home", icon: Home, label: "Home", path: "/dashboard" },
+    { id: "conversations", icon: MessageSquare, label: "Conversations", path: "/dashboard/conversations" },
+    { id: "leads", icon: Users, label: "Leads", path: "/dashboard/leads" },
+    { id: "tickets", icon: Ticket, label: "Tickets", path: "/dashboard/tickets" },
+    {
+      id: "communications", icon: Radio, label: "Communications", path: "/dashboard/communications",
+      children: [
+        { id: "calling", label: "AI Calling", path: "/dashboard/communications/calling" },
+        { id: "whatsapp", label: "WhatsApp", path: "/dashboard/communications/whatsapp" },
+      ],
+    },
+    {
+      id: "email", icon: Mail, label: "Email Services", path: "/dashboard/email",
+      children: [
+        { id: "sender", label: "Sender Config", path: "/dashboard/email/sender" },
+        { id: "templates", label: "Templates", path: "/dashboard/email/templates" },
+      ],
+    },
+    { id: "settings", icon: Settings, label: "Settings", path: "/dashboard/settings" },
+  ];
+
+  // Groups start open when you're inside them.
+  const [openGroups, setOpenGroups] = useState<Record<string, boolean>>(() =>
+    Object.fromEntries(
+      navItems.filter((i) => i.children).map((i) => [i.id, location.pathname.startsWith(i.path)])
+    )
+  );
+
+  const go = (path: string) => {
+    navigate(path);
+    onClose();
+  };
+
+  return (
+    <>
+      <div
+        className={`fixed inset-0 z-[60] bg-slate-900/50 backdrop-blur-sm md:hidden transition-opacity ${isOpen ? "opacity-100" : "opacity-0 pointer-events-none"}`}
+        onClick={onClose}
+      />
+
+      <aside
+        className={`fixed inset-y-0 start-0 z-[70] transition-all duration-300 transform bg-[#0B0B13] border-e border-white/5 w-72 md:w-auto ${isOpen ? "translate-x-0" : "-translate-x-full"} ${isCollapsed ? "md:w-20" : "md:w-64"} md:translate-x-0 md:sticky md:top-0 md:h-screen md:block`}
+      >
+        <div className="flex flex-col h-full py-6">
+          <SidebarLogo isCollapsed={isCollapsed} onClose={onClose} />
+
+          <nav className="flex-1 px-3 space-y-1.5 overflow-y-auto mt-6">
+            {navItems.map((item) => {
+              const isActive = item.path === "/dashboard"
+                ? location.pathname === "/dashboard"
+                : location.pathname.startsWith(item.path);
+              const hasChildren = !!item.children?.length;
+              // Collapsed rail has no room for sub-items: jump to the first child.
+              const expanded = hasChildren && !isCollapsed && openGroups[item.id];
+
+              return (
+                <div key={item.id}>
+                  <button
+                    type="button"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      if (hasChildren && !isCollapsed) {
+                        setOpenGroups((g) => ({ ...g, [item.id]: !g[item.id] }));
+                        if (!location.pathname.startsWith(item.path)) go(item.children![0].path);
+                      } else {
+                        go(hasChildren ? item.children![0].path : item.path);
+                      }
+                    }}
+                    className={`w-full flex items-center gap-x-3.5 py-3 px-4 text-sm font-semibold rounded-2xl transition-all duration-200 ${isActive ? "bg-gradient-to-r from-[#7B3FE4] to-[#4B22F4] text-white shadow-lg shadow-[#4B22F4]/30" : "text-slate-400 hover:bg-white/[0.04] hover:text-slate-200"} ${isCollapsed ? "md:justify-center md:px-0" : ""}`}
+                  >
+                    <item.icon size={20} strokeWidth={isActive ? 2.5 : 2} />
+                    {!isCollapsed && <span className="flex-1 text-left">{item.label}</span>}
+                    {!isCollapsed && hasChildren && (
+                      <ChevronDown
+                        size={16}
+                        className={`transition-transform ${expanded ? "rotate-180" : ""}`}
+                      />
+                    )}
+                  </button>
+
+                  {expanded && (
+                    <div className="mt-1 ms-6 ps-3 border-s border-white/10 space-y-1">
+                      {item.children!.map((child) => {
+                        const childActive = location.pathname === child.path;
+                        return (
+                          <button
+                            key={child.id}
+                            type="button"
+                            onClick={(e) => { e.stopPropagation(); go(child.path); }}
+                            className={`w-full text-left py-2 px-3 text-[13px] font-medium rounded-lg transition-colors ${childActive ? "bg-[#7B3FE4]/15 text-[#B79BFF]" : "text-slate-500 hover:bg-white/[0.04] hover:text-slate-300"}`}
+                          >
+                            {child.label}
+                          </button>
+                        );
+                      })}
+                    </div>
+                  )}
+                </div>
+              );
+            })}
+          </nav>
+
+          <div className="px-3 mt-auto pt-4 border-t border-white/5">
+            <button
+              type="button"
+              onClick={(e) => { e.stopPropagation(); authApi.logout().then(() => navigate("/login", { replace: true })); }}
+              className={`w-full flex items-center gap-x-3.5 py-3 px-4 text-sm font-bold text-red-500 rounded-2xl hover:bg-red-500/10 transition-all ${isCollapsed ? "md:justify-center md:px-0" : ""}`}
+            >
+              <LogOut size={20} />
+              {!isCollapsed && <span>Logout</span>}
+            </button>
+          </div>
+        </div>
+      </aside>
+    </>
+  );
+}
+
