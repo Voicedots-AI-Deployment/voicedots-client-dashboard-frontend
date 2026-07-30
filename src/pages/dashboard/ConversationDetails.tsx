@@ -59,12 +59,12 @@ export function ConversationDetails() {
   const messages = data?.transcription;
 
   return (
-    <div className="flex flex-col bg-[#161722]">
+    <div className="flex flex-col bg-white dark:bg-slate-900">
       {/* BACK */}
       <div className="border-b px-4 py-3 shrink-0 flex justify-between items-center">
         <button
           onClick={() => navigate(-1)}
-          className="flex items-center gap-2 text-sm text-slate-500"
+          className="flex items-center gap-2 text-sm text-gray-600"
         >
           <ArrowLeft size={16} />
           Back
@@ -83,7 +83,7 @@ export function ConversationDetails() {
       <div className="border-b px-4 py-3 shrink-0 flex flex-col md:flex-row md:items-center md:justify-between gap-3">
         <div className="pl-3" style={{ borderLeft: `4px solid ${UI.colors.primary}` }}>
           <h1 className="text-lg md:text-xl font-bold">Transcript Details</h1>
-          <p className="text-xs text-slate-500 font-mono truncate">
+          <p className="text-xs text-gray-500 font-mono truncate">
             ID: {id}
           </p>
         </div>
@@ -100,7 +100,7 @@ export function ConversationDetails() {
         <div className="px-4 md:px-6 py-4">
           <div className="max-w-4xl mx-auto space-y-6">
             <div className="flex justify-center">
-              <span className="px-3 py-1 bg-white/[0.04] text-xs rounded-full">
+              <span className="px-3 py-1 bg-gray-100 text-xs rounded-full">
                 Conversation Start
               </span>
             </div>
@@ -117,7 +117,9 @@ export function ConversationDetails() {
                 return (
                   <div
                     key={i}
-                    className={`flex gap-3 ${ isAgent ? "flex-row" : "flex-row-reverse" }`}
+                    className={`flex gap-3 ${
+                      isAgent ? "flex-row" : "flex-row-reverse"
+                    }`}
                   >
                     {isAgent ? (
                       <img src={logoIcon} className="w-9 h-9 rounded-full border p-1" />
@@ -128,13 +130,17 @@ export function ConversationDetails() {
                     )}
 
                     <div className={`max-w-[80%]`}>
-                      <div className="text-xs text-slate-500 mb-1">
+                      <div className="text-xs text-gray-500 mb-1">
                         {isAgent ? "SRK" : lead?.name || "User"} ·{" "}
                         {formatTime(msg.timestamp)}
                       </div>
 
                       <div
-                        className={`rounded-xl px-4 py-2 text-sm ${ isAgent ? "bg-[#161722] border" : "text-white" }`}
+                        className={`rounded-xl px-4 py-2 text-sm ${
+                          isAgent
+                            ? "bg-white border"
+                            : "text-white"
+                        }`}
                         style={{
                           backgroundColor: isAgent
                             ? undefined
@@ -159,7 +165,7 @@ export function ConversationDetails() {
         </div>
 
         {/* DESKTOP SIDEBAR */}
-        <aside className="hidden md:block border-l bg-[#0B0B13] px-4 py-6 sticky top-16 h-[calc(100vh-64px)] overflow-y-auto custom-scrollbar">
+        <aside className="hidden md:block border-l bg-gray-50 px-4 py-6 sticky top-16 h-[calc(100vh-64px)] overflow-y-auto custom-scrollbar">
           <LeadInfo lead={lead} />
         </aside>
       </div>
@@ -167,7 +173,7 @@ export function ConversationDetails() {
       {/* MOBILE BOTTOM SHEET */}
       {showMobileInfo && (
         <div className="fixed inset-0 z-50 bg-black/40 md:hidden">
-          <div className="absolute bottom-0 w-full bg-[#161722] rounded-t-xl p-4 max-h-[80vh] overflow-y-auto">
+          <div className="absolute bottom-0 w-full bg-white rounded-t-xl p-4 max-h-[80vh] overflow-y-auto dark:bg-slate-900">
             <div className="flex justify-between items-center mb-4">
               <h3 className="font-semibold">Lead Info</h3>
               <button onClick={() => setShowMobileInfo(false)}>
@@ -187,14 +193,14 @@ export function ConversationDetails() {
 function LeadInfo({ lead }: any) {
   return (
     <div className="space-y-4">
-      <div className="bg-[#161722] border rounded-lg">
+      <div className="bg-white border rounded-lg dark:bg-slate-900">
         <div className="flex gap-3 px-4 py-3 border-b">
           <div className="w-9 h-9 rounded-full bg-blue-100 flex items-center justify-center">
             <User size={16} />
           </div>
           <div>
             <p className="font-semibold">{lead?.name || "Unknown Lead"}</p>
-            <p className="text-xs text-slate-500">Inbound Call</p>
+            <p className="text-xs text-gray-500">Inbound Call</p>
           </div>
         </div>
 
@@ -203,7 +209,7 @@ function LeadInfo({ lead }: any) {
         <InfoRow icon={<Briefcase size={14} />} label="Business" value={lead?.business_description || lead?.business_desc || lead?.summary || "N/A"} />
       </div>
 
-      <div className="bg-[#161722] border rounded-lg">
+      <div className="bg-white border rounded-lg dark:bg-slate-900">
         <div className="flex gap-2 px-4 py-3 border-b">
           <FileText size={14} />
           <p className="font-semibold text-sm">Call Summary</p>
@@ -211,7 +217,7 @@ function LeadInfo({ lead }: any) {
         <div className="px-4 py-3 space-y-2 text-sm">
           <SummaryRow icon={<Clock size={14} />} label="Duration" value="3m 49s" />
           <SummaryRow icon={<PhoneCall size={14} />} label="Outcome" value="No Response" />
-          {/* <p className="text-xs text-slate-500">
+          {/* <p className="text-xs text-gray-500">
             User did not respond clearly. No lead qualification captured.
           </p> */}
         </div>
@@ -223,13 +229,13 @@ function LeadInfo({ lead }: any) {
 /* HELPERS */
 function InfoRow({ icon, label, value }: any) {
   return (
-    <div className="flex items-start gap-3 px-4 py-2 min-w-0">
-      <div className="text-slate-500 shrink-0">
+    <div className="flex items-start gap-3 px-4 py-2  min-w-0">
+      <div className="text-gray-400 shrink-0">
         {icon}
       </div>
 
       <div className="min-w-0 w-full">
-        <p className="text-xs text-slate-500">{label}</p>
+        <p className="text-xs text-gray-500">{label}</p>
 
         <p className="text-sm font-medium break-words overflow-hidden">
           {value}
@@ -242,7 +248,7 @@ function InfoRow({ icon, label, value }: any) {
 function SummaryRow({ icon, label, value }: any) {
   return (
     <div className="flex justify-between text-sm">
-      <span className="flex gap-2 text-slate-500">
+      <span className="flex gap-2 text-gray-500">
         {icon} {label}
       </span>
       <span className="font-medium">{value}</span>

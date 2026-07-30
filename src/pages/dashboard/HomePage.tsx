@@ -8,6 +8,7 @@ import {
 import { useEffect, useMemo, useState, useCallback, useRef } from "react";
 import { useAuth } from "@/context/AuthContext";
 import { kpiAPI } from "@/api/kpi";
+import { UI } from "@/ui/colors";
 import type { KpiTimeseriesPoint } from "@/types/conversation.types";
 import { ConversationsPerDayChart } from "@/components/charts/ConversationsPerDayChart";
 import { ConversationsVolumeChart } from "@/components/charts/ConversationsVolumeChart";
@@ -284,23 +285,10 @@ export function HomePage() {
 
   const currentStats = useMemo(() => computeMetrics(filteredData), [filteredData, computeMetrics]);
 
-  const formatDurationShort = (secs = 0) => {
-    const m = Math.floor(secs / 60);
-    const s = Math.round(secs % 60);
-    return m > 0 ? `${m}m ${s}s` : `${s}s`;
-  };
-
-  const peakConversations = useMemo(
-    () => filteredData.reduce((m, p) => Math.max(m, p.conversations), 0),
-    [filteredData]
-  );
-  const avgMessagesPerDay = filteredData.length ? currentStats.messages / filteredData.length : 0;
-  const avgCallSecs = currentStats.conversations > 0 ? currentStats.totalDuration / currentStats.conversations : 0;
-
   const stats = [
-    { label: "TOTAL CONVERSATIONS", value: loading ? "—" : currentStats.conversations.toLocaleString(), icon: MessageSquare, trend: getTrend("conversations"), dataKey: "conversations", accent: "#8B5CF6", sub: `Peak: ${peakConversations} calls/day`, format: (v: number) => `${v} convs` },
-    { label: "MESSAGE VOLUME", value: loading ? "—" : currentStats.messages.toLocaleString(), icon: Activity, trend: getTrend("messages"), dataKey: "messages", accent: "#34D399", sub: `Avg: ${Math.round(avgMessagesPerDay)} messages/day`, format: (v: number) => `${v.toLocaleString()} msgs` },
-    { label: "TOTAL DURATION", value: loading ? "—" : formatHours(currentStats.totalDuration), icon: Clock, trend: getTrend("totalDuration"), dataKey: "total_call_duration_secs", accent: "#F59E0B", sub: `Avg Call: ${formatDurationShort(avgCallSecs)}`, format: (v: number) => `${Math.floor(v / 60)}m ${Math.round(v % 60)}s` },
+    { label: "TOTAL CONVERSATIONS", value: loading ? "—" : currentStats.conversations.toLocaleString(), icon: MessageSquare, trend: getTrend("conversations"), dataKey: "conversations", format: (v: number) => `${v} convs` },
+    { label: "TOTAL MESSAGES", value: loading ? "—" : currentStats.messages.toLocaleString(), icon: Activity, trend: getTrend("messages"), dataKey: "messages", format: (v: number) => `${v.toLocaleString()} msgs` },
+    { label: "TOTAL DURATION", value: loading ? "—" : formatHours(currentStats.totalDuration), icon: Clock, trend: getTrend("totalDuration"), dataKey: "total_call_duration_secs", format: (v: number) => `${Math.floor(v / 60)}m ${Math.round(v % 60)}s` },
   ];
 
   const greeting = useMemo(() => {
@@ -311,44 +299,46 @@ export function HomePage() {
   return (
     <motion.div variants={container} initial="hidden" animate="show" className="space-y-8">
       <div className="flex flex-col items-center lg:items-start gap-6 lg:flex-row lg:justify-between">
-        <div className="space-y-2">
-          <h1 className="flex items-center gap-3 text-3xl md:text-5xl font-black tracking-tight leading-tight text-white">
-            <span className="relative flex h-2.5 w-2.5 shrink-0">
-              <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-emerald-400 opacity-75"></span>
-              <span className="relative inline-flex h-2.5 w-2.5 rounded-full bg-emerald-400"></span>
-            </span>
-            Dashboard{" "}
-            <span className="bg-gradient-to-r from-pink-300 via-purple-300 to-indigo-400 bg-clip-text text-transparent">
-              Overview
-            </span>
+        <div className="space-y-1">
+          <div className="flex items-center justify-center lg:justify-start gap-2">
+            <p className="text-[10px] font-extrabold uppercase tracking-[0.2em]" style={{ color: UI.colors.text.secondary }}>{greeting}</p>
+            <span className="h-px w-8 bg-slate-200"></span>
+          </div>
+          <h1 className="text-3xl md:text-5xl font-black tracking-tight leading-tight" style={{ color: UI.colors.text.primary }}>
+            Dashboard <span className="bg-gradient-to-r from-indigo-600 to-blue-500 bg-clip-text text-transparent">Overview</span>
           </h1>
-          <p className="text-sm font-medium text-slate-400">
-            {greeting}, <span className="text-slate-200 font-semibold">{user?.name || "there"}</span>{" "}
-            <span className="text-slate-600">•</span> Real-time stats are live
-          </p>
+          <div className="flex items-center justify-center lg:justify-start gap-3 text-sm font-medium">
+            <span className="flex items-center gap-1.5 rounded-full bg-emerald-500/10 px-2.5 py-1 text-[11px] font-bold text-emerald-600 ring-1 ring-emerald-500/20 shadow-sm">
+              <span className="relative flex h-2 w-2">
+                <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-emerald-400 opacity-75"></span>
+                <span className="relative inline-flex h-2 w-2 rounded-full bg-emerald-500"></span>
+              </span>
+              System Live
+            </span>
+          </div>
         </div>
 
-        <div className="flex flex-col sm:flex-row items-center gap-3 rounded-[22px] bg-[#161722] p-2 ring-1 ring-white/5">
-          <div className="flex items-center p-1 bg-white/[0.03] rounded-2xl">
+        <div className="flex flex-col sm:flex-row items-center gap-2 rounded-[22px] bg-white p-2 shadow-sm ring-1 ring-slate-200/60 backdrop-blur-md dark:bg-slate-900">
+          <div className="flex items-center p-1 bg-slate-50 rounded-xl">
             {(["7d", "15d", "30d", "all"] as Preset[]).map((p) => (
               <button
                 key={p}
                 onClick={() => handlePresetChange(p)}
-                className={`rounded-xl px-4 py-1.5 text-[11px] font-bold tracking-tight transition-all duration-300 ${preset === p ? "bg-gradient-to-r from-[#7B3FE4] to-[#4B22F4] text-white shadow-lg shadow-[#4B22F4]/30" : "text-slate-400 hover:text-slate-200"}`}
+                className={`rounded-lg px-4 py-1.5 text-[11px] font-bold tracking-tight transition-all duration-300 ${preset === p ? "bg-white text-slate-900 shadow-sm ring-1 ring-slate-200" : "text-slate-400 hover:text-slate-600"}`}
               >
                 {p === "30d" ? "1M" : p === "all" ? "ALL" : p.toUpperCase()}
               </button>
             ))}
           </div>
-          <div className="hidden sm:block h-6 w-px bg-white/10 mx-1"></div>
+          <div className="hidden sm:block h-6 w-px bg-slate-200 mx-2"></div>
           <div className="flex items-center justify-center gap-3 px-2 py-1 sm:py-0">
             <div className="flex items-center gap-2 group">
-              <Calendar size={14} className="text-slate-500 group-hover:text-[#B79BFF] transition-colors" />
-              <input type="date" value={from} onChange={(e) => { setPreset("custom"); setRange({ from: e.target.value, to }); }} className="bg-transparent text-[11px] font-bold text-slate-300 outline-none w-28 cursor-pointer hover:text-white" />
+              <Calendar size={14} className="text-slate-400 group-hover:text-blue-500 transition-colors" />
+              <input type="date" value={from} onChange={(e) => { setPreset("custom"); setRange({ from: e.target.value, to }); }} className="bg-transparent text-[11px] font-bold text-slate-600 outline-none w-28 cursor-pointer hover:text-slate-900 dark:text-slate-100" />
             </div>
-            <span className="text-slate-600 font-bold">→</span>
+            <span className="text-slate-300 font-bold">→</span>
             <div className="flex items-center gap-2 group">
-              <input type="date" value={to} onChange={(e) => { setPreset("custom"); setRange({ from, to: e.target.value }); }} className="bg-transparent text-[11px] font-bold text-slate-300 outline-none w-28 cursor-pointer hover:text-white" />
+              <input type="date" value={to} onChange={(e) => { setPreset("custom"); setRange({ from, to: e.target.value }); }} className="bg-transparent text-[11px] font-bold text-slate-600 outline-none w-28 cursor-pointer hover:text-slate-900 dark:text-slate-100" />
             </div>
           </div>
         </div>
@@ -356,36 +346,31 @@ export function HomePage() {
 
       <div className="grid grid-cols-1 gap-5 sm:grid-cols-2 lg:grid-cols-3">
         {stats.map((stat) => (
-          <motion.div key={stat.label} variants={item} className="group relative overflow-hidden rounded-[20px] bg-[#161722] p-6 ring-1 ring-white/5 transition-all duration-500 hover:-translate-y-1.5 hover:ring-white/10 hover:shadow-[0_20px_50px_rgba(0,0,0,0.4)] cursor-pointer">
-            <div className="flex items-start justify-between mb-6">
-              <div className="flex h-11 w-11 items-center justify-center rounded-2xl bg-white/[0.04] text-slate-200 ring-1 ring-white/10 transition-transform duration-500 group-hover:scale-110">
-                <stat.icon className="h-5 w-5" />
+          <motion.div key={stat.label} variants={item} className="group relative overflow-hidden rounded-[32px] bg-white p-6 shadow-[0_8px_30px_rgb(0,0,0,0.02)] ring-1 ring-slate-200/60 transition-all duration-500 hover:-translate-y-2 hover:shadow-[0_20px_50px_rgba(0,0,0,0.1)] hover:ring-slate-300 cursor-pointer dark:bg-slate-900">
+            <div className="flex items-start justify-between mb-4">
+              <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-white text-slate-900 ring-1 ring-slate-200 transition-transform duration-500 group-hover:scale-110 group-hover:rotate-3 shadow-sm dark:bg-slate-900 dark:ring-slate-700 dark:text-slate-100">
+                <stat.icon className="h-6 w-6" />
               </div>
-              <div className={`flex items-center gap-1 rounded-full px-2.5 py-1 text-[10px] font-black tracking-tight ${stat.trend.up ? "bg-emerald-500/15 text-emerald-400" : "bg-red-500/15 text-red-400"}`}>
+              <div className={`flex items-center gap-1 rounded-full px-2 py-1 text-[10px] font-black tracking-tighter ${stat.trend.up ? "bg-emerald-50 text-emerald-600 ring-1 ring-emerald-100" : "bg-red-50 text-red-600 ring-1 ring-red-100"}`}>
                 {stat.trend.up ? "↑" : "↓"} {stat.trend.text}
               </div>
             </div>
-            <div className="space-y-1.5">
-              <p className="text-[10px] font-bold tracking-[0.15em] text-slate-500 uppercase">{stat.label}</p>
+            <div className="space-y-1">
+              <p className="text-[10px] font-bold tracking-[0.1em] text-slate-400 uppercase">{stat.label}</p>
               <div className="flex items-end justify-between gap-3">
-                <div>
-                  <h2 className="text-3xl font-black tracking-tight" style={{ color: stat.accent }}>{stat.value}</h2>
-                  <p className="mt-1.5 text-[11px] font-medium text-slate-500">{stat.sub}</p>
-                </div>
-                <div className="pb-1 overflow-hidden">
+                <h2 className="text-2xl font-black tracking-tight text-slate-900 group-hover:text-blue-600 transition-colors dark:text-slate-100">{stat.value}</h2>
+                <div className="pb-1.5 opacity-40 group-hover:opacity-100 transition-opacity duration-500 overflow-hidden">
                   <MiniSparkline
                     data={filteredData.map(p => ({
-                      value: (p as any)[stat.dataKey]
+                      value: stat.label.includes("AVG COST") ? (p.conversations > 0 ? (p.cost_usd / p.conversations) : 0) : (p as any)[stat.dataKey]
                     }))}
-                    color={stat.accent}
+                    color={stat.trend.up ? "#10b981" : "#ef4444"}
                     formatter={stat.format}
                   />
                 </div>
               </div>
             </div>
-            <div className="absolute bottom-0 left-0 right-0 h-1 opacity-60">
-              <div className="h-full w-2/3 rounded-r-full bg-gradient-to-r from-[#7B3FE4] to-[#4B22F4]" />
-            </div>
+            <div className="absolute bottom-0 left-0 h-1 w-0 bg-gradient-to-r from-blue-600 to-indigo-600 transition-all duration-700 group-hover:w-full" />
           </motion.div>
         ))}
       </div>

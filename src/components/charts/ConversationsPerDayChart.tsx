@@ -40,31 +40,31 @@ export function ConversationsPerDayChart({ data }: Props) {
   }, [data]);
 
   return (
-    <div className="group relative flex flex-col rounded-[24px] bg-[#161722] p-4 sm:p-6 ring-1 ring-white/5 transition-all duration-500 hover:-translate-y-1.5 hover:ring-white/10 hover:shadow-[0_20px_50px_rgba(0,0,0,0.4)] overflow-hidden">
+    <div className="group relative flex flex-col rounded-[24px] bg-white/80 p-4 sm:p-6 shadow-[0_8px_30px_rgb(0,0,0,0.015)] ring-1 ring-slate-100 backdrop-blur-sm transition-all duration-500 hover:-translate-y-1.5 hover:shadow-[0_20px_50px_rgba(0,0,0,0.1)] hover:ring-slate-200 overflow-hidden dark:bg-slate-900/80 dark:ring-slate-700">
       <div className="mb-6 flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
         <div className="flex flex-col">
           <div className="flex items-center gap-2">
-            <div className="h-2 w-2 rounded-full bg-[#22D3EE] shadow-[0_0_8px_#22D3EE]"></div>
-            <h3 className="text-[14px] font-bold tracking-tight text-white">Message Volume</h3>
+            <div className="h-2 w-2 rounded-full bg-blue-500"></div>
+            <h3 className="text-[14px] font-bold tracking-tight text-slate-900 dark:text-slate-100">Message Volume</h3>
           </div>
-          <p className="mt-0.5 text-[11px] font-medium text-slate-500">Daily message volume</p>
+          <p className="mt-0.5 text-[11px] font-medium text-slate-400">Daily message volume</p>
         </div>
-
+        
         <div className="flex flex-wrap items-center gap-2 sm:gap-4">
-          <div className="flex items-center gap-2 rounded-2xl bg-[#22D3EE]/10 px-3 py-1.5 ring-1 ring-[#22D3EE]/20">
-            <span className="text-[10px] font-bold uppercase tracking-tight text-[#67E8F9]">Total</span>
-            <span className="text-[14px] sm:text-[15px] font-black text-white">{stats.total}</span>
+          <div className="flex items-center gap-2 rounded-2xl bg-[#eff6ff] px-3 py-1.5 ring-1 ring-blue-100">
+            <span className="text-[10px] font-bold uppercase tracking-tight text-blue-400">Total</span>
+            <span className="text-[14px] sm:text-[15px] font-black text-blue-700">{stats.total}</span>
           </div>
-          <div className="flex items-center gap-2 rounded-2xl bg-[#8B5CF6]/10 px-3 py-1.5 ring-1 ring-[#8B5CF6]/20">
-            <span className="text-[10px] font-bold uppercase tracking-tight text-[#B79BFF]">Avg/Day</span>
-            <span className="text-[14px] sm:text-[15px] font-black text-white">{stats.avg.toFixed(1)}</span>
+          <div className="flex items-center gap-2 rounded-2xl bg-[#f5f3ff] px-3 py-1.5 ring-1 ring-indigo-100">
+            <span className="text-[10px] font-bold uppercase tracking-tight text-indigo-400">Avg/Day</span>
+            <span className="text-[14px] sm:text-[15px] font-black text-indigo-600">{stats.avg.toFixed(1)}</span>
           </div>
-          <div className="flex items-center gap-2 rounded-2xl bg-emerald-500/10 px-3 py-1.5 ring-1 ring-emerald-500/20">
+          <div className="flex items-center gap-2 rounded-2xl bg-[#ecfdf5] px-3 py-1.5 ring-1 ring-emerald-100">
              <div className="flex items-center gap-1.5 leading-none">
                 <span className="text-[10px] font-bold uppercase tracking-tight text-emerald-400">Peak</span>
-                <span className="text-[9px] font-bold text-emerald-500/70">({stats.peakDate})</span>
+                <span className="text-[9px] font-bold text-emerald-300">({stats.peakDate})</span>
              </div>
-            <span className="text-[14px] sm:text-[15px] font-black text-white">{stats.peakVal}</span>
+            <span className="text-[14px] sm:text-[15px] font-black text-emerald-600">{stats.peakVal}</span>
           </div>
         </div>
       </div>
@@ -76,13 +76,7 @@ export function ConversationsPerDayChart({ data }: Props) {
             margin={{ top: 10, right: 10, left: 0, bottom: 0 }}
             barCategoryGap="8%"
           >
-            <defs>
-              <linearGradient id="colorMessages" x1="0" y1="0" x2="0" y2="1">
-                <stop offset="0%" stopColor="#22D3EE" stopOpacity={1} />
-                <stop offset="100%" stopColor="#0EA5E9" stopOpacity={0.5} />
-              </linearGradient>
-            </defs>
-            <CartesianGrid vertical={false} strokeDasharray="3 3" stroke="#2A2B3D" />
+            <CartesianGrid vertical={false} strokeDasharray="3 3" stroke="#e5e7eb" />
             <XAxis
               dataKey="date"
               axisLine={false}
@@ -112,20 +106,20 @@ export function ConversationsPerDayChart({ data }: Props) {
               width={35}
             />
             <Tooltip
-              cursor={{ fill: 'rgba(255, 255, 255, 0.04)' }}
+              cursor={{ fill: 'rgba(211, 211, 211, 0.4)' }}
               content={(props: any) => {
                 const { active, payload } = props;
                 if (active && payload && payload.length) {
                   return (
-                    <div className="rounded-xl border border-white/10 bg-[#1C1D2B] p-3 shadow-2xl shadow-black/50">
-                      <p className="mb-1 text-[12px] font-medium text-slate-400">
+                    <div className="rounded-xl border border-[#e5e7eb] bg-white p-3 shadow-md dark:bg-slate-900 dark:border-slate-800">
+                      <p className="mb-1 text-[12px] font-medium text-[#64748b]">
                         {new Date(payload[0].payload.date + "T00:00:00").toLocaleDateString("en-IN", {
                           day: "numeric",
                           month: "short",
                           year: "numeric"
                         })}
                       </p>
-                      <p className="text-[12px] font-bold text-[#67E8F9]">
+                      <p className="text-[12px] font-bold text-[#6366f1]">
                         Messages : {payload[0].value}
                       </p>
                     </div>
@@ -136,7 +130,7 @@ export function ConversationsPerDayChart({ data }: Props) {
             />
             <Bar
               dataKey="messages"
-              fill="url(#colorMessages)"
+              fill="#6366f1"
               radius={[6, 6, 0, 0]}
               maxBarSize={100}
               animationDuration={1500}

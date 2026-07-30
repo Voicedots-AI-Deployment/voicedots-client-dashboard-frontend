@@ -166,20 +166,20 @@ export default function SettingsPage() {
       <div className="space-y-8">
         
         {/* Profile Section */}
-        <section className="bg-[#161722] border border-white/5 rounded-2xl overflow-hidden transition-all duration-300 hover:shadow-xl hover:shadow-indigo-500/5 hover:-translate-y-0.5">
-          <div className="px-6 py-4 border-b border-white/5">
-            <h2 className="text-xs font-black text-slate-500 uppercase tracking-widest">Profile Information</h2>
+        <section className="bg-white border border-slate-200 rounded-2xl overflow-hidden transition-all duration-300 hover:shadow-xl hover:shadow-indigo-500/5 hover:-translate-y-0.5 dark:bg-slate-900 dark:border-slate-800">
+          <div className="px-6 py-4 border-b border-slate-100 dark:border-slate-800">
+            <h2 className="text-xs font-black text-slate-400 uppercase tracking-widest">Profile Information</h2>
           </div>
           
           <form onSubmit={handleProfileSubmit} className="p-6 space-y-8">
             {/* Avatar Row */}
             <div className="flex flex-col sm:flex-row items-center gap-6">
               <div className="relative group">
-                <div className="h-24 w-24 rounded-full bg-white/[0.04] flex items-center justify-center overflow-hidden border border-white/5 shadow-sm">
+                <div className="h-24 w-24 rounded-full bg-slate-100 dark:bg-slate-800 flex items-center justify-center overflow-hidden border border-slate-200 dark:border-slate-800 shadow-sm">
                   {profilePicture ? (
                     <img src={profilePicture} alt="Avatar" className="h-full w-full object-cover" />
                   ) : (
-                    <span className="text-2xl font-bold text-slate-500">{initials}</span>
+                    <span className="text-2xl font-bold text-slate-400">{initials}</span>
                   )}
                   <div 
                     className="absolute inset-0 bg-black/40 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity cursor-pointer"
@@ -194,7 +194,7 @@ export default function SettingsPage() {
                 <button
                   type="button"
                   onClick={() => fileInputRef.current?.click()}
-                  className="px-5 py-2.5 bg-gradient-to-r from-[#7B3FE4] to-[#4B22F4] text-white text-sm font-bold rounded-xl hover:bg-indigo-700 transition-all shadow-lg shadow-indigo-100 active:scale-95"
+                  className="px-5 py-2.5 bg-indigo-600 text-white text-sm font-bold rounded-xl hover:bg-indigo-700 transition-all shadow-lg shadow-indigo-100 active:scale-95"
                 >
                   Upload Photo
                 </button>
@@ -205,7 +205,7 @@ export default function SettingsPage() {
                       setProfilePicture(user?.profile_picture || "");
                       if (fileInputRef.current) fileInputRef.current.value = "";
                     }}
-                    className="px-4 py-2 bg-white/[0.04] text-slate-500 text-sm font-medium rounded-lg hover:bg-slate-200 transition-colors"
+                    className="px-4 py-2 bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 text-sm font-medium rounded-lg hover:bg-slate-200 dark:hover:bg-slate-700 transition-colors"
                   >
                     Reset
                   </button>
@@ -230,22 +230,22 @@ export default function SettingsPage() {
               <div className="space-y-1.5">
                 <label className="text-xs font-semibold text-slate-500 uppercase tracking-wider">Full Name</label>
                 <div className="relative">
-                  <User className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-500" size={16} />
+                  <User className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={16} />
                   <input
                     value={name}
                     onChange={(e) => setName(e.target.value)}
-                    className="w-full bg-[#0B0B13] border border-white/5 rounded-lg pl-10 pr-4 py-2.5 text-sm focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 outline-none transition-all"
+                    className="w-full bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-lg pl-10 pr-4 py-2.5 text-sm focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 outline-none transition-all"
                   />
                 </div>
               </div>
               <div className="space-y-1.5">
                 <label className="text-xs font-semibold text-slate-500 uppercase tracking-wider">Email Address</label>
                 <div className="relative">
-                  <Mail className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-500" size={16} />
+                  <Mail className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={16} />
                   <input
                     value={email}
                     onChange={(e) => setEmail(e.target.value)}
-                    className="w-full bg-[#0B0B13] border border-white/5 rounded-lg pl-10 pr-4 py-2.5 text-sm focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 outline-none transition-all"
+                    className="w-full bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-lg pl-10 pr-4 py-2.5 text-sm focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 outline-none transition-all"
                   />
                 </div>
               </div>
@@ -262,7 +262,7 @@ export default function SettingsPage() {
                   type="password"
                   value={profileCurrentPassword}
                   onChange={(e) => setProfileCurrentPassword(e.target.value)}
-                  className="w-full bg-[#161722] border border-amber-200 rounded-lg px-4 py-2 text-sm outline-none focus:ring-2 focus:ring-amber-500/20 focus:border-amber-500"
+                  className="w-full bg-white border border-amber-200 rounded-lg px-4 py-2 text-sm outline-none focus:ring-2 focus:ring-amber-500/20 focus:border-amber-500 dark:bg-slate-900"
                   placeholder="Enter current password"
                 />
               </div>
@@ -272,7 +272,7 @@ export default function SettingsPage() {
               <button
                 type="submit"
                 disabled={isSavingProfile}
-                className="px-8 py-2.5 bg-[#161722] text-white text-sm font-bold rounded-xl hover:bg-gradient-to-r from-[#7B3FE4] to-[#4B22F4] transition-all flex items-center gap-2 shadow-lg shadow-slate-100 active:scale-95"
+                className="px-8 py-2.5 bg-slate-900 text-white text-sm font-bold rounded-xl hover:bg-indigo-600 transition-all flex items-center gap-2 shadow-lg shadow-slate-100 active:scale-95"
               >
                 {isSavingProfile ? <Loader2 className="animate-spin" size={18} /> : "Save Changes"}
               </button>
@@ -281,10 +281,10 @@ export default function SettingsPage() {
         </section>
 
         {/* Security Section */}
-        <section className="bg-[#161722] border border-white/5 rounded-2xl overflow-hidden transition-all duration-300 hover:shadow-xl hover:shadow-indigo-500/5 hover:-translate-y-0.5">
-          <div className="px-6 py-4 border-b border-white/5 flex items-center gap-3">
+        <section className="bg-white border border-slate-200 rounded-2xl overflow-hidden transition-all duration-300 hover:shadow-xl hover:shadow-indigo-500/5 hover:-translate-y-0.5 dark:bg-slate-900 dark:border-slate-800">
+          <div className="px-6 py-4 border-b border-slate-100 flex items-center gap-3 dark:border-slate-800">
              <Shield className="text-indigo-600" size={18} />
-            <h2 className="text-xs font-black text-slate-500 uppercase tracking-widest">Security & Password</h2>
+            <h2 className="text-xs font-black text-slate-400 uppercase tracking-widest">Security & Password</h2>
           </div>
           
           <form onSubmit={handleSecuritySubmit} className="p-6 space-y-8">
@@ -303,12 +303,12 @@ export default function SettingsPage() {
               <div className="space-y-1.5">
                 <label className="text-xs font-semibold text-slate-500 uppercase tracking-wider">Current Password</label>
                 <div className="relative">
-                  <KeyRound className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-500" size={16} />
+                  <KeyRound className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={16} />
                   <input
                     type="password"
                     value={secCurrentPassword}
                     onChange={(e) => setSecCurrentPassword(e.target.value)}
-                    className="w-full bg-[#0B0B13] border border-white/5 rounded-lg pl-10 pr-4 py-2.5 text-sm focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 outline-none transition-all"
+                    className="w-full bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-lg pl-10 pr-4 py-2.5 text-sm focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 outline-none transition-all"
                     placeholder="••••••••"
                   />
                 </div>
@@ -316,12 +316,12 @@ export default function SettingsPage() {
               <div className="space-y-1.5">
                 <label className="text-xs font-semibold text-slate-500 uppercase tracking-wider">New Password</label>
                 <div className="relative">
-                  <Lock className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-500" size={16} />
+                  <Lock className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={16} />
                   <input
                     type="password"
                     value={secNewPassword}
                     onChange={(e) => setSecNewPassword(e.target.value)}
-                    className="w-full bg-[#0B0B13] border border-white/5 rounded-lg pl-10 pr-4 py-2.5 text-sm focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 outline-none transition-all"
+                    className="w-full bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-lg pl-10 pr-4 py-2.5 text-sm focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 outline-none transition-all"
                     placeholder="Min. 6 chars"
                   />
                 </div>
@@ -329,23 +329,23 @@ export default function SettingsPage() {
               <div className="space-y-1.5">
                 <label className="text-xs font-semibold text-slate-500 uppercase tracking-wider">Confirm Password</label>
                 <div className="relative">
-                  <Lock className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-500" size={16} />
+                  <Lock className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={16} />
                   <input
                     type="password"
                     value={secConfirmPassword}
                     onChange={(e) => setSecConfirmPassword(e.target.value)}
-                    className="w-full bg-[#0B0B13] border border-white/5 rounded-lg pl-10 pr-4 py-2.5 text-sm focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 outline-none transition-all"
+                    className="w-full bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-lg pl-10 pr-4 py-2.5 text-sm focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 outline-none transition-all"
                     placeholder="Repeat password"
                   />
                 </div>
               </div>
             </div>
 
-            <div className="flex justify-end pt-4 border-t border-slate-50">
+            <div className="flex justify-end pt-4 border-t border-slate-50 dark:border-slate-800">
                <button
                 type="submit"
                 disabled={isSavingSecurity}
-                className="px-8 py-2.5 bg-gradient-to-r from-[#7B3FE4] to-[#4B22F4] text-white text-sm font-bold rounded-xl hover:bg-indigo-700 transition-all flex items-center gap-2 shadow-lg shadow-indigo-100 active:scale-95"
+                className="px-8 py-2.5 bg-indigo-600 text-white text-sm font-bold rounded-xl hover:bg-indigo-700 transition-all flex items-center gap-2 shadow-lg shadow-indigo-100 active:scale-95"
               >
                 {isSavingSecurity ? <Loader2 className="animate-spin" size={18} /> : "Update Password"}
               </button>

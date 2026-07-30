@@ -7,25 +7,25 @@ import communicationAPI, {
 } from "@/api/communication";
 
 const card =
-  "bg-[#161722] ring-1 ring-white/5 rounded-2xl overflow-hidden";
+  "bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl overflow-hidden";
 const cardHead =
-  "px-6 py-4 border-b border-white/5 flex items-center gap-2";
+  "px-6 py-4 border-b border-slate-200 dark:border-slate-800 flex items-center gap-2";
 const headText =
-  "text-xs font-black text-slate-400 uppercase tracking-widest";
+  "text-xs font-black text-slate-400 dark:text-slate-500 uppercase tracking-widest";
 const label =
-  "text-[10px] font-bold uppercase tracking-widest text-slate-400";
+  "text-[10px] font-bold uppercase tracking-widest text-slate-500 dark:text-slate-400";
 const input =
-  "mt-1.5 w-full rounded-xl px-3 py-2.5 text-sm bg-[#0B0B13] ring-1 ring-white/5 text-white placeholder:text-slate-400 outline-none focus:ring-2 focus:ring-indigo-400/50 transition";
+  "mt-1.5 w-full rounded-xl px-3 py-2.5 text-sm bg-slate-50 dark:bg-slate-800/60 border border-slate-200 dark:border-slate-700 text-slate-900 dark:text-slate-100 placeholder:text-slate-400 outline-none focus:ring-2 focus:ring-indigo-400/50 transition";
 
 function statusPill(status: string | null) {
   const s = (status || "").toLowerCase();
   const ok = s === "verified" || s === "active";
   const pending = s === "pending" || s === "not_started";
   const cls = ok
-    ? "bg-emerald-50 text-emerald-700 border-emerald-200"
+    ? "bg-emerald-50 text-emerald-700 border-emerald-200 dark:bg-emerald-900/30 dark:text-emerald-400 dark:border-emerald-800"
     : pending
-    ? "bg-amber-50 text-amber-700 border-amber-200"
-    : "bg-white/[0.04] text-slate-600 border-white/5";
+    ? "bg-amber-50 text-amber-700 border-amber-200 dark:bg-amber-900/30 dark:text-amber-400 dark:border-amber-800"
+    : "bg-slate-100 text-slate-600 border-slate-200 dark:bg-slate-800 dark:text-slate-400 dark:border-slate-700";
   return (
     <span className={`px-2.5 py-1 rounded-full text-[11px] font-semibold border ${cls}`}>
       {status ? status : "Not configured"}
@@ -117,7 +117,7 @@ export default function SenderConfigPage() {
 
   if (loading) {
     return (
-      <div className="flex items-center justify-center py-24 text-slate-400">
+      <div className="flex items-center justify-center py-24 text-slate-500 dark:text-slate-400">
         <Loader2 className="animate-spin mr-2" size={18} /> Loading communications…
       </div>
     );
@@ -126,19 +126,19 @@ export default function SenderConfigPage() {
   return (
     <div className="space-y-6">
       <div>
-        <h1 className="text-2xl font-bold text-white">Sender Configuration</h1>
-        <p className="text-sm text-slate-400 mt-1">
+        <h1 className="text-2xl font-bold text-slate-900 dark:text-slate-100">Sender Configuration</h1>
+        <p className="text-sm text-slate-500 dark:text-slate-400 mt-1">
           Manage your sending identity and verify your sending domain.
         </p>
       </div>
 
       {error && (
-        <div className="flex items-start gap-2 rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
+        <div className="flex items-start gap-2 rounded-xl border border-red-200 dark:border-red-900 bg-red-50 dark:bg-red-900/20 px-4 py-3 text-sm text-red-700 dark:text-red-400">
           <AlertCircle size={16} className="mt-0.5 shrink-0" /> {error}
         </div>
       )}
       {success && (
-        <div className="flex items-start gap-2 rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-700">
+        <div className="flex items-start gap-2 rounded-xl border border-emerald-200 dark:border-emerald-900 bg-emerald-50 dark:bg-emerald-900/20 px-4 py-3 text-sm text-emerald-700 dark:text-emerald-400">
           <CheckCircle2 size={16} className="mt-0.5 shrink-0" /> {success}
         </div>
       )}
@@ -146,7 +146,7 @@ export default function SenderConfigPage() {
       {/* ── Sender configuration ── */}
       <section className={card}>
         <div className={cardHead}>
-          <Mail size={14} className="text-[#B79BFF]" />
+          <Mail size={14} className="text-indigo-500" />
           <h2 className={headText}>Sender Configuration</h2>
         </div>
         <form onSubmit={save} className="p-6 space-y-6">
@@ -174,26 +174,28 @@ export default function SenderConfigPage() {
             </div>
           </div>
 
-          <div className="flex items-center justify-between rounded-xl border border-white/5 px-4 py-3">
+          <div className="flex items-center justify-between rounded-xl border border-slate-200 dark:border-slate-800 px-4 py-3">
             <div className="flex items-start gap-3">
-              <Send size={16} className="mt-0.5 text-[#B79BFF]" />
+              <Send size={16} className="mt-0.5 text-indigo-500" />
               <div>
-                <p className="text-sm font-semibold text-slate-100">Auto-Reply</p>
-                <p className="text-xs text-slate-400">
+                <p className="text-sm font-semibold text-slate-800 dark:text-slate-200">Auto-Reply</p>
+                <p className="text-xs text-slate-500 dark:text-slate-400">
                   Automatically email a visitor after they leave their details.
                 </p>
               </div>
             </div>
             <button type="button" role="switch" aria-checked={autoReply}
               onClick={() => setAutoReply((v) => !v)}
-              className={`relative h-6 w-11 rounded-full transition-colors ${ autoReply ? "bg-gradient-to-r from-[#7B3FE4] to-[#4B22F4]" : "bg-slate-300"}`}>
-              <span className={`absolute top-0.5 h-5 w-5 rounded-full bg-[#161722] transition-all ${ autoReply ? "left-[22px]" : "left-0.5"}`} />
+              className={`relative h-6 w-11 rounded-full transition-colors ${
+                autoReply ? "bg-indigo-600" : "bg-slate-300 dark:bg-slate-700"}`}>
+              <span className={`absolute top-0.5 h-5 w-5 rounded-full bg-white transition-all ${
+                autoReply ? "left-[22px]" : "left-0.5"}`} />
             </button>
           </div>
 
           <div className="flex justify-end">
             <button type="submit" disabled={saving}
-              className="px-8 py-2.5 bg-gradient-to-r from-[#7B3FE4] to-[#4B22F4] hover:opacity-90 disabled:opacity-60 text-white text-sm font-bold rounded-xl transition-all flex items-center gap-2 active:scale-95">
+              className="px-8 py-2.5 bg-indigo-600 hover:bg-indigo-700 disabled:opacity-60 text-white text-sm font-bold rounded-xl transition-all flex items-center gap-2 active:scale-95">
               {saving && <Loader2 size={16} className="animate-spin" />} Save Changes
             </button>
           </div>
@@ -204,13 +206,13 @@ export default function SenderConfigPage() {
       <section className={card}>
         <div className={`${cardHead} justify-between`}>
           <div className="flex items-center gap-2">
-            <Globe size={14} className="text-[#B79BFF]" />
+            <Globe size={14} className="text-indigo-500" />
             <h2 className={headText}>Sending Domain</h2>
           </div>
           <div className="flex items-center gap-3">
             {statusPill(settings?.domain_status ?? null)}
             <button onClick={verify} disabled={verifying}
-              className="px-3 py-1.5 text-xs font-semibold rounded-lg border border-white/5 text-slate-600 hover:bg-[#0B0B13] disabled:opacity-60 flex items-center gap-1.5">
+              className="px-3 py-1.5 text-xs font-semibold rounded-lg border border-slate-200 dark:border-slate-700 text-slate-700 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-800 disabled:opacity-60 flex items-center gap-1.5">
               {verifying ? <Loader2 size={13} className="animate-spin" /> : <RefreshCw size={13} />} Verify
             </button>
           </div>
@@ -218,11 +220,11 @@ export default function SenderConfigPage() {
         <div className="p-6">
           {dnsRecords.length === 0 ? (
             <div className="text-center py-8">
-              <ShieldCheck className="mx-auto text-slate-600" size={32} />
-              <p className="mt-3 text-sm text-slate-400 font-medium">
+              <ShieldCheck className="mx-auto text-slate-300 dark:text-slate-700" size={32} />
+              <p className="mt-3 text-sm text-slate-600 dark:text-slate-300 font-medium">
                 No DNS records yet
               </p>
-              <p className="text-xs text-slate-400 mt-1 max-w-md mx-auto">
+              <p className="text-xs text-slate-500 dark:text-slate-400 mt-1 max-w-md mx-auto">
                 Save a sender email on your own domain, then hit Verify — the records your IT team
                 must publish will appear here.
               </p>
@@ -231,16 +233,16 @@ export default function SenderConfigPage() {
             <div className="overflow-x-auto">
               <table className="w-full text-sm">
                 <thead>
-                  <tr className="text-left text-[11px] uppercase tracking-wider text-slate-400">
+                  <tr className="text-left text-[11px] uppercase tracking-wider text-slate-400 dark:text-slate-500">
                     <th className="py-2 pr-4 font-bold">Type</th>
                     <th className="py-2 pr-4 font-bold">Name</th>
                     <th className="py-2 pr-4 font-bold">Value</th>
                     <th className="py-2 font-bold">Status</th>
                   </tr>
                 </thead>
-                <tbody className="text-slate-600">
+                <tbody className="text-slate-700 dark:text-slate-300">
                   {dnsRecords.map((r, i) => (
-                    <tr key={i} className="border-t border-white/5 align-top">
+                    <tr key={i} className="border-t border-slate-100 dark:border-slate-800 align-top">
                       <td className="py-2.5 pr-4 font-mono text-xs">{String(r.type ?? r.record ?? "—")}</td>
                       <td className="py-2.5 pr-4 font-mono text-xs break-all">{String(r.name ?? "—")}</td>
                       <td className="py-2.5 pr-4 font-mono text-xs break-all">{String(r.value ?? "—")}</td>

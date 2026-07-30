@@ -1,5 +1,5 @@
 import React from 'react';
-import { X } from 'lucide-react';
+import { X } from 'lucide-react'; 
 
 interface SidebarLogoProps {
   isCollapsed: boolean;
@@ -7,34 +7,48 @@ interface SidebarLogoProps {
   className?: string;
 }
 
-/**
- * The brand mark is the VoiceDots SVG followed by the wordmark, as it has always
- * been drawn. A substitute built from a letter and two CSS dots is not the logo,
- * so the asset in /public is used directly.
- */
-const SidebarLogo: React.FC<SidebarLogoProps> = ({
-  isCollapsed,
-  onClose,
-  className = "",
+const SidebarLogo: React.FC<SidebarLogoProps> = ({ 
+  isCollapsed, 
+  onClose, 
+  className = "" 
 }) => {
   return (
-    <div className={`px-6 flex items-center justify-between ${className}`}>
+    <div className={`px-6 mb-8 flex items-center justify-between ${className}`}>
+      
+      {/* Logo Container */}
       <div className="flex items-center">
-        <h1 className="text-2xl md:text-[28px] font-bold tracking-tighter text-white leading-none select-none">
+        {/* Icon logo */}
+        <h1
+          className="
+            text-2xl md:text-4xl font-bold tracking-tighter mb-6
+            bg-clip-text
+            bg-gradient-to-b
+            from-foreground to-foreground/60
+          "
+          >
+            <img
+              src="/voicedotslogo.svg"
+              alt="V"
+              className="h-[1.1em] w-auto inline-block align-middle -translate-y-[0.1em] mr-[-0.3em]"
+            />
+            {!isCollapsed ? "oiceDots" : null}
+          </h1>
+
+        {/* Text logo
+        {!isCollapsed && (
           <img
-            src="/voicedotslogo.svg"
-            alt="VoiceDots"
-            className="h-[1.1em] w-auto inline-block align-middle -translate-y-[0.1em] mr-[-0.3em]"
+            src={logoText}
+            alt="Voicedots"
+            className="h-8 md:h-10 object-contain mt-1.5"
           />
-          {!isCollapsed ? "oiceDots" : null}
-        </h1>
+        )} */}
       </div>
 
       {/* Mobile close button */}
       <button
         onClick={onClose}
         aria-label="Close sidebar"
-        className="md:hidden text-slate-400 hover:text-white transition-colors"
+        className="md:hidden text-gray-500 hover:text-gray-800 dark:text-gray-400 transition-colors"
       >
         <X size={20} />
       </button>

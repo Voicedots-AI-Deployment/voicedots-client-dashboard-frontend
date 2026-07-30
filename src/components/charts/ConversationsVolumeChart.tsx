@@ -40,24 +40,24 @@ export function ConversationsVolumeChart({ data }: Props) {
   }, [data]);
 
   return (
-    <div className="group relative flex flex-col rounded-[24px] bg-[#161722] p-4 sm:p-6 ring-1 ring-white/5 transition-all duration-500 hover:-translate-y-1.5 hover:ring-white/10 hover:shadow-[0_20px_50px_rgba(0,0,0,0.4)] overflow-hidden">
+    <div className="group relative flex flex-col rounded-[24px] bg-white/80 p-4 sm:p-6 shadow-[0_8px_30px_rgb(0,0,0,0.015)] ring-1 ring-slate-100 backdrop-blur-sm transition-all duration-500 hover:-translate-y-1.5 hover:shadow-[0_20px_50px_rgba(0,0,0,0.1)] hover:ring-slate-200 overflow-hidden dark:bg-slate-900/80 dark:ring-slate-700">
       <div className="mb-6 flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
         <div className="flex flex-col">
           <div className="flex items-center gap-2">
-            <div className="h-2 w-2 rounded-full bg-[#8B5CF6] shadow-[0_0_8px_#8B5CF6]"></div>
-            <h3 className="text-[14px] font-bold tracking-tight text-white">Conversation Volume</h3>
+            <div className="h-2 w-2 rounded-full bg-indigo-500"></div>
+            <h3 className="text-[14px] font-bold tracking-tight text-slate-900 dark:text-slate-100">Conversation Volume</h3>
           </div>
-          <p className="mt-0.5 text-[11px] font-medium text-slate-500">Daily call volume trend</p>
+          <p className="mt-0.5 text-[11px] font-medium text-slate-400">Daily call volume trend</p>
         </div>
-
+        
         <div className="flex flex-wrap items-center gap-2 sm:gap-4">
-          <div className="flex items-center gap-2 rounded-2xl bg-[#8B5CF6]/10 px-3 py-1.5 ring-1 ring-[#8B5CF6]/20">
-            <span className="text-[10px] font-bold uppercase tracking-tight text-[#B79BFF]">Total Calls</span>
-            <span className="text-[14px] sm:text-[15px] font-black text-white">{stats.total}</span>
+          <div className="flex items-center gap-2 rounded-2xl bg-indigo-50 px-3 py-1.5 ring-1 ring-indigo-100">
+            <span className="text-[10px] font-bold uppercase tracking-tight text-indigo-400">Total Calls</span>
+            <span className="text-[14px] sm:text-[15px] font-black text-indigo-600">{stats.total}</span>
           </div>
-          <div className="flex items-center gap-2 rounded-2xl bg-white/[0.03] px-3 py-1.5 ring-1 ring-white/5">
-            <span className="text-[10px] font-bold uppercase tracking-tight text-slate-500">Peak</span>
-            <span className="text-[14px] sm:text-[15px] font-black text-slate-200">{stats.peakVal} <span className="text-[9px] text-slate-500">({stats.peakDate})</span></span>
+          <div className="flex items-center gap-2 rounded-2xl bg-slate-50 px-3 py-1.5 ring-1 ring-slate-100 dark:ring-slate-800">
+            <span className="text-[10px] font-bold uppercase tracking-tight text-slate-400">Peak</span>
+            <span className="text-[14px] sm:text-[15px] font-black text-slate-700 dark:text-slate-300">{stats.peakVal} <span className="text-[9px] text-slate-300">({stats.peakDate})</span></span>
           </div>
         </div>
       </div>
@@ -70,11 +70,11 @@ export function ConversationsVolumeChart({ data }: Props) {
           >
             <defs>
               <linearGradient id="colorCalls" x1="0" y1="0" x2="0" y2="1">
-                <stop offset="5%" stopColor="#8B5CF6" stopOpacity={0.35}/>
-                <stop offset="95%" stopColor="#8B5CF6" stopOpacity={0}/>
+                <stop offset="5%" stopColor="#6366f1" stopOpacity={0.1}/>
+                <stop offset="95%" stopColor="#6366f1" stopOpacity={0}/>
               </linearGradient>
             </defs>
-            <CartesianGrid vertical={false} strokeDasharray="3 3" stroke="#2A2B3D" />
+            <CartesianGrid vertical={false} strokeDasharray="3 3" stroke="#e5e7eb" />
             <XAxis
               dataKey="date"
               axisLine={false}
@@ -101,15 +101,15 @@ export function ConversationsVolumeChart({ data }: Props) {
                 const { active, payload } = props;
                 if (active && payload && payload.length) {
                   return (
-                    <div className="rounded-xl border border-white/10 bg-[#1C1D2B] p-3 shadow-2xl shadow-black/50">
-                      <p className="mb-1 text-[12px] font-medium text-slate-400">
+                    <div className="rounded-xl border border-[#e5e7eb] bg-white p-3 shadow-md dark:bg-slate-900 dark:border-slate-800">
+                      <p className="mb-1 text-[12px] font-medium text-[#64748b]">
                         {new Date(payload[0].payload.date + "T00:00:00").toLocaleDateString("en-IN", {
                           day: "numeric",
                           month: "short",
                           year: "numeric"
                         })}
                       </p>
-                      <p className="text-[12px] font-bold text-[#B79BFF]">
+                      <p className="text-[12px] font-bold text-indigo-600">
                         Calls : {payload[0].value}
                       </p>
                     </div>
@@ -121,7 +121,7 @@ export function ConversationsVolumeChart({ data }: Props) {
             <Area
               type="monotone"
               dataKey="conversations"
-              stroke="#8B5CF6"
+              stroke="#6366f1"
               strokeWidth={3}
               fillOpacity={1}
               fill="url(#colorCalls)"

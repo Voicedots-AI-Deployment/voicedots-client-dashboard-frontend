@@ -6,39 +6,9 @@
 
 @source "../node_modules/preline/dist/*.js";
 
-:root {
-  color-scheme: dark;
-}
-
-html,
-body {
-  background-color: #0b0b13;
-}
-
 body {
   font-family: "Inter", sans-serif;
   font-family: "Manrope", sans-serif;
-  color: #e5e7eb;
-}
-
-/* Global dark scrollbar */
-::-webkit-scrollbar {
-  width: 10px;
-  height: 10px;
-}
-
-::-webkit-scrollbar-track {
-  background: transparent;
-}
-
-::-webkit-scrollbar-thumb {
-  border-radius: 9999px;
-  background-color: #26273a;
-  border: 2px solid #0b0b13;
-}
-
-::-webkit-scrollbar-thumb:hover {
-  background-color: #34364f;
 }
 
 .custom-scrollbar::-webkit-scrollbar {
@@ -51,16 +21,9 @@ body {
 
 .custom-scrollbar::-webkit-scrollbar-thumb {
   border-radius: 9999px;
-  background-color: #2a2b3d;
-  border: none;
+  background-color: #4b4f57; 
 }
 
 .dark .custom-scrollbar::-webkit-scrollbar-thumb {
-  background-color: #2a2b3d;
-}
-
-/* Make native date-picker controls legible on the dark theme */
-input[type="date"]::-webkit-calendar-picker-indicator {
-  filter: invert(0.7);
-  cursor: pointer;
+  background-color: #404040;
 }

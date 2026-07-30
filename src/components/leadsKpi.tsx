@@ -42,14 +42,22 @@ function KpiCard({
 
   return (
     <div
-      className={`bg-[#161722] border ${style.border} rounded-2xl px-6 py-5 flex transition-all duration-300 hover:shadow-lg hover:shadow-indigo-500/5 hover:-translate-y-0.5 ${ vertical ? "flex-col items-center text-center gap-3" : "flex-row items-center gap-5" }`}
+      className={`
+        bg-white border ${style.border} rounded-2xl
+        px-6 py-5 flex transition-all duration-300 hover:shadow-lg hover:shadow-indigo-500/5 hover:-translate-y-0.5
+        ${
+          vertical
+            ? "flex-col items-center text-center gap-3"
+            : "flex-row items-center gap-5"
+        }
+      `}
     >
       <div className={`p-3.5 rounded-2xl ${style.iconBg} ${style.iconColor} shadow-lg ${variant === 'default' ? 'shadow-indigo-100' : 'shadow-emerald-100'} shrink-0`}>
         {icon}
       </div>
 
       <div className="leading-tight">
-        <p className="text-[11px] font-black uppercase tracking-widest text-slate-500 mb-1">
+        <p className="text-[11px] font-black uppercase tracking-widest text-slate-400 mb-1">
           {label}
         </p>
         <p className={`text-3xl font-black ${style.text}`}>
