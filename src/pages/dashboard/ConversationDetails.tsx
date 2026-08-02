@@ -18,6 +18,7 @@ import { UI } from "@/ui/colors";
 import type { GetConversationDetailsResult } from "@/types/conversation.types";
 import { ConversationAudioPlayer } from "@/components/ConversationAudioPlayer";
 import { useAuth } from "@/context/AuthContext";
+import {outboundCallsApi,type OutboundAgent} from "@/api/outboundCalls";
 
 const logoIcon = "/voicedotslogo.svg";
 
@@ -35,6 +36,12 @@ export function ConversationDetails() {
   const [data, setData] = useState<GetConversationDetailsResult | null>(null);
   const [showMobileInfo, setShowMobileInfo] = useState(false);
   const [audioUrl, setAudioUrl] = useState<string>("");
+  const [outboundAgents,setOutboundAgents]=useState<OutboundAgent[]>([]);
+  const [showCall,setShowCall]=useState(false);
+  const [callNumber,setCallNumber]=useState("");
+  const [consent,setConsent]=useState(false);
+  const [callStatus,setCallStatus]=useState("");
+  const [calling,setCalling]=useState(false);
 
   useEffect(() => {
     async function fetchConversationDetails() {
@@ -52,11 +59,16 @@ export function ConversationDetails() {
       }
     }
     fetchConversationDetails();
+    outboundCallsApi.list().then(setOutboundAgents).catch(()=>setOutboundAgents([]));
   }, [id, user?.agent_id]);
 
 
   const lead = data?.lead;
   const messages = data?.transcription;
+  const outboundAgent=outboundAgents[0];
+  const outboundReady=!!outboundAgent&&outboundAgent.platform_enabled&&outboundAgent.enabled&&outboundAgent.status==='active'&&!!outboundAgent.outbound_trunk_id;
+  const openCall=()=>{setCallNumber(lead?.mobile||lead?.phone||lead?.phone_number||'');setCallStatus('');setConsent(false);setShowCall(true)};
+  const placeCall=async()=>{if(!id||!outboundAgent)return;setCalling(true);setCallStatus('');try{const result=await outboundCallsApi.create({phone_agent_id:outboundAgent.id,destination:callNumber,contact_name:lead?.name||'DSCET enquiry',consent_confirmed:consent,conversation_id:id});setCallStatus(`Call queued successfully (${result.id}).`)}catch(e:any){const d=e.response?.data?.detail;setCallStatus(typeof d==='string'?d:d?.reasons?.join(' · ')||d?.message||'Unable to place the call.')}finally{setCalling(false)}};
 
   return (
     <div className="flex flex-col bg-white dark:bg-slate-900">
@@ -89,6 +101,7 @@ export function ConversationDetails() {
         </div>
 
         <ConversationAudioPlayer startTime={data?.start_time} endTime={data?.end_time} audioUrl={audioUrl} />
+        <button onClick={openCall} disabled={!outboundReady||!lead} className="inline-flex items-center gap-2 rounded-lg bg-violet-600 px-4 py-2 text-sm font-semibold text-white disabled:cursor-not-allowed disabled:opacity-40" title={outboundReady?'Call this lead using this conversation as context':'Outbound follow-up is not enabled'}><PhoneCall size={16}/>Call this lead</button>
         
       </div>
       
@@ -184,6 +197,7 @@ export function ConversationDetails() {
           </div>
         </div>
       )}
+      {showCall&&<div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4"><div className="w-full max-w-lg rounded-2xl bg-white p-6 shadow-xl dark:bg-slate-900"><div className="flex items-start justify-between"><div><h2 className="text-xl font-bold">Outbound follow-up</h2><p className="mt-1 text-sm text-slate-500">The dedicated follow-up agent will receive a secure summary and recent turns from this conversation.</p></div><button onClick={()=>setShowCall(false)}><X/></button></div><div className="mt-5 space-y-4"><label className="block text-sm font-medium">Contact<input value={lead?.name||'DSCET enquiry'} readOnly className="mt-1 w-full rounded-lg border bg-slate-50 p-3 dark:bg-slate-800"/></label><label className="block text-sm font-medium">Phone number<input value={callNumber} onChange={e=>setCallNumber(e.target.value)} placeholder="+919876543210" className="mt-1 w-full rounded-lg border bg-transparent p-3"/><span className="mt-1 block text-xs text-slate-500">Review the number and include its country code.</span></label><div className="rounded-lg border bg-violet-50 p-3 text-sm text-violet-900 dark:bg-violet-950/30 dark:text-violet-200"><strong>Context included:</strong> lead name and summary plus up to the latest 20 transcript turns. Audio and unrelated conversations are never sent.</div><label className="flex items-start gap-3 rounded-lg border p-3 text-sm"><input type="checkbox" className="mt-1" checked={consent} onChange={e=>setConsent(e.target.checked)}/><span>I confirm this person consented to this follow-up call.</span></label>{callStatus&&<p className="rounded-lg bg-slate-100 p-3 text-sm dark:bg-slate-800">{callStatus}</p>}<button onClick={placeCall} disabled={calling||!consent||!callNumber} className="flex w-full items-center justify-center gap-2 rounded-lg bg-violet-600 p-3 font-semibold text-white disabled:opacity-40">{calling?<Loader2 className="animate-spin" size={18}/>:<PhoneCall size={18}/>}Place follow-up call</button></div></div></div>}
     </div>
   );
 }
