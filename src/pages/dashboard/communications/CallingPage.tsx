@@ -1,99 +1,21 @@
-import { useState } from "react";
-import { Phone, User, Hash, Bot, Info } from "lucide-react";
+import { useEffect,useState } from 'react';
+import { Bot,CheckCircle2,Clock,Loader2,Phone,Save,ShieldCheck } from 'lucide-react';
+import { phoneAgentsApi,type ClientPhoneAgent } from '@/api/phoneAgents';
 
-/**
- * AI Calling — outbound voice, mirroring the admin dashboard's Voice Outbound
- * Caller so clients can see the capability.
- *
- * Deliberately inert: the trigger endpoints (/calls/agents, /calls/trigger) live
- * on the admin backend and are not exposed on the client API yet, so the form is
- * shown but disabled rather than wired to something that would fail.
- */
-
-const card =
-  "bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl overflow-hidden";
-const label =
-  "text-[10px] font-bold uppercase tracking-widest text-slate-500 dark:text-slate-400";
-const input =
-  "mt-1.5 w-full rounded-xl px-3 py-2.5 text-sm bg-slate-50 dark:bg-slate-800/60 border border-slate-200 dark:border-slate-700 text-slate-900 dark:text-slate-100 placeholder:text-slate-400 outline-none disabled:opacity-60 disabled:cursor-not-allowed transition";
-
-export default function CallingPage() {
-  const [name, setName] = useState("");
-  const [phone, setPhone] = useState("");
-
-  return (
-    <div className="space-y-6">
-      <div>
-        <h1 className="text-2xl font-bold text-slate-900 dark:text-slate-100">AI Calling</h1>
-        <p className="text-sm text-slate-500 dark:text-slate-400 mt-1">
-          Initiate outgoing voice engagement using your pre-configured conversational AI agents.
-        </p>
-      </div>
-
-      <div className="flex items-start gap-2 rounded-xl border border-indigo-200 dark:border-indigo-900 bg-indigo-50 dark:bg-indigo-900/20 px-4 py-3 text-sm text-indigo-800 dark:text-indigo-300">
-        <Info size={16} className="mt-0.5 shrink-0" />
-        <span>
-          Outbound calling is being enabled for your account. The setup is shown here so you can see
-          what's coming — it isn't active yet.
-        </span>
-      </div>
-
-      <section className={card}>
-        <div className="px-6 py-4 border-b border-slate-200 dark:border-slate-800 flex items-center gap-2">
-          <Phone size={14} className="text-indigo-500" />
-          <h2 className="text-xs font-black text-slate-400 dark:text-slate-500 uppercase tracking-widest">
-            New Outbound Call
-          </h2>
-        </div>
-
-        <form className="p-6 space-y-5" onSubmit={(e) => e.preventDefault()}>
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-5">
-            <div>
-              <label className={label}>
-                <User size={11} className="inline mr-1 -mt-0.5" />
-                Contact Name
-              </label>
-              <input
-                className={input}
-                value={name}
-                onChange={(e) => setName(e.target.value)}
-                placeholder="Enter contact name (e.g. John Doe)"
-                disabled
-              />
-            </div>
-            <div>
-              <label className={label}>
-                <Hash size={11} className="inline mr-1 -mt-0.5" />
-                Phone Number
-              </label>
-              <input
-                className={input}
-                value={phone}
-                onChange={(e) => setPhone(e.target.value)}
-                placeholder="e.g. 7464979479 or +15550199"
-                disabled
-              />
-            </div>
-            <div className="sm:col-span-2">
-              <label className={label}>
-                <Bot size={11} className="inline mr-1 -mt-0.5" />
-                Agent
-              </label>
-              <select className={input} disabled defaultValue="">
-                <option value="">Select an Agent</option>
-              </select>
-            </div>
-          </div>
-
-          <button
-            type="submit"
-            disabled
-            className="w-full flex items-center justify-center gap-2 py-2.5 px-4 bg-indigo-600 text-white rounded-xl font-semibold text-sm shadow-md disabled:opacity-50 disabled:cursor-not-allowed"
-          >
-            <Phone size={16} /> Initiate Call
-          </button>
-        </form>
-      </section>
-    </div>
-  );
+const card='bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl';
+const field='mt-1.5 w-full rounded-xl px-3 py-2.5 text-sm bg-slate-50 dark:bg-slate-800/60 border border-slate-200 dark:border-slate-700 text-slate-900 dark:text-slate-100 outline-none';
+export default function CallingPage(){
+ const [agents,setAgents]=useState<ClientPhoneAgent[]>([]),[selected,setSelected]=useState<ClientPhoneAgent|null>(null),[loading,setLoading]=useState(true),[saving,setSaving]=useState(false),[message,setMessage]=useState('');
+ const [greeting,setGreeting]=useState(''),[prompt,setPrompt]=useState('');
+ const choose=(a:ClientPhoneAgent)=>{setSelected(a);const c=a.draft_config||a.published_config||{};setGreeting(c.first_message||'');const k=c.default_subagent;setPrompt(c.subagents?.[k]?.system_prompt||'');setMessage('')};
+ useEffect(()=>{phoneAgentsApi.list().then(a=>{setAgents(a);if(a[0])choose(a[0])}).catch(()=>setMessage('Unable to load phone-agent settings.')).finally(()=>setLoading(false))},[]);
+ const save=async()=>{if(!selected)return;setSaving(true);try{await phoneAgentsApi.savePrompt(selected.id,greeting,prompt);setMessage('Draft saved. An administrator must review and publish it before it affects calls.');setSelected({...selected,status:'draft'})}catch(e:any){setMessage(e.response?.data?.detail||'Unable to save draft.')}finally{setSaving(false)}};
+ if(loading)return <div className="h-64 flex items-center justify-center"><Loader2 className="animate-spin text-indigo-600"/></div>;
+ return <div className="space-y-6"><div><h1 className="text-2xl font-bold text-slate-900 dark:text-white">AI Calling</h1><p className="text-sm text-slate-500 mt-1">Your assigned telephone agents, numbers and approved configuration.</p></div>
+ {!agents.length?<div className={`${card} p-10 text-center`}><Phone className="mx-auto text-slate-400 mb-3"/><h2 className="font-bold">No phone agent assigned</h2><p className="text-sm text-slate-500 mt-1">Contact your administrator to provision a DID and phone agent.</p></div>:<>
+ <div className="grid sm:grid-cols-3 gap-4"><div className={`${card} p-4`}><div className="text-xs text-slate-500">Status</div><div className="mt-1 font-bold flex gap-2 items-center"><CheckCircle2 size={17} className="text-emerald-500"/>{selected?.status}</div></div><div className={`${card} p-4`}><div className="text-xs text-slate-500">Assigned number</div><div className="mt-1 font-bold">{selected?.dids.map(d=>d.did).join(', ')||'Pending'}</div></div><div className={`${card} p-4`}><div className="text-xs text-slate-500">Capacity</div><div className="mt-1 font-bold">{selected?.dids.reduce((n,d)=>n+d.channel_limit,0)||0} concurrent call(s)</div></div></div>
+ <div className="grid lg:grid-cols-[280px_1fr] gap-6"><div className={`${card} p-3 space-y-2`}>{agents.map(a=><button key={a.id} onClick={()=>choose(a)} className={`w-full text-left rounded-xl border p-3 ${selected?.id===a.id?'border-indigo-500 bg-indigo-50 dark:bg-indigo-950/20':'border-slate-200 dark:border-slate-700'}`}><div className="font-bold flex gap-2"><Bot size={17}/>{a.display_name}</div><div className="text-xs text-slate-500 mt-1">{a.mode} · version {a.version}</div></button>)}</div>
+ <section className={`${card} p-6 space-y-5`}><div className="flex justify-between gap-3"><div><h2 className="text-lg font-bold">Conversation configuration</h2><p className="text-xs text-slate-500">Changes are saved as a draft and require Admin approval.</p></div><ShieldCheck className="text-indigo-500"/></div><label className="block text-sm font-semibold">Opening greeting<textarea rows={3} className={field} value={greeting} onChange={e=>setGreeting(e.target.value)}/></label><label className="block text-sm font-semibold">Phone-agent prompt<textarea rows={18} className={`${field} font-mono`} value={prompt} onChange={e=>setPrompt(e.target.value)}/></label><button onClick={save} disabled={saving} className="rounded-xl bg-indigo-600 text-white px-5 py-2.5 text-sm font-bold flex gap-2 items-center disabled:opacity-50">{saving?<Loader2 size={16} className="animate-spin"/>:<Save size={16}/>}Save draft</button>{message&&<div className="rounded-xl bg-indigo-50 dark:bg-indigo-950/20 p-3 text-sm text-indigo-700 dark:text-indigo-300 flex gap-2"><Clock size={16}/>{message}</div>}</section></div>
+ <div className="rounded-xl border border-amber-200 bg-amber-50 dark:bg-amber-950/20 dark:border-amber-900 p-4 text-sm text-amber-800 dark:text-amber-300"><strong>Outbound calls remain disabled.</strong> Inbound calling is active. Outbound will appear only after trunk, queue-consumer, consent and stale-queue safeguards are verified.</div></>}
+ </div>;
 }
