@@ -27,7 +27,8 @@ const conversationsApi = {
     page: number = 1,
     limit: number = 30,
     startDate?: string,
-    endDate?: string
+    endDate?: string,
+    source?: string
   ): Promise<GetConversationsListResult> => {
     const version = getApiVersion(agentId);
     
@@ -35,6 +36,7 @@ const conversationsApi = {
     if (agentId) params.agent_id = agentId;
     if (startDate) params.start_date = startDate;
     if (endDate) params.end_date = endDate;
+    if (source && source !== "all") params.source = source;
     
     if (version === "v3") {
       params.page = page;

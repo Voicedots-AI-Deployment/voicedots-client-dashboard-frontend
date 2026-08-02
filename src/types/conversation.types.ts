@@ -11,6 +11,7 @@ export interface ConversationsListSummary {
   start_time: number;
   end_time: number;
   time_format: string
+  source?: string | null;
 }
 
 export interface GetConversationsResponse {

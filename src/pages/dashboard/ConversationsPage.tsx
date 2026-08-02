@@ -29,6 +29,7 @@ export function ConversationsPage() {
 
   const [startDate, setStartDate] = useState("");
   const [endDate, setEndDate] = useState("");
+  const [source, setSource] = useState("all");
   const [kpiSummary, setKpiSummary] = useState<KpiSummary | null>(null);
 
   const [isLoading, setIsLoading] = useState(true);
@@ -60,9 +61,10 @@ export function ConversationsPage() {
             p,
             pagination.limit,
             startDate,
-            endDate
+            endDate,
+            source
           ),
-          p === 1 ? kpiAPI.getKpiSummary(user?.agent_id, startDate, endDate) : Promise.resolve(null)
+          p === 1 ? kpiAPI.getKpiSummary(user?.agent_id, startDate, endDate, source) : Promise.resolve(null)
         ]);
 
         setConversations(convData.conversations);
@@ -73,14 +75,14 @@ export function ConversationsPage() {
         setIsLoading(false);
       }
     },
-    [user?.agent_id, pagination.limit, startDate, endDate]
+    [user?.agent_id, pagination.limit, startDate, endDate, source]
   );
 
   useEffect(() => {
     setPagination(p => ({...p, page: 1}));
     setStack([]);
     fetchConversations(null, 1);
-  }, [startDate, endDate, searchQuery, fetchConversations]);
+  }, [startDate, endDate, source, fetchConversations]);
 
   useEffect(() => {
     if (pagination.page !== 1) {
@@ -112,6 +114,16 @@ export function ConversationsPage() {
 
         {/* FILTERS */}
         <div className="flex flex-wrap items-center gap-3">
+          <select
+            value={source}
+            onChange={(event) => setSource(event.target.value)}
+            className="h-10 rounded-xl border border-slate-200 bg-white px-3 text-xs font-bold text-slate-600 outline-none focus:ring-2 focus:ring-indigo-100 dark:border-slate-800 dark:bg-slate-900 dark:text-slate-300"
+            aria-label="Conversation source"
+          >
+            <option value="all">All channels</option>
+            <option value="web_voice">Website voice</option>
+            <option value="phone_call">Phone calls</option>
+          </select>
           <div className="flex items-center bg-white border border-slate-200 rounded-xl h-10 shadow-sm overflow-hidden ring-1 ring-slate-100 dark:bg-slate-900 dark:border-slate-800 dark:ring-slate-800">
             <div className="flex flex-col px-3 border-r border-slate-100 group dark:border-slate-800">
               <span className="text-[9px] text-slate-400 font-extrabold uppercase tracking-widest leading-none mt-1.5 group-hover:text-blue-500 transition-colors">From</span>

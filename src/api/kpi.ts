@@ -14,11 +14,12 @@ const getApiVersion = (agentId?: string | null): string => {
 };
 
 export const kpiAPI = {
-  getKpiSummary: async (agentId?: string | null, startDate?: string, endDate?: string): Promise<KpiSummary> => {
+  getKpiSummary: async (agentId?: string | null, startDate?: string, endDate?: string, source?: string): Promise<KpiSummary> => {
     const version = getApiVersion(agentId);
     const params: Record<string, string | undefined> = {};
     if (startDate) params.start_date = startDate;
     if (endDate) params.end_date = endDate;
+    if (source && source !== "all") params.source = source;
 
     const response = await apiClient.get<KpiSummary>(
       `/${version}/kpis/summary`,
@@ -27,11 +28,12 @@ export const kpiAPI = {
     return response.data;
   },
 
-  getKpis: async (agentId?: string | null, startDate?: string, endDate?: string): Promise<GetKpisResult> => {
+  getKpis: async (agentId?: string | null, startDate?: string, endDate?: string, source?: string): Promise<GetKpisResult> => {
     const version = getApiVersion(agentId);
     const params: Record<string, string | undefined> = {};
     if (startDate) params.start_date = startDate;
     if (endDate) params.end_date = endDate;
+    if (source && source !== "all") params.source = source;
 
     const response = await apiClient.get<GetKpisResult>(
       `/${version}/kpis/`,

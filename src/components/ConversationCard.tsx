@@ -63,6 +63,9 @@ export function ConversationCard({
 
           {/* Meta */}
           <div className="mt-2 flex flex-wrap items-center gap-x-6 gap-y-2">
+            <span className={`rounded-full px-2.5 py-1 text-[10px] font-black uppercase tracking-wider ${conversation.source === 'phone_call' || conversation.source === 'phone' ? 'bg-violet-50 text-violet-700 dark:bg-violet-950/30 dark:text-violet-300' : 'bg-sky-50 text-sky-700 dark:bg-sky-950/30 dark:text-sky-300'}`}>
+              {conversation.source === 'phone_call' || conversation.source === 'phone' ? 'Phone' : 'Website'}
+            </span>
             <div className="flex items-center gap-2 px-2 py-1 rounded-lg bg-slate-50/50 border border-slate-100 text-[11px] font-mono text-slate-400 dark:border-slate-800">
               <span className="opacity-50">ID:</span>
               <span className="truncate max-w-[120px] sm:max-w-none">{conversation.conversation_id}</span>

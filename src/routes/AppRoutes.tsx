@@ -13,7 +13,6 @@ import CallingPage from "@/pages/dashboard/communications/CallingPage";
 import WhatsAppPage from "@/pages/dashboard/communications/WhatsAppPage";
 import ProtectedRoute from "@/routes/ProtectedRoute";
 import { LeadsPage } from "@/pages/dashboard/LeadsPage";
-import { TicketsPage } from "@/pages/dashboard/TicketsPage";
 import KnowledgePage from "@/pages/dashboard/KnowledgePage";
 
 const AppRoutes = () => {
@@ -52,9 +51,6 @@ const AppRoutes = () => {
           <Route path="email" element={<Navigate to="/dashboard/email/sender" replace />} />
           <Route path="email/sender" element={<SenderConfigPage />} />
           <Route path="email/templates" element={<TemplatesPage />} />
-
-          {/* TICKETS — shown; backend ticket router is still disabled */}
-          <Route path="tickets" element={<TicketsPage />} />
 
           {/* KNOWLEDGE BASE */}
           <Route path="knowledge" element={<KnowledgePage />} />
