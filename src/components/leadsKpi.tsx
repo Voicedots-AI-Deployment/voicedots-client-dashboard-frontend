@@ -45,6 +45,7 @@ function KpiCard({
       className={`
         bg-white border ${style.border} rounded-2xl
         px-6 py-5 flex transition-all duration-300 hover:shadow-lg hover:shadow-indigo-500/5 hover:-translate-y-0.5
+        dark:bg-slate-900
         ${
           vertical
             ? "flex-col items-center text-center gap-3"
@@ -52,7 +53,7 @@ function KpiCard({
         }
       `}
     >
-      <div className={`p-3.5 rounded-2xl ${style.iconBg} ${style.iconColor} shadow-lg ${variant === 'default' ? 'shadow-indigo-100' : 'shadow-emerald-100'} shrink-0`}>
+      <div className={`p-3.5 rounded-2xl ${style.iconBg} ${style.iconColor} shadow-lg ${variant === 'default' ? 'shadow-indigo-100' : 'shadow-emerald-100'} shrink-0 dark:shadow-none`}>
         {icon}
       </div>
 

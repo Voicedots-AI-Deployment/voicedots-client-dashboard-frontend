@@ -1,4 +1,5 @@
 import { useMemo, useState, useEffect, useCallback } from "react";
+import { format } from "date-fns";
 import {
   Search,
   Loader2,
@@ -8,10 +9,17 @@ import {
 import { UI } from "@/ui/colors";
 import { ConversationCard } from "@/components/ConversationCard";
 import { ConversationsKpi } from "@/components/ConversationsKpi";
+import { DatePickerWithRange } from "@/components/DatePickerWithRange";
 import conversationsApi from "@/api/conversations";
 import { kpiAPI } from "@/api/kpi";
 import type { ConversationsListSummary, KpiSummary } from "@/types/conversation.types";
 import { useAuth } from "@/context/AuthContext";
+
+const SOURCE_TABS = [
+  { key: "all", label: "All" },
+  { key: "web_voice", label: "Website" },
+  { key: "phone_call", label: "Phone" },
+] as const;
 
 export function ConversationsPage() {
   const { user } = useAuth();
@@ -23,7 +31,7 @@ export function ConversationsPage() {
   const [pagination, setPagination] = useState({
     total: 0,
     page: 1,
-    limit: 30,
+    limit: 20,
     pages: 1
   });
 
@@ -102,7 +110,7 @@ export function ConversationsPage() {
   return (
     <div className="flex flex-col gap-4 md:gap-6">
       {/* HEADER */}
-      <div className="flex flex-col gap-3 md:flex-row md:items-start md:justify-between">
+      <div className="flex flex-col gap-4">
         <div>
           <h1 className="text-3xl font-bold tracking-tight leading-tight" style={{ color: UI.colors.text.primary }}>
             Conversations
@@ -112,56 +120,48 @@ export function ConversationsPage() {
           </p>
         </div>
 
-        {/* FILTERS */}
-        <div className="flex flex-wrap items-center gap-3">
-          <select
-            value={source}
-            onChange={(event) => setSource(event.target.value)}
-            className="h-10 rounded-xl border border-slate-200 bg-white px-3 text-xs font-bold text-slate-600 outline-none focus:ring-2 focus:ring-indigo-100 dark:border-slate-800 dark:bg-slate-900 dark:text-slate-300"
-            aria-label="Conversation source"
-          >
-            <option value="all">All channels</option>
-            <option value="web_voice">Website voice</option>
-            <option value="phone_call">Phone calls</option>
-          </select>
-          <div className="flex items-center bg-white border border-slate-200 rounded-xl h-10 shadow-sm overflow-hidden ring-1 ring-slate-100 dark:bg-slate-900 dark:border-slate-800 dark:ring-slate-800">
-            <div className="flex flex-col px-3 border-r border-slate-100 group dark:border-slate-800">
-              <span className="text-[9px] text-slate-400 font-extrabold uppercase tracking-widest leading-none mt-1.5 group-hover:text-blue-500 transition-colors">From</span>
-              <input 
-                type="date" 
-                value={startDate} 
-                onChange={(e) => setStartDate(e.target.value)} 
-                className="text-xs outline-none bg-transparent font-semibold py-0.5 cursor-pointer" 
-              />
-            </div>
-            <div className="flex flex-col px-3 group">
-              <span className="text-[9px] text-slate-400 font-extrabold uppercase tracking-widest leading-none mt-1.5 group-hover:text-blue-500 transition-colors">To</span>
-              <input 
-                type="date" 
-                value={endDate} 
-                onChange={(e) => setEndDate(e.target.value)} 
-                className="text-xs outline-none bg-transparent font-semibold py-0.5 cursor-pointer" 
-              />
-            </div>
+        {/* FILTERS — full-width row */}
+        <div className="flex flex-wrap items-center gap-2 md:gap-3">
+          {/* SOURCE TABS */}
+          <div className="flex items-center gap-1 bg-white border border-slate-200 rounded-xl p-1 shadow-sm ring-1 ring-slate-100 dark:bg-slate-900 dark:border-slate-800 dark:ring-slate-800">
+            {SOURCE_TABS.map((tab) => (
+              <button
+                key={tab.key}
+                onClick={() => setSource(tab.key)}
+                className={`h-8 px-3.5 rounded-lg text-xs font-bold transition-all ${
+                  source === tab.key
+                    ? "bg-indigo-600 text-white shadow-md shadow-indigo-100"
+                    : "text-slate-500 hover:text-slate-900 hover:bg-slate-50 dark:text-slate-400 dark:hover:text-slate-100 dark:hover:bg-slate-800"
+                }`}
+              >
+                {tab.label}
+              </button>
+            ))}
           </div>
 
-          {(startDate || endDate) && (
-            <button 
-              onClick={() => { setStartDate(""); setEndDate(""); }} 
-              className="text-sm text-red-500 font-bold hover:text-red-600 transition-colors px-1"
-            >
-              Clear
-            </button>
-          )}
+          <DatePickerWithRange
+            value={
+              startDate && endDate
+                ? { from: new Date(startDate), to: new Date(endDate) }
+                : undefined
+            }
+            onChange={(range) => {
+              setStartDate(range?.from ? format(range.from, "yyyy-MM-dd") : "");
+              setEndDate(range?.to ? format(range.to, "yyyy-MM-dd") : "");
+            }}
+            label="Date Range"
+            className="w-full md:w-auto"
+            showClear={Boolean(startDate || endDate)}
+          />
 
-          {/* SEARCH */}
-          <div className="relative w-full md:w-[320px]">
+          {/* SEARCH — takes remaining space */}
+          <div className="relative flex-1 min-w-[200px] md:min-w-[260px]">
             <Search size={16} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400" />
             <input
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
               placeholder="Search conversations..."
-              className="w-full h-11 pl-10 pr-4 rounded-xl border border-slate-200 bg-white text-sm font-medium outline-none focus:ring-2 focus:ring-slate-100 shadow-sm transition-all hover:border-slate-300 dark:bg-slate-900 dark:border-slate-800 dark:ring-slate-800"
+              className="w-full h-10 pl-10 pr-4 rounded-xl border border-slate-200 bg-white text-sm font-medium outline-none focus:ring-2 focus:ring-slate-100 shadow-sm transition-all hover:border-slate-300 dark:bg-slate-900 dark:border-slate-800 dark:ring-slate-800 dark:text-slate-100 dark:placeholder:text-slate-500"
             />
           </div>
         </div>
@@ -171,9 +171,25 @@ export function ConversationsPage() {
       {!isLoading && kpiSummary && (
         <ConversationsKpi 
           totalConversations={kpiSummary.total_conversations}
-          totalMessages={kpiSummary.total_messages}
         />
       )}
+
+      {/* LIST */}
+      <div className="flex flex-col gap-3 pr-1 md:pr-2">
+        {isLoading ? (
+          <div className="flex justify-center py-20">
+            <Loader2 className="animate-spin text-gray-400" />
+          </div>
+        ) : (
+          filteredConversations.map((conversation, index) => (
+            <ConversationCard
+              key={conversation.conversation_id}
+              conversation={conversation}
+              index={index + 1 + (pagination.page - 1) * pagination.limit}
+            />
+          ))
+        )}
+      </div>
 
       {/* PAGINATION */}
       {!isLoading && pagination.pages > 1 && (
@@ -189,7 +205,7 @@ export function ConversationsPage() {
                 {[...Array(pagination.pages)].map((_, i) => {
                   const pNum = i + 1;
                   if (pNum === 1 || pNum === pagination.pages || (pNum >= pagination.page - 1 && pNum <= pagination.page + 1)) {
-                    return <button key={pNum} onClick={() => { setPagination(p => ({...p, page: pNum})); fetchConversations(null, pNum); }} className={`w-9 h-9 flex items-center justify-center rounded-xl text-[10px] sm:text-xs font-black transition-all ${pagination.page === pNum ? "bg-indigo-600 text-white shadow-md shadow-indigo-100" : "bg-white border border-slate-200 text-slate-400 hover:text-slate-900"}`}>{pNum}</button>;
+                    return <button key={pNum} onClick={() => { setPagination(p => ({...p, page: pNum})); fetchConversations(null, pNum); }} className={`w-9 h-9 flex items-center justify-center rounded-xl text-[10px] sm:text-xs font-black transition-all ${pagination.page === pNum ? "bg-indigo-600 text-white shadow-md shadow-indigo-100" : "bg-white border border-slate-200 text-slate-400 hover:text-slate-900 dark:bg-slate-900 dark:border-slate-800 dark:hover:text-slate-100"}`}>{pNum}</button>;
                   }
                   if (pNum === 2 || pNum === pagination.pages - 1) return <span key={pNum} className="text-slate-300 font-bold px-1">.</span>;
                   return null;
@@ -217,23 +233,6 @@ export function ConversationsPage() {
           </button>
         </div>
       )}
-
-      {/* LIST */}
-      <div className="flex flex-col gap-3 pr-1 md:pr-2">
-        {isLoading ? (
-          <div className="flex justify-center py-20">
-            <Loader2 className="animate-spin text-gray-400" />
-          </div>
-        ) : (
-          filteredConversations.map((conversation, index) => (
-            <ConversationCard
-              key={conversation.conversation_id}
-              conversation={conversation}
-              index={index + 1 + (pagination.page - 1) * pagination.limit}
-            />
-          ))
-        )}
-      </div>
     </div>
   );
 }

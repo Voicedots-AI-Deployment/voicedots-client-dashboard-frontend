@@ -89,12 +89,12 @@ export function LeadDetailsDrawer({
       {/* ================= STICKY HEADER ================= */}
       <div className="sticky top-0 z-10 bg-white border-b px-5 py-4 flex items-start justify-between dark:bg-slate-900">
         <div className="flex items-start gap-3">
-          <div className="w-10 h-10 rounded-full bg-gray-100 flex items-center justify-center text-sm font-semibold">
+          <div className="w-10 h-10 rounded-full bg-gray-100 dark:bg-slate-800 flex items-center justify-center text-sm font-semibold">
             {getInitials(lead.name || "Unknown")}
           </div>
           <div>
             <p className="font-semibold leading-tight">{lead.name}</p>
-            <p className="text-xs text-gray-500">{lead.email}</p>
+            <p className="text-xs text-gray-500 dark:text-slate-400">{lead.email}</p>
           </div>
         </div>
 
@@ -211,7 +211,7 @@ export function LeadDetailsDrawer({
       placeholder="Add internal notes..."
       value={notes}
       onChange={(e) => setNotes(e.target.value)}
-      className="w-full h-40 border rounded-lg p-3 text-sm resize-none min-w-0"
+      className="w-full h-40 border rounded-lg p-3 text-sm resize-none min-w-0 bg-white dark:bg-slate-800 dark:border-slate-700 dark:text-slate-100 dark:placeholder:text-slate-500"
     />
   )}
 
@@ -250,7 +250,7 @@ export function LeadDetailsDrawer({
       </label>
       <input
         type="datetime-local"
-        className="border rounded-lg px-3 py-2 w-full text-sm min-w-0"
+        className="border rounded-lg px-3 py-2 w-full text-sm min-w-0 bg-white dark:bg-slate-800 dark:border-slate-700 dark:text-slate-100 dark:[color-scheme:dark]"
       />
     </div>
   )}
@@ -329,8 +329,8 @@ function Action({
         onClick={onClick}
         className={`border rounded-xl py-3 flex flex-col items-center gap-1 text-sm w-full transition-all duration-100 ${
           disabled
-            ? "bg-gray-50 text-gray-400 cursor-not-allowed"
-            : "hover:bg-gray-100 bg-white"
+            ? "bg-gray-50 text-gray-400 cursor-not-allowed dark:bg-slate-800 dark:text-slate-500"
+            : "hover:bg-gray-100 bg-white dark:bg-slate-900 dark:hover:bg-slate-800 dark:text-slate-200"
         }`}
       >
         {icon}
@@ -367,8 +367,8 @@ function InfoRow({
 }) {
   return (
     <div className="flex justify-between">
-      <span className="text-gray-500">{label}</span>
-      <span className="font-medium">{value}</span>
+      <span className="text-gray-500 dark:text-slate-400">{label}</span>
+      <span className="font-medium dark:text-slate-200">{value}</span>
     </div>
   );
 }

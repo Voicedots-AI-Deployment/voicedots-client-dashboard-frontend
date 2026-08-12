@@ -1,10 +1,19 @@
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import {
   Mail, Loader2, CheckCircle2, AlertCircle, ShieldCheck, RefreshCw, Globe, Send,
+  FileText, Trash2,
 } from "lucide-react";
 import communicationAPI, {
-  type EmailSettings, type DnsRecord,
+  type EmailSettings, type DnsRecord, type EmailTemplateSummary,
 } from "@/api/communication";
+
+const errorDetail = (e: unknown): string => {
+  if (e && typeof e === "object" && "response" in e) {
+    const detail = (e as { response?: { data?: { detail?: unknown } } }).response?.data?.detail;
+    if (typeof detail === "string") return detail;
+  }
+  return "";
+};
 
 const card =
   "bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl overflow-hidden";
@@ -33,7 +42,50 @@ function statusPill(status: string | null) {
   );
 }
 
-export default function SenderConfigPage() {
+type Tab = "sender" | "templates";
+
+export default function EmailPage() {
+  const [tab, setTab] = useState<Tab>("sender");
+
+  return (
+    <div className="space-y-6">
+      <div>
+        <h1 className="text-3xl font-bold tracking-tight leading-tight text-slate-900 dark:text-slate-100">
+          Email
+        </h1>
+        <p className="text-sm text-slate-500 dark:text-slate-400 mt-1">
+          Configure your sending identity, verify your domain, and manage reply templates.
+        </p>
+      </div>
+
+      {/* TABS */}
+      <div className="flex items-center gap-1 bg-white border border-slate-200 rounded-xl p-1 shadow-sm ring-1 ring-slate-100 w-fit dark:bg-slate-900 dark:border-slate-800 dark:ring-slate-800">
+        {([
+          ["sender", "Sender Config"],
+          ["templates", "Templates"],
+        ] as [Tab, string][]).map(([key, labelTab]) => (
+          <button
+            key={key}
+            onClick={() => setTab(key)}
+            className={`h-9 px-5 rounded-lg text-xs font-bold transition-all ${
+              tab === key
+                ? "bg-indigo-600 text-white shadow-md shadow-indigo-100"
+                : "text-slate-500 hover:text-slate-900 hover:bg-slate-50 dark:text-slate-400 dark:hover:text-slate-100 dark:hover:bg-slate-800"
+            }`}
+          >
+            {labelTab}
+          </button>
+        ))}
+      </div>
+
+      {tab === "sender" ? <SenderConfigSection /> : <TemplatesSection />}
+    </div>
+  );
+}
+
+/* ================= SENDER CONFIG ================= */
+
+function SenderConfigSection() {
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [verifying, setVerifying] = useState(false);
@@ -59,22 +111,22 @@ export default function SenderConfigPage() {
     setDnsRecords(s.dns_records ?? []);
   };
 
-  const load = async () => {
+  const load = useCallback(async () => {
     setLoading(true);
     setError("");
     try {
       const s = await communicationAPI.getEmailSettings();
       hydrate(s);
-    } catch (e: any) {
-      setError(e?.response?.data?.detail || "Could not load email settings.");
+    } catch (e) {
+      setError(errorDetail(e) || "Could not load email settings.");
     } finally {
       setLoading(false);
     }
-  };
+  }, []);
 
   useEffect(() => {
     load();
-  }, []);
+  }, [load]);
 
   const save = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -91,8 +143,8 @@ export default function SenderConfigPage() {
       });
       if (updated && typeof updated === "object" && "from_email" in updated) hydrate(updated);
       setSuccess("Sender configuration saved.");
-    } catch (e: any) {
-      setError(e?.response?.data?.detail || "Could not save sender configuration.");
+    } catch (e) {
+      setError(errorDetail(e) || "Could not save sender configuration.");
     } finally {
       setSaving(false);
     }
@@ -108,8 +160,8 @@ export default function SenderConfigPage() {
       setDnsRecords(dns.dns_records ?? []);
       setSettings((p) => (p ? { ...p, domain_status: dns.domain_status } : p));
       setSuccess("Domain check complete.");
-    } catch (e: any) {
-      setError(e?.response?.data?.detail || "Domain verification failed.");
+    } catch (e) {
+      setError(errorDetail(e) || "Domain verification failed.");
     } finally {
       setVerifying(false);
     }
@@ -125,13 +177,6 @@ export default function SenderConfigPage() {
 
   return (
     <div className="space-y-6">
-      <div>
-        <h1 className="text-2xl font-bold text-slate-900 dark:text-slate-100">Sender Configuration</h1>
-        <p className="text-sm text-slate-500 dark:text-slate-400 mt-1">
-          Manage your sending identity and verify your sending domain.
-        </p>
-      </div>
-
       {error && (
         <div className="flex items-start gap-2 rounded-xl border border-red-200 dark:border-red-900 bg-red-50 dark:bg-red-900/20 px-4 py-3 text-sm text-red-700 dark:text-red-400">
           <AlertCircle size={16} className="mt-0.5 shrink-0" /> {error}
@@ -255,7 +300,94 @@ export default function SenderConfigPage() {
           )}
         </div>
       </section>
+    </div>
+  );
+}
 
+/* ================= TEMPLATES ================= */
+
+function TemplatesSection() {
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState("");
+  const [templates, setTemplates] = useState<EmailTemplateSummary[]>([]);
+
+  const load = useCallback(async () => {
+    setLoading(true);
+    try {
+      setTemplates(await communicationAPI.listTemplates());
+      setError("");
+    } catch (e) {
+      setError(errorDetail(e) || "Templates are unavailable right now.");
+    } finally {
+      setLoading(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    load();
+  }, [load]);
+
+  const remove = async (id: string) => {
+    try {
+      await communicationAPI.deleteTemplate(id);
+      setTemplates((t) => t.filter((x) => x.id !== id));
+    } catch {
+      setError("Could not delete that template.");
+    }
+  };
+
+  return (
+    <div className="space-y-6">
+      {error && (
+        <div className="flex items-start gap-2 rounded-xl border border-amber-200 dark:border-amber-900 bg-amber-50 dark:bg-amber-900/20 px-4 py-3 text-sm text-amber-700 dark:text-amber-400">
+          <AlertCircle size={16} className="mt-0.5 shrink-0" /> {error}
+        </div>
+      )}
+
+      <section className={card}>
+        <div className="p-6">
+          {loading ? (
+            <div className="flex items-center justify-center py-12 text-slate-500 dark:text-slate-400">
+              <Loader2 className="animate-spin mr-2" size={18} /> Loading templates…
+            </div>
+          ) : templates.length === 0 ? (
+            <div className="text-center py-12">
+              <div className="mx-auto h-14 w-14 rounded-full bg-slate-100 dark:bg-slate-800 flex items-center justify-center">
+                <FileText className="text-slate-400 dark:text-slate-500" size={24} />
+              </div>
+              <p className="mt-4 text-base font-semibold text-slate-800 dark:text-slate-200">
+                No templates yet
+              </p>
+              <p className="text-sm text-slate-500 dark:text-slate-400 mt-1">
+                Templates you create will appear here.
+              </p>
+            </div>
+          ) : (
+            <ul className="divide-y divide-slate-100 dark:divide-slate-800">
+              {templates.map((t) => (
+                <li key={t.id} className="py-3 flex items-center justify-between gap-4">
+                  <div className="min-w-0">
+                    <p className="text-sm font-semibold text-slate-800 dark:text-slate-200 truncate">
+                      {t.name}
+                    </p>
+                    <p className="text-xs text-slate-500 dark:text-slate-400 truncate">
+                      {t.subject || "No subject"}
+                      {t.updated_at && ` · updated ${new Date(t.updated_at).toLocaleDateString()}`}
+                    </p>
+                  </div>
+                  <button
+                    onClick={() => remove(t.id)}
+                    title="Delete template"
+                    className="p-2 rounded-lg text-slate-400 hover:text-red-600 hover:bg-red-50 dark:hover:bg-red-900/20 transition-colors shrink-0"
+                  >
+                    <Trash2 size={16} />
+                  </button>
+                </li>
+              ))}
+            </ul>
+          )}
+        </div>
+      </section>
     </div>
   );
 }

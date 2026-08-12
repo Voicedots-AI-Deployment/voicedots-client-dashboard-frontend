@@ -40,8 +40,7 @@ export function Sidebar({ isOpen, onClose, isCollapsed }: SidebarProps) {
       children: [
         { id: "calling", label: "AI Calling", path: "/dashboard/communications/calling" },
         { id: "whatsapp", label: "WhatsApp", path: "/dashboard/communications/whatsapp" },
-        { id: "sender", label: "Email Config", path: "/dashboard/email/sender" },
-        { id: "templates", label: "Email Templates", path: "/dashboard/email/templates" },
+        { id: "email", label: "Email", path: "/dashboard/email" },
       ],
     },
     { id: "settings", icon: Settings, label: "Settings", path: "/dashboard/settings" },

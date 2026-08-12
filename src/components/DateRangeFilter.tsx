@@ -1,66 +1,62 @@
 import { Calendar } from "lucide-react";
 
-type Preset = "7d" | "15d" | "30d" | "custom";
-
 interface Props {
-  preset: Preset;
-  from?: string;
-  to?: string;
-  onPresetChange: (p: Preset) => void;
-  onDateChange: (from: string, to: string) => void;
+  startDate: string;
+  endDate: string;
+  onStartDateChange: (value: string) => void;
+  onEndDateChange: (value: string) => void;
+  onClear: () => void;
+  height?: "h-10" | "h-11";
 }
 
 export function DateRangeFilter({
-  preset,
-  from,
-  to,
-  onPresetChange,
-  onDateChange,
+  startDate,
+  endDate,
+  onStartDateChange,
+  onEndDateChange,
+  onClear,
+  height = "h-11",
 }: Props) {
   return (
-    <div className="flex flex-wrap items-center gap-3">
-      {/* Presets */}
-      <div className="flex rounded-lg border border-slate-200 overflow-hidden dark:border-slate-800">
-        {[
-          { key: "7d", label: "7D" },
-          { key: "15d", label: "15D" },
-          { key: "30d", label: "1M" },
-        ].map((p) => (
-          <button
-            key={p.key}
-            onClick={() => onPresetChange(p.key as Preset)}
-            className={`px-3 py-1.5 text-sm font-medium ${
-              preset === p.key
-                ? "bg-indigo-600 text-white"
-                : "bg-white text-slate-600 hover:bg-slate-100"
-            }`}
-          >
-            {p.label}
-          </button>
-        ))}
+    <>
+      <div
+        className={`flex items-center bg-white border border-slate-200 rounded-xl ${height} shadow-sm overflow-hidden ring-1 ring-slate-100 dark:bg-slate-900 dark:border-slate-800 dark:ring-slate-800`}
+      >
+        <div className="flex items-center pl-3 pr-1 h-full text-slate-400">
+          <Calendar size={14} />
+        </div>
+        <div className="flex flex-col px-2 border-r border-slate-100 group h-full justify-center dark:border-slate-800">
+          <span className="text-[9px] text-slate-400 font-extrabold uppercase tracking-widest leading-none mb-1 group-hover:text-blue-500 transition-colors">
+            From
+          </span>
+          <input
+            type="date"
+            value={startDate}
+            onChange={(e) => onStartDateChange(e.target.value)}
+            className="text-xs outline-none bg-transparent font-semibold py-0.5 cursor-pointer text-slate-700 dark:text-slate-200 dark:[color-scheme:dark]"
+          />
+        </div>
+        <div className="flex flex-col px-2 group h-full justify-center">
+          <span className="text-[9px] text-slate-400 font-extrabold uppercase tracking-widest leading-none mb-1 group-hover:text-blue-500 transition-colors">
+            To
+          </span>
+          <input
+            type="date"
+            value={endDate}
+            onChange={(e) => onEndDateChange(e.target.value)}
+            className="text-xs outline-none bg-transparent font-semibold py-0.5 cursor-pointer text-slate-700 dark:text-slate-200 dark:[color-scheme:dark]"
+          />
+        </div>
       </div>
 
-      {/* Custom Range */}
-      <div className="flex items-center gap-2 text-sm text-slate-600 dark:text-slate-400">
-        <Calendar size={16} />
-        <input
-          type="date"
-          value={from}
-          onChange={(e) =>
-            onDateChange(e.target.value, to || e.target.value)
-          }
-          className="rounded-md border border-slate-200 px-2 py-1 dark:border-slate-800"
-        />
-        <span>–</span>
-        <input
-          type="date"
-          value={to}
-          onChange={(e) =>
-            onDateChange(from || e.target.value, e.target.value)
-          }
-          className="rounded-md border border-slate-200 px-2 py-1 dark:border-slate-800"
-        />
-      </div>
-    </div>
+      {(startDate || endDate) && (
+        <button
+          onClick={onClear}
+          className="text-sm text-red-500 font-bold hover:text-red-600 transition-colors px-1"
+        >
+          Clear
+        </button>
+      )}
+    </>
   );
 }

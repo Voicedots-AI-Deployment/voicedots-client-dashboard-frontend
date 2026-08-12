@@ -101,12 +101,12 @@ export function ConversationAudioPlayer({
           </button>
 
           <div className="flex flex-wrap items-center gap-2">
-            <span className="inline-flex items-center gap-1 rounded-full bg-gray-100 px-2.5 py-1 text-[11px] text-gray-700 dark:text-gray-300">
+            <span className="inline-flex items-center gap-1 rounded-full bg-gray-100 px-2.5 py-1 text-[11px] text-gray-700 dark:bg-slate-800 dark:text-slate-300">
               <Clock size={12} />
               Start: <span className="font-medium">{startTime}</span>
             </span>
 
-            <span className="inline-flex items-center gap-1 rounded-full bg-gray-100 px-2.5 py-1 text-[11px] text-gray-700 dark:text-gray-300">
+            <span className="inline-flex items-center gap-1 rounded-full bg-gray-100 px-2.5 py-1 text-[11px] text-gray-700 dark:bg-slate-800 dark:text-slate-300">
               <Clock size={12} />
               End: <span className="font-medium">{endTime}</span>
             </span>

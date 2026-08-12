@@ -1,14 +1,15 @@
 import { motion } from "framer-motion";
 import {
   MessageSquare,
-  Activity,
-  Calendar,
   Clock,
 } from "lucide-react";
+import { format } from "date-fns";
+import { type DateRange } from "react-day-picker";
 import { useEffect, useMemo, useState, useCallback, useRef } from "react";
 import { useAuth } from "@/context/AuthContext";
 import { kpiAPI } from "@/api/kpi";
 import { UI } from "@/ui/colors";
+import { DatePickerWithRange } from "@/components/DatePickerWithRange";
 import type { KpiTimeseriesPoint } from "@/types/conversation.types";
 import { ConversationsPerDayChart } from "@/components/charts/ConversationsPerDayChart";
 import { ConversationsVolumeChart } from "@/components/charts/ConversationsVolumeChart";
@@ -287,7 +288,6 @@ export function HomePage() {
 
   const stats = [
     { label: "TOTAL CONVERSATIONS", value: loading ? "—" : currentStats.conversations.toLocaleString(), icon: MessageSquare, trend: getTrend("conversations"), dataKey: "conversations", format: (v: number) => `${v} convs` },
-    { label: "TOTAL MESSAGES", value: loading ? "—" : currentStats.messages.toLocaleString(), icon: Activity, trend: getTrend("messages"), dataKey: "messages", format: (v: number) => `${v.toLocaleString()} msgs` },
     { label: "TOTAL DURATION", value: loading ? "—" : formatHours(currentStats.totalDuration), icon: Clock, trend: getTrend("totalDuration"), dataKey: "total_call_duration_secs", format: (v: number) => `${Math.floor(v / 60)}m ${Math.round(v % 60)}s` },
   ];
 
@@ -324,22 +324,25 @@ export function HomePage() {
               <button
                 key={p}
                 onClick={() => handlePresetChange(p)}
-                className={`rounded-lg px-4 py-1.5 text-[11px] font-bold tracking-tight transition-all duration-300 ${preset === p ? "bg-white text-slate-900 shadow-sm ring-1 ring-slate-200" : "text-slate-400 hover:text-slate-600"}`}
+                className={`rounded-lg px-4 py-1.5 text-[11px] font-bold tracking-tight transition-all duration-300 ${preset === p ? "bg-white text-slate-900 shadow-sm ring-1 ring-slate-200 dark:bg-slate-800 dark:text-slate-100 dark:ring-slate-700" : "text-slate-400 hover:text-slate-600 dark:text-slate-500 dark:hover:text-slate-200"}`}
               >
                 {p === "30d" ? "1M" : p === "all" ? "ALL" : p.toUpperCase()}
               </button>
             ))}
           </div>
           <div className="hidden sm:block h-6 w-px bg-slate-200 mx-2"></div>
-          <div className="flex items-center justify-center gap-3 px-2 py-1 sm:py-0">
-            <div className="flex items-center gap-2 group">
-              <Calendar size={14} className="text-slate-400 group-hover:text-blue-500 transition-colors" />
-              <input type="date" value={from} onChange={(e) => { setPreset("custom"); setRange({ from: e.target.value, to }); }} className="bg-transparent text-[11px] font-bold text-slate-600 outline-none w-28 cursor-pointer hover:text-slate-900 dark:text-slate-100" />
-            </div>
-            <span className="text-slate-300 font-bold">→</span>
-            <div className="flex items-center gap-2 group">
-              <input type="date" value={to} onChange={(e) => { setPreset("custom"); setRange({ from, to: e.target.value }); }} className="bg-transparent text-[11px] font-bold text-slate-600 outline-none w-28 cursor-pointer hover:text-slate-900 dark:text-slate-100" />
-            </div>
+          <div className="flex items-center px-2 py-1">
+            <DatePickerWithRange
+              value={from && to ? { from: new Date(from), to: new Date(to) } : undefined}
+              onChange={(range: DateRange | undefined) => {
+                setPreset("custom");
+                setRange({
+                  from: range?.from ? format(range.from, "yyyy-MM-dd") : "",
+                  to: range?.to ? format(range.to, "yyyy-MM-dd") : "",
+                });
+              }}
+              label="Date Range"
+            />
           </div>
         </div>
       </div>

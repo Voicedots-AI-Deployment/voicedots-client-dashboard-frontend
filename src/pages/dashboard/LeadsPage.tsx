@@ -1,4 +1,5 @@
 import { useEffect, useState, useCallback, useMemo } from "react";
+import { format } from "date-fns";
 import {
   Phone,
   Search,
@@ -9,6 +10,7 @@ import {
 import leadsApi from "@/api/leads";
 import { LeadDetailsDrawer } from "@/components/LeadDetailsDrawer";
 import { LeadsKpi } from "@/components/leadsKpi";
+import { DatePickerWithRange } from "@/components/DatePickerWithRange";
 import type { Lead } from "@/types/lead.types";
 import { useAuth } from "@/context/AuthContext";
 import { UI } from "@/ui/colors";
@@ -31,7 +33,7 @@ export function LeadsPage() {
     total: 0,
     qualified: 0,
     page: 1,
-    limit: 50,
+    limit: 20,
     pages: 0
   });
 
@@ -45,7 +47,7 @@ export function LeadsPage() {
         endDate: endDate || undefined,
         status: statusFilter || undefined,
         page: isExport ? 1 : page,
-        limit: isExport ? 10000 : 50,
+        limit: isExport ? 10000 : 20,
       });
       if (isExport) return response.data;
       setLeads(response.data);
@@ -120,18 +122,23 @@ export function LeadsPage() {
           </div>
 
           <div className="flex flex-wrap items-center justify-center md:justify-end gap-3 px-2">
-            <div className="flex items-center bg-white border border-slate-200 rounded-xl h-11 shadow-sm overflow-hidden ring-1 ring-slate-100 dark:bg-slate-900 dark:border-slate-800 dark:ring-slate-800">
-              <div className="flex flex-col px-3 border-r border-slate-100 group dark:border-slate-800">
-                <span className="text-[9px] text-slate-400 font-extrabold uppercase tracking-widest leading-none mt-1.5 group-hover:text-blue-500 transition-colors">From</span>
-                <input type="date" value={startDate} onChange={(e) => setStartDate(e.target.value)} className="text-xs outline-none bg-transparent font-semibold py-0.5 cursor-pointer" />
-              </div>
-              <div className="flex flex-col px-3 group">
-                <span className="text-[9px] text-slate-400 font-extrabold uppercase tracking-widest leading-none mt-1.5 group-hover:text-blue-500 transition-colors">To</span>
-                <input type="date" value={endDate} onChange={(e) => setEndDate(e.target.value)} className="text-xs outline-none bg-transparent font-semibold py-0.5 cursor-pointer" />
-              </div>
-            </div>
+            <DatePickerWithRange
+              value={
+                startDate && endDate
+                  ? { from: new Date(startDate), to: new Date(endDate) }
+                  : undefined
+              }
+              onChange={(range) => {
+                setStartDate(range?.from ? format(range.from, "yyyy-MM-dd") : "");
+                setEndDate(range?.to ? format(range.to, "yyyy-MM-dd") : "");
+              }}
+              onClear={() => { setStartDate(""); setEndDate(""); }}
+              showClear={Boolean(startDate || endDate)}
+              label="Date Range"
+              className="w-full md:w-auto"
+            />
 
-            <select value={statusFilter} onChange={(e) => setStatusFilter(e.target.value)} className={`h-11 px-4 rounded-xl border text-sm outline-none font-bold shadow-sm min-w-[130px] transition-all hover:border-slate-300 ${statusFilter === "Qualified" ? "bg-green-50 text-green-700 border-green-200" : statusFilter === "Unqualified" ? "bg-red-50 text-red-700 border-red-200" : statusFilter === "Follow Up" ? "bg-blue-50 text-blue-700 border-blue-200" : "bg-white text-slate-700 border-slate-200"}`}>
+            <select value={statusFilter} onChange={(e) => setStatusFilter(e.target.value)} className={`h-11 px-4 rounded-xl border text-sm outline-none font-bold shadow-sm min-w-[130px] transition-all hover:border-slate-300 ${statusFilter === "Qualified" ? "bg-green-50 text-green-700 border-green-200 dark:bg-green-900/30 dark:text-green-300 dark:border-green-800" : statusFilter === "Unqualified" ? "bg-red-50 text-red-700 border-red-200 dark:bg-red-900/30 dark:text-red-300 dark:border-red-800" : statusFilter === "Follow Up" ? "bg-blue-50 text-blue-700 border-blue-200 dark:bg-blue-900/30 dark:text-blue-300 dark:border-blue-800" : "bg-white text-slate-700 border-slate-200 dark:bg-slate-900 dark:text-slate-300 dark:border-slate-800"}`}>
               <option value="">All Status</option>
               <option value="Qualified">Qualified</option>
               <option value="Unqualified">Unqualified</option>
@@ -143,8 +150,8 @@ export function LeadsPage() {
               <input placeholder="Search leads..." value={search} onChange={(e) => setSearch(e.target.value)} className="w-full h-11 pl-10 pr-4 rounded-xl border border-slate-200 bg-white text-sm font-medium outline-none focus:ring-2 focus:ring-slate-100 shadow-sm transition-all hover:border-slate-300 dark:bg-slate-900 dark:border-slate-800 dark:ring-slate-800" />
             </div>
 
-            {(startDate || endDate || statusFilter) && (
-              <button onClick={() => { setStartDate(""); setEndDate(""); setStatusFilter(""); }} className="text-sm text-red-500 font-bold hover:text-red-600 transition-colors px-1">Clear</button>
+            {statusFilter && (
+              <button onClick={() => { setStatusFilter(""); }} className="text-sm text-red-500 font-bold hover:text-red-600 transition-colors px-1">Clear Status</button>
             )}
 
             <div className="relative">
@@ -167,42 +174,6 @@ export function LeadsPage() {
         </div>
 
         {!loading && <LeadsKpi totalLeads={pagination.total} qualifiedLeads={pagination.qualified} />}
-
-        {!loading && pagination.pages > 1 && (
-          <div className="flex flex-col sm:flex-row items-center justify-between gap-4 px-4 py-4 sm:py-6 bg-white border border-slate-200 rounded-2xl shadow-sm overflow-hidden dark:bg-slate-900 dark:border-slate-800">
-            <div className="flex items-center gap-2">
-              <p className="text-[10px] sm:text-xs font-bold text-slate-500 uppercase tracking-widest">Page <span className="text-indigo-600">{pagination.page}</span> of <span className="text-indigo-600">{pagination.pages}</span></p>
-              <div className="h-4 w-px bg-slate-200 mx-2"></div>
-              <p className="text-[10px] sm:text-xs font-bold text-slate-400">Total <span className="text-slate-900 font-black dark:text-slate-100">{pagination.total}</span> leads</p>
-            </div>
-            <div className="flex items-center gap-2">
-              <button 
-                disabled={page <= 1} 
-                onClick={() => setPage(p => Math.max(1, p - 1))} 
-                className="flex items-center justify-center px-4 h-9 bg-indigo-600 text-white rounded-xl text-[10px] sm:text-xs font-black uppercase transition-all hover:bg-indigo-700 shadow-lg shadow-indigo-100 disabled:opacity-40"
-              >
-                Prev
-              </button>
-              <div className="flex items-center gap-1">
-                {[...Array(pagination.pages)].map((_, i) => {
-                  const pNum = i + 1;
-                  if (pNum === 1 || pNum === pagination.pages || (pNum >= page - 1 && pNum <= page + 1)) {
-                    return <button key={pNum} onClick={() => setPage(pNum)} className={`w-9 h-9 flex items-center justify-center rounded-xl text-[10px] sm:text-xs font-black transition-all ${page === pNum ? "bg-indigo-600 text-white shadow-md shadow-indigo-100" : "bg-white border border-slate-200 text-slate-400 hover:text-slate-900"}`}>{pNum}</button>;
-                  }
-                  if (pNum === 2 || pNum === pagination.pages - 1) return <span key={pNum} className="text-slate-300 font-bold px-1">.</span>;
-                  return null;
-                })}
-              </div>
-              <button 
-                disabled={page >= pagination.pages} 
-                onClick={() => setPage(p => Math.min(pagination.pages, p + 1))} 
-                className="flex items-center justify-center px-4 h-9 bg-indigo-600 text-white rounded-xl text-[10px] sm:text-xs font-black uppercase transition-all hover:bg-indigo-700 shadow-lg shadow-indigo-100 disabled:opacity-40"
-              >
-                Next
-              </button>
-            </div>
-          </div>
-        )}
 
         <div className="space-y-3 pr-1">
           {loading ? (
@@ -276,6 +247,42 @@ export function LeadsPage() {
             ))
           )}
         </div>
+
+        {!loading && pagination.pages > 1 && (
+          <div className="flex flex-col sm:flex-row items-center justify-between gap-4 px-4 py-4 sm:py-6 bg-white border border-slate-200 rounded-2xl shadow-sm overflow-hidden dark:bg-slate-900 dark:border-slate-800">
+            <div className="flex items-center gap-2">
+              <p className="text-[10px] sm:text-xs font-bold text-slate-500 uppercase tracking-widest">Page <span className="text-indigo-600">{pagination.page}</span> of <span className="text-indigo-600">{pagination.pages}</span></p>
+              <div className="h-4 w-px bg-slate-200 mx-2"></div>
+              <p className="text-[10px] sm:text-xs font-bold text-slate-400">Total <span className="text-slate-900 font-black dark:text-slate-100">{pagination.total}</span> leads</p>
+            </div>
+            <div className="flex items-center gap-2">
+              <button 
+                disabled={page <= 1} 
+                onClick={() => setPage(p => Math.max(1, p - 1))} 
+                className="flex items-center justify-center px-4 h-9 bg-indigo-600 text-white rounded-xl text-[10px] sm:text-xs font-black uppercase transition-all hover:bg-indigo-700 shadow-lg shadow-indigo-100 disabled:opacity-40"
+              >
+                Prev
+              </button>
+              <div className="flex items-center gap-1">
+                {[...Array(pagination.pages)].map((_, i) => {
+                  const pNum = i + 1;
+                  if (pNum === 1 || pNum === pagination.pages || (pNum >= page - 1 && pNum <= page + 1)) {
+                    return <button key={pNum} onClick={() => setPage(pNum)} className={`w-9 h-9 flex items-center justify-center rounded-xl text-[10px] sm:text-xs font-black transition-all ${page === pNum ? "bg-indigo-600 text-white shadow-md shadow-indigo-100" : "bg-white border border-slate-200 text-slate-400 hover:text-slate-900 dark:bg-slate-900 dark:border-slate-800 dark:hover:text-slate-100"}`}>{pNum}</button>;
+                  }
+                  if (pNum === 2 || pNum === pagination.pages - 1) return <span key={pNum} className="text-slate-300 font-bold px-1">.</span>;
+                  return null;
+                })}
+              </div>
+              <button 
+                disabled={page >= pagination.pages} 
+                onClick={() => setPage(p => Math.min(pagination.pages, p + 1))} 
+                className="flex items-center justify-center px-4 h-9 bg-indigo-600 text-white rounded-xl text-[10px] sm:text-xs font-black uppercase transition-all hover:bg-indigo-700 shadow-lg shadow-indigo-100 disabled:opacity-40"
+              >
+                Next
+              </button>
+            </div>
+          </div>
+        )}
       </div>
 
       <LeadDetailsDrawer

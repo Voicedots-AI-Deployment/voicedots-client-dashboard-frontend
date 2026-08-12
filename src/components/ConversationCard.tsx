@@ -1,4 +1,4 @@
-import { MessageSquare, ChevronRight } from "lucide-react";
+import { ChevronRight } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import type { ConversationsListSummary } from "@/types/conversation.types";
 
@@ -12,6 +12,9 @@ export function ConversationCard({
   index,
 }: ConversationCardProps) {
   const navigate = useNavigate();
+
+  const isPhone =
+    conversation.source === "phone_call" || conversation.source === "phone";
 
   const isSuccess =
     conversation.call_status === "done" ||
@@ -34,7 +37,7 @@ export function ConversationCard({
 
   return (
     <div
-      onClick={() => navigate(`./${conversation.conversation_id}`)}
+      onClick={() => navigate(`./${conversation.conversation_id}`, { state: { source: conversation.source } })}
       className="
         group
         cursor-pointer
@@ -53,35 +56,22 @@ export function ConversationCard({
         <div className="min-w-0 flex-1">
           {/* Title */}
           <div className="flex items-center gap-3">
-            <span className="text-xs text-slate-400 font-black px-2 py-0.5 rounded-md bg-slate-50 group-hover:bg-indigo-50 group-hover:text-indigo-600 transition-colors">
+            <span className="text-xs text-slate-400 font-black px-2 py-0.5 rounded-md bg-slate-50 group-hover:bg-indigo-50 group-hover:text-indigo-600 transition-colors dark:bg-slate-800 dark:text-slate-400 dark:group-hover:text-indigo-300">
               {index}
             </span>
             <p className="truncate text-base font-bold text-slate-900 group-hover:text-indigo-600 transition-colors dark:text-slate-100">
               {conversation.title || "Untitled Conversation"}
             </p>
-          </div>
-
-          {/* Meta */}
-          <div className="mt-2 flex flex-wrap items-center gap-x-6 gap-y-2">
-            <span className={`rounded-full px-2.5 py-1 text-[10px] font-black uppercase tracking-wider ${conversation.source === 'phone_call' || conversation.source === 'phone' ? 'bg-violet-50 text-violet-700 dark:bg-violet-950/30 dark:text-violet-300' : 'bg-sky-50 text-sky-700 dark:bg-sky-950/30 dark:text-sky-300'}`}>
-              {conversation.source === 'phone_call' || conversation.source === 'phone' ? 'Phone' : 'Website'}
+            <span className={`rounded-full px-2.5 py-1 text-[10px] font-black uppercase tracking-wider shrink-0 ${isPhone ? 'bg-violet-50 text-violet-700 dark:bg-violet-950/30 dark:text-violet-300' : 'bg-sky-50 text-sky-700 dark:bg-sky-950/30 dark:text-sky-300'}`}>
+              {isPhone ? 'Phone' : 'Website'}
             </span>
-            <div className="flex items-center gap-2 px-2 py-1 rounded-lg bg-slate-50/50 border border-slate-100 text-[11px] font-mono text-slate-400 dark:border-slate-800">
-              <span className="opacity-50">ID:</span>
-              <span className="truncate max-w-[120px] sm:max-w-none">{conversation.conversation_id}</span>
-            </div>
-
-            <div className="flex items-center gap-2 text-[12px] font-bold text-slate-500">
-              <MessageSquare size={14} className="text-slate-300" />
-              <span>{conversation.message_count} messages</span>
-            </div>
           </div>
         </div>
 
         {/* RIGHT SIDE */}
         <div className="flex items-center gap-8 shrink-0">
           <div className="hidden md:block text-right">
-            <p className="text-xs text-slate-400 font-bold tracking-tight whitespace-nowrap">
+            <p className="text-xs text-slate-400 font-bold tracking-tight whitespace-nowrap dark:text-slate-500">
               {new Date(conversation.start_time * 1000).toLocaleString(undefined, {
                 dateStyle: "medium",
                 timeStyle: "short",
@@ -106,7 +96,7 @@ export function ConversationCard({
             </div>
 
             {/* ARROW */}
-            <div className="w-8 h-8 rounded-full bg-slate-50 flex items-center justify-center text-slate-300 group-hover:bg-indigo-50 group-hover:text-indigo-500 transition-all">
+            <div className="w-8 h-8 rounded-full bg-slate-50 flex items-center justify-center text-slate-300 group-hover:bg-indigo-50 group-hover:text-indigo-500 transition-all dark:bg-slate-800 dark:text-slate-500 dark:group-hover:bg-indigo-900/30 dark:group-hover:text-indigo-300">
               <ChevronRight size={18} />
             </div>
           </div>

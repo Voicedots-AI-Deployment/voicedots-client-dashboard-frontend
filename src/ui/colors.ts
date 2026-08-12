@@ -13,14 +13,14 @@ export const UI = {
     danger: "#dc2626",
 
     /* --------------------------------------------------
-     * TEXT
+     * TEXT (theme-aware CSS variables — see index.css)
      * -------------------------------------------------- */
     text: {
-      primary: "#020617",      // slate-950
-      secondary: "#1f2937",    // gray-800
-      muted: "#020617",        // gray-600
-      inverse: "#ffffff",
-      icon: "#020617",         // gray-500
+      primary: "var(--ui-text-primary)",      // near-black in light, near-white in dark
+      secondary: "var(--ui-text-secondary)",  // gray-800 light / slate-300 dark
+      muted: "var(--ui-text-muted)",          // gray-500 light / slate-400 dark
+      inverse: "var(--ui-text-inverse)",
+      icon: "var(--ui-text-icon)",
     },
 
     /* --------------------------------------------------

@@ -6,6 +6,24 @@
 
 @source "../node_modules/preline/dist/*.js";
 
+/* UI semantic text tokens — flip with the theme so inline styles (UI.colors.text)
+   stay readable in both light and dark mode. */
+:root {
+  --ui-text-primary: #0f172a;
+  --ui-text-secondary: #334155;
+  --ui-text-muted: #64748b;
+  --ui-text-inverse: #ffffff;
+  --ui-text-icon: #64748b;
+}
+
+.dark {
+  --ui-text-primary: #f1f5f9;
+  --ui-text-secondary: #cbd5e1;
+  --ui-text-muted: #94a3b8;
+  --ui-text-inverse: #020617;
+  --ui-text-icon: #94a3b8;
+}
+
 body {
   font-family: "Inter", sans-serif;
   font-family: "Manrope", sans-serif;

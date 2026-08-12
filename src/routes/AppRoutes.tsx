@@ -7,8 +7,7 @@ import { HomePage } from "@/pages/dashboard/HomePage";
 import { ConversationsPage } from "@/pages/dashboard/ConversationsPage";
 import { ConversationDetails } from "@/pages/dashboard/ConversationDetails";
 import SettingsPage from "@/pages/dashboard/SettingsPage";
-import SenderConfigPage from "@/pages/dashboard/email/SenderConfigPage";
-import TemplatesPage from "@/pages/dashboard/email/TemplatesPage";
+import EmailPage from "@/pages/dashboard/email/EmailPage";
 import CallingPage from "@/pages/dashboard/communications/CallingPage";
 import WhatsAppPage from "@/pages/dashboard/communications/WhatsAppPage";
 import ProtectedRoute from "@/routes/ProtectedRoute";
@@ -48,9 +47,9 @@ const AppRoutes = () => {
           <Route path="communications/whatsapp" element={<WhatsAppPage />} />
 
           {/* EMAIL SERVICES */}
-          <Route path="email" element={<Navigate to="/dashboard/email/sender" replace />} />
-          <Route path="email/sender" element={<SenderConfigPage />} />
-          <Route path="email/templates" element={<TemplatesPage />} />
+          <Route path="email" element={<EmailPage />} />
+          <Route path="email/sender" element={<Navigate to="/dashboard/email" replace />} />
+          <Route path="email/templates" element={<Navigate to="/dashboard/email" replace />} />
 
           {/* KNOWLEDGE BASE */}
           <Route path="knowledge" element={<KnowledgePage />} />

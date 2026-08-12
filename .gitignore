@@ -31,3 +31,12 @@ dist-ssr
 # Lint/debug output artifacts
 eslint_output.json
 lint_output.txt
+
+# Lint output artefacts
+eslint_output.json
+lint_output.txt
+
+# Local env overrides (VITE_API_URL in .env.production is public and committed)
+.env
+.env.local
+.env*.local
