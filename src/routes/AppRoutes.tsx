@@ -13,6 +13,7 @@ import WhatsAppPage from "@/pages/dashboard/communications/WhatsAppPage";
 import ProtectedRoute from "@/routes/ProtectedRoute";
 import { LeadsPage } from "@/pages/dashboard/LeadsPage";
 import KnowledgePage from "@/pages/dashboard/KnowledgePage";
+import { TicketsPage } from "@/pages/dashboard/TicketsPage";
 
 const AppRoutes = () => {
   return (
@@ -40,6 +41,9 @@ const AppRoutes = () => {
 
           {/* LEADS */}
           <Route path="leads" element={<LeadsPage />} />
+
+          {/* SUPPORT TICKETS */}
+          <Route path="tickets" element={<TicketsPage />} />
 
           {/* COMMUNICATIONS — AI calling + WhatsApp (shown; not wired yet) */}
           <Route path="communications" element={<Navigate to="/dashboard/communications/calling" replace />} />
