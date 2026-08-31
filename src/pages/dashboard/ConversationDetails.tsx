@@ -191,7 +191,7 @@ export function ConversationDetails() {
         {/* DESKTOP SIDEBAR */}
         {showLeadInfo && (
           <aside className="hidden md:block border-l bg-gray-50 px-4 py-6 sticky top-16 h-[calc(100vh-64px)] overflow-y-auto custom-scrollbar dark:bg-slate-900 dark:border-slate-800">
-            <LeadInfo lead={lead} />
+            <LeadInfo lead={lead} duration={data?.duration} sentiment={data?.sentiment_analysis} />
           </aside>
         )}
       </div>
@@ -206,7 +206,7 @@ export function ConversationDetails() {
                 <X />
               </button>
             </div>
-            <LeadInfo lead={lead} />
+            <LeadInfo lead={lead} duration={data?.duration} sentiment={data?.sentiment_analysis} />
           </div>
         </div>
       )}
@@ -217,7 +217,10 @@ export function ConversationDetails() {
 
 /* ========== SHARED LEAD INFO ========== */
 
-function LeadInfo({ lead }: any) {
+function LeadInfo({ lead, duration, sentiment }: any) {
+  const durationText = typeof duration === "number"
+    ? `${Math.floor(duration / 60)}m ${duration % 60}s`
+    : "N/A";
   return (
     <div className="space-y-4">
       <div className="bg-white border rounded-lg dark:bg-slate-900 dark:border-slate-800">
@@ -242,12 +245,27 @@ function LeadInfo({ lead }: any) {
           <p className="font-semibold text-sm dark:text-slate-100">Call Summary</p>
         </div>
         <div className="px-4 py-3 space-y-2 text-sm">
-          <SummaryRow icon={<Clock size={14} />} label="Duration" value="3m 49s" />
-          <SummaryRow icon={<PhoneCall size={14} />} label="Outcome" value="No Response" />
-          {/* <p className="text-xs text-gray-500">
-            User did not respond clearly. No lead qualification captured.
-          </p> */}
+          <SummaryRow icon={<Clock size={14} />} label="Duration" value={durationText} />
+          <SummaryRow icon={<PhoneCall size={14} />} label="Outcome" value={lead?.status || "Unqualified"} />
         </div>
+      </div>
+
+      <div className="bg-white border rounded-lg dark:bg-slate-900 dark:border-slate-800">
+        <div className="flex gap-2 px-4 py-3 border-b dark:border-slate-800">
+          <FileText size={14} className="text-slate-400" />
+          <p className="font-semibold text-sm dark:text-slate-100">Sentiment Analysis</p>
+        </div>
+        {sentiment ? (
+          <div className="px-4 py-3 space-y-2 text-sm">
+            <SummaryRow label="Overall" value={sentiment.overall_sentiment || "N/A"} />
+            <SummaryRow label="Interest" value={sentiment.interest_level || "N/A"} />
+            <SummaryRow label="Intent" value={sentiment.intent || "N/A"} />
+            {sentiment.summary && <p className="pt-2 text-xs leading-5 text-slate-600 dark:text-slate-300">{sentiment.summary}</p>}
+            {sentiment.recommended_action && <p className="border-t pt-2 text-xs leading-5 dark:border-slate-800 dark:text-slate-300"><strong>Next:</strong> {sentiment.recommended_action}</p>}
+          </div>
+        ) : (
+          <p className="px-4 py-3 text-xs text-slate-500">Analysis is unavailable for this conversation.</p>
+        )}
       </div>
     </div>
   );

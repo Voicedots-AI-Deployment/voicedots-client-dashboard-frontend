@@ -59,6 +59,7 @@ export interface LeadDetails {
   business_desc?: string;
   business_description?: string;
   summary?: string;
+  status?: string;
   direction?: "inbound" | "outbound";
 }
 
@@ -69,6 +70,21 @@ export interface GetConversationDetailsResponse {
   start_time: number;
   end_time: number;
   duration: number;
+  source?: string | null;
+  sentiment_analysis?: SentimentAnalysis | null;
+}
+
+export interface SentimentAnalysis {
+  overall_sentiment?: string;
+  interest_level?: string;
+  intent?: string;
+  primary_interest?: string;
+  main_consideration?: string;
+  objection_level?: string;
+  follow_up_readiness?: string;
+  summary?: string;
+  key_data?: string[];
+  recommended_action?: string;
 }
 
 export interface GetConversationDetailsResult {
@@ -77,6 +93,8 @@ export interface GetConversationDetailsResult {
   start_time: string;
   end_time: string;
   duration: number;
+  source?: string | null;
+  sentiment_analysis?: SentimentAnalysis | null;
 }
 
 /* =============================

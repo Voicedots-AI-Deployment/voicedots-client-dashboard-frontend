@@ -28,7 +28,8 @@ const conversationsApi = {
     limit: number = 30,
     startDate?: string,
     endDate?: string,
-    source?: string
+    source?: string,
+    search?: string
   ): Promise<GetConversationsListResult> => {
     const version = getApiVersion(agentId);
     
@@ -37,6 +38,7 @@ const conversationsApi = {
     if (startDate) params.start_date = startDate;
     if (endDate) params.end_date = endDate;
     if (source && source !== "all") params.source = source;
+    if (search?.trim()) params.search = search.trim();
     
     if (version === "v3") {
       params.page = page;
@@ -110,6 +112,8 @@ const conversationsApi = {
     start_time: formatIST(response.data.start_time),
     end_time: formatIST(response.data.end_time),
     duration: response.data.duration,
+    source: response.data.source,
+    sentiment_analysis: response.data.sentiment_analysis,
   };
 },
 

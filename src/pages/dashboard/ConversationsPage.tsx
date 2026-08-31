@@ -1,4 +1,4 @@
-import { useMemo, useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { format } from "date-fns";
 import {
   Search,
@@ -24,6 +24,7 @@ const SOURCE_TABS = [
 export function ConversationsPage() {
   const { user } = useAuth();
   const [searchQuery, setSearchQuery] = useState("");
+  const [appliedSearch, setAppliedSearch] = useState("");
   const [conversations, setConversations] = useState<ConversationsListSummary[]>([]);
   const [nextPage, setNextPage] = useState<string | null>(null);
   const [stack, setStack] = useState<string[]>([]);
@@ -70,7 +71,8 @@ export function ConversationsPage() {
             pagination.limit,
             startDate,
             endDate,
-            source
+            source,
+            appliedSearch
           ),
           p === 1 ? kpiAPI.getKpiSummary(user?.agent_id, startDate, endDate, source) : Promise.resolve(null)
         ]);
@@ -83,29 +85,25 @@ export function ConversationsPage() {
         setIsLoading(false);
       }
     },
-    [user?.agent_id, pagination.limit, startDate, endDate, source]
+    [user?.agent_id, pagination.limit, startDate, endDate, source, appliedSearch]
   );
+
+  useEffect(() => {
+    const timer = window.setTimeout(() => setAppliedSearch(searchQuery.trim()), 300);
+    return () => window.clearTimeout(timer);
+  }, [searchQuery]);
 
   useEffect(() => {
     setPagination(p => ({...p, page: 1}));
     setStack([]);
     fetchConversations(null, 1);
-  }, [startDate, endDate, source, fetchConversations]);
+  }, [startDate, endDate, source, appliedSearch, fetchConversations]);
 
   useEffect(() => {
     if (pagination.page !== 1) {
        fetchConversations(null, pagination.page);
     }
   }, [fetchConversations]);
-
-  const filteredConversations = useMemo(() => {
-    const q = searchQuery.toLowerCase();
-    return conversations.filter(
-      (c) =>
-        (c.title ?? "").toLowerCase().includes(q) ||
-        (c.conversation_id ?? "").toLowerCase().includes(q)
-    );
-  }, [searchQuery, conversations]);
 
   return (
     <div className="flex flex-col gap-4 md:gap-6">
@@ -121,9 +119,9 @@ export function ConversationsPage() {
         </div>
 
         {/* FILTERS — full-width row */}
-        <div className="flex flex-wrap items-center gap-2 md:gap-3">
+        <div className="grid grid-cols-1 items-end gap-2 md:grid-cols-[auto_auto_minmax(260px,1fr)] md:gap-3">
           {/* SOURCE TABS */}
-          <div className="flex items-center gap-1 bg-white border border-slate-200 rounded-xl p-1 shadow-sm ring-1 ring-slate-100 dark:bg-slate-900 dark:border-slate-800 dark:ring-slate-800">
+          <div className="flex h-10 items-center gap-1 bg-white border border-slate-200 rounded-xl p-1 shadow-sm ring-1 ring-slate-100 dark:bg-slate-900 dark:border-slate-800 dark:ring-slate-800">
             {SOURCE_TABS.map((tab) => (
               <button
                 key={tab.key}
@@ -155,7 +153,7 @@ export function ConversationsPage() {
           />
 
           {/* SEARCH — takes remaining space */}
-          <div className="relative flex-1 min-w-[200px] md:min-w-[260px]">
+          <div className="relative min-w-0">
             <Search size={16} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400" />
             <input
               value={searchQuery}
@@ -181,13 +179,18 @@ export function ConversationsPage() {
             <Loader2 className="animate-spin text-gray-400" />
           </div>
         ) : (
-          filteredConversations.map((conversation, index) => (
+          conversations.map((conversation, index) => (
             <ConversationCard
               key={conversation.conversation_id}
               conversation={conversation}
               index={index + 1 + (pagination.page - 1) * pagination.limit}
             />
           ))
+        )}
+        {!isLoading && conversations.length === 0 && (
+          <div className="rounded-xl border border-dashed border-slate-200 py-16 text-center text-sm text-slate-500 dark:border-slate-800">
+            No conversations match these filters.
+          </div>
         )}
       </div>
 
