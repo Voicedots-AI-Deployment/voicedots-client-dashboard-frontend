@@ -59,6 +59,7 @@ export interface LeadDetails {
   business_desc?: string;
   business_description?: string;
   summary?: string;
+  direction?: "inbound" | "outbound";
 }
 
 export interface GetConversationDetailsResponse {

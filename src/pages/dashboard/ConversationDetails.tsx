@@ -227,7 +227,7 @@ function LeadInfo({ lead }: any) {
           </div>
           <div>
             <p className="font-semibold dark:text-slate-100">{lead?.name || "Unknown Lead"}</p>
-            <p className="text-xs text-gray-500 dark:text-slate-400">Inbound Call</p>
+            <p className="text-xs text-gray-500 dark:text-slate-400">{lead?.direction === "outbound" ? "Outbound Call" : "Inbound Call"}</p>
           </div>
         </div>
 
