@@ -85,6 +85,7 @@ const leadsApi = {
         if (typeof s === "string") {
           const l = s.trim().toLowerCase();
           if (l === "null" || l === "none" || l === "") return undefined;
+          return s;
         }
         return undefined;
       };
@@ -128,6 +129,7 @@ const leadsApi = {
         if (typeof s === "string") {
           const l = s.trim().toLowerCase();
           if (l === "null" || l === "none" || l === "") return undefined;
+          return s;
         }
         return undefined;
       };
