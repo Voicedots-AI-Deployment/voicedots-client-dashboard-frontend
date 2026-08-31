@@ -1,7 +1,7 @@
 "use client"
 
 import * as React from "react"
-import { addDays, format } from "date-fns"
+import { format } from "date-fns"
 import { CalendarIcon } from "lucide-react"
 import { type DateRange } from "react-day-picker"
 
@@ -34,12 +34,10 @@ export function DatePickerWithRange({
   label = "Date Range",
   className,
 }: DatePickerWithRangeProps) {
-  const [internalDate, setInternalDate] = React.useState<DateRange | undefined>(
-    value ?? {
-      from: new Date(new Date().getFullYear(), 0, 20),
-      to: addDays(new Date(new Date().getFullYear(), 0, 20), 20),
-    }
-  )
+  // Do not display a range the parent has not actually applied. The previous
+  // Jan-20 default was cosmetic, so the UI claimed a filter while sending no
+  // start_date/end_date parameters to the API.
+  const [internalDate, setInternalDate] = React.useState<DateRange | undefined>(value)
 
   // Keep picker usable when controlled from a parent.
   const selected = value ?? internalDate
@@ -88,6 +86,7 @@ export function DatePickerWithRange({
         <button
           type="button"
           onClick={() => {
+            setInternalDate(undefined)
             onChange?.(undefined)
             onClear()
           }}

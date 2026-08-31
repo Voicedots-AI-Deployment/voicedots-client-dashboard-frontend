@@ -9,17 +9,29 @@ interface GetLeadsResponse {
   status: string;
   data: Lead[];
   pagination: {
-    total: number;
-    qualified: number;
-    page: number;
+    total?: number;
+    qualified?: number;
+    page?: number;
+    total_count?: number;
+    qualified_count?: number;
+    current_page?: number;
     limit: number;
-    pages: number;
+    pages?: number;
+    total_pages?: number;
   };
 }
 
 interface GetLeadDetailsResponse {
   status: string;
   data: Lead;
+}
+
+interface LeadsPagination {
+  total: number;
+  qualified: number;
+  page: number;
+  limit: number;
+  pages: number;
 }
 
 interface UpdateLeadStatusResponse {
@@ -49,9 +61,10 @@ const leadsApi = {
     startDate?: string;
     endDate?: string;
     status?: string | null;
+    search?: string;
     page?: number;
     limit?: number;
-  }): Promise<{ data: Lead[]; pagination: GetLeadsResponse["pagination"] }> => {
+  }): Promise<{ data: Lead[]; pagination: LeadsPagination }> => {
     try {
       const version = getApiVersion(options?.agentId);
       const response = await apiClient.get<GetLeadsResponse>(
@@ -61,22 +74,23 @@ const leadsApi = {
             start_date: options?.startDate || undefined,
             end_date: options?.endDate || undefined,
             status: options?.status || undefined,
+            search: options?.search || undefined,
             page: options?.page || 1,
             limit: options?.limit || 50,
           },
         }
       );
-      const pag = response.data.pagination as any;
-      const sanitizeStr = (s: any) => {
+      const pag = response.data.pagination;
+      const sanitizeStr = (s: unknown): string | undefined => {
         if (typeof s === "string") {
           const l = s.trim().toLowerCase();
           if (l === "null" || l === "none" || l === "") return undefined;
         }
-        return s;
+        return undefined;
       };
       
       return {
-        data: response.data.data.map((lead: any) => ({
+        data: response.data.data.map((lead) => ({
            ...lead,
            name: sanitizeStr(lead.name),
            email: sanitizeStr(lead.email),
@@ -109,13 +123,13 @@ const leadsApi = {
         await apiClient.get<GetLeadDetailsResponse>(
           `/${version}/leads/${conversationId}`
         );
-      const lead = response.data.data as any;
-      const sanitizeStr = (s: any) => {
+      const lead = response.data.data;
+      const sanitizeStr = (s: unknown): string | undefined => {
         if (typeof s === "string") {
           const l = s.trim().toLowerCase();
           if (l === "null" || l === "none" || l === "") return undefined;
         }
-        return s;
+        return undefined;
       };
 
       return {

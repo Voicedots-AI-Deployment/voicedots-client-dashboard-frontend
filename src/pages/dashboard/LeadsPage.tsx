@@ -1,4 +1,4 @@
-import { useEffect, useState, useCallback, useMemo } from "react";
+import { useEffect, useState, useCallback, useDeferredValue } from "react";
 import { format } from "date-fns";
 import {
   Phone,
@@ -22,6 +22,7 @@ export function LeadsPage() {
   const [leads, setLeads] = useState<Lead[]>([]);
   const [search, setSearch] = useState("");
   const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState("");
   const [selectedLead, setSelectedLead] = useState<Lead | null>(null);
   const [drawerOpen, setDrawerOpen] = useState(false);
   const [startDate, setStartDate] = useState("");
@@ -36,16 +37,19 @@ export function LeadsPage() {
     limit: 20,
     pages: 0
   });
+  const deferredSearch = useDeferredValue(search.trim());
 
   const fetchLeads = useCallback(async (isExport = false) => {
     if (!user?.agent_id && !isExport) return;
     if (!isExport) setLoading(true);
+    if (!isExport) setLoadError("");
     try {
       const response = await leadsApi.getLeads({
         agentId: user?.agent_id,
         startDate: startDate || undefined,
         endDate: endDate || undefined,
         status: statusFilter || undefined,
+        search: deferredSearch || undefined,
         page: isExport ? 1 : page,
         limit: isExport ? 10000 : 20,
       });
@@ -54,10 +58,11 @@ export function LeadsPage() {
       setPagination(response.pagination);
     } catch (err) {
       console.error("Failed to fetch leads:", err);
+      if (!isExport) setLoadError("Leads could not be loaded. Please retry.");
     } finally {
       if (!isExport) setLoading(false);
     }
-  }, [user?.agent_id, startDate, endDate, statusFilter, page]);
+  }, [user?.agent_id, startDate, endDate, statusFilter, deferredSearch, page]);
 
   useEffect(() => { fetchLeads(); }, [fetchLeads]);
 
@@ -78,16 +83,11 @@ export function LeadsPage() {
     }
   };
 
-  const filteredLeads = useMemo(() => 
-    leads.filter(l => 
-      (l.name ?? "").toLowerCase().includes(search.toLowerCase()) ||
-      (l.email ?? "").toLowerCase().includes(search.toLowerCase())
-    ), [leads, search]);
-
   const generateDownload = (leadsToExport: Lead[], filename: string) => {
     if (!leadsToExport.length) return;
-    const escapeCsv = (str: any) => `"${String(str || "").replace(/"/g, '""')}"`;
-    const formatDt = (iso: any) => {
+    const escapeCsv = (str: unknown) => `"${String(str || "").replace(/"/g, '""')}"`;
+    const formatDt = (iso: string | undefined) => {
+      if (!iso) return '""';
       const d = new Date(iso);
       if (isNaN(d.getTime())) return '""';
       const p = (n: number) => String(n).padStart(2, "0");
@@ -95,7 +95,7 @@ export function LeadsPage() {
     };
 
     const headers = ["Name", "Phone", "Email", "Description", "Status", "Date"].join(",");
-    const rows = leadsToExport.sort((a, b) => new Date(b.created_at || 0).getTime() - new Date(a.created_at || 0).getTime())
+    const rows = [...leadsToExport].sort((a, b) => new Date(b.created_at || 0).getTime() - new Date(a.created_at || 0).getTime())
       .map(l => [escapeCsv(l.name), escapeCsv(l.mobile || l.phone), escapeCsv(l.email), escapeCsv(l.business_description || l.summary), escapeCsv(l.status), formatDt(l.created_at)].join(","));
 
     const blob = new Blob(["\uFEFF" + [headers, ...rows].join("\n")], { type: "text/csv;charset=utf-8;" });
@@ -180,7 +180,9 @@ export function LeadsPage() {
             <div className="flex justify-center items-center py-24">
               <Loader2 className="animate-spin text-indigo-400" size={32} />
             </div>
-          ) : filteredLeads.length === 0 ? (
+          ) : loadError ? (
+            <div className="rounded-2xl border border-red-200 bg-red-50 p-6 text-center font-semibold text-red-700">{loadError}</div>
+          ) : leads.length === 0 ? (
             <div className="flex flex-col items-center justify-center py-24 bg-white border border-dashed border-slate-200 rounded-3xl gap-4 dark:bg-slate-900 dark:border-slate-800">
               <div className="p-4 rounded-full bg-slate-50 text-slate-300">
                 <Search size={32} />
@@ -188,7 +190,7 @@ export function LeadsPage() {
               <p className="text-slate-500 font-bold">No leads found</p>
             </div>
           ) : (
-            filteredLeads.map((lead) => (
+            leads.map((lead) => (
               <div
                 key={lead.conversation_id}
                 onClick={() => { setSelectedLead(lead); setDrawerOpen(true); }}
@@ -295,4 +297,3 @@ export function LeadsPage() {
     </>
   );
 }
-
