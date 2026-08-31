@@ -94,12 +94,12 @@ export function ConversationDetails() {
         </button>
 
         {/* MOBILE INFO BUTTON */}
-        {showLeadInfo && (
+        {!isLoading && (
           <button
             onClick={() => setShowMobileInfo(true)}
             className="md:hidden text-sm font-medium text-blue-600 dark:text-blue-400"
           >
-            Lead Info
+            Call Details
           </button>
         )}
       </div>
@@ -119,7 +119,7 @@ export function ConversationDetails() {
       
 
       {/* BODY */}
-      <div className={`grid grid-cols-1 ${showLeadInfo ? "md:grid-cols-[1fr_260px]" : ""}`}>
+      <div className="grid grid-cols-1 md:grid-cols-[1fr_280px]">
         {/* CHAT */}
         <div className="px-4 md:px-6 py-4">
           <div className="max-w-4xl mx-auto space-y-6">
@@ -189,24 +189,24 @@ export function ConversationDetails() {
         </div>
 
         {/* DESKTOP SIDEBAR */}
-        {showLeadInfo && (
+        {!isLoading && (
           <aside className="hidden md:block border-l bg-gray-50 px-4 py-6 sticky top-16 h-[calc(100vh-64px)] overflow-y-auto custom-scrollbar dark:bg-slate-900 dark:border-slate-800">
-            <LeadInfo lead={lead} duration={data?.duration} sentiment={data?.sentiment_analysis} />
+            <LeadInfo lead={lead} duration={data?.duration} sentiment={data?.sentiment_analysis} showContact={showLeadInfo} />
           </aside>
         )}
       </div>
 
       {/* MOBILE BOTTOM SHEET */}
-      {showMobileInfo && showLeadInfo && (
+      {showMobileInfo && (
         <div className="fixed inset-0 z-50 bg-black/40 md:hidden">
           <div className="absolute bottom-0 w-full bg-white rounded-t-xl p-4 max-h-[80vh] overflow-y-auto dark:bg-slate-900">
             <div className="flex justify-between items-center mb-4">
-              <h3 className="font-semibold dark:text-slate-100">Lead Info</h3>
+              <h3 className="font-semibold dark:text-slate-100">Call Details</h3>
               <button onClick={() => setShowMobileInfo(false)}>
                 <X />
               </button>
             </div>
-            <LeadInfo lead={lead} duration={data?.duration} sentiment={data?.sentiment_analysis} />
+            <LeadInfo lead={lead} duration={data?.duration} sentiment={data?.sentiment_analysis} showContact={showLeadInfo} />
           </div>
         </div>
       )}
@@ -217,13 +217,13 @@ export function ConversationDetails() {
 
 /* ========== SHARED LEAD INFO ========== */
 
-function LeadInfo({ lead, duration, sentiment }: any) {
+function LeadInfo({ lead, duration, sentiment, showContact }: any) {
   const durationText = typeof duration === "number"
     ? `${Math.floor(duration / 60)}m ${duration % 60}s`
     : "N/A";
   return (
     <div className="space-y-4">
-      <div className="bg-white border rounded-lg dark:bg-slate-900 dark:border-slate-800">
+      {showContact && <div className="bg-white border rounded-lg dark:bg-slate-900 dark:border-slate-800">
         <div className="flex gap-3 px-4 py-3 border-b dark:border-slate-800">
           <div className="w-9 h-9 rounded-full bg-blue-100 dark:bg-slate-800 flex items-center justify-center">
             <User size={16} />
@@ -237,7 +237,7 @@ function LeadInfo({ lead, duration, sentiment }: any) {
         <InfoRow icon={<Phone size={14} />} label="Phone" value={lead?.mobile || lead?.phone || lead?.phone_number || "N/A"} />
         <InfoRow icon={<Mail size={14} />} label="Email" value={lead?.email || "N/A"} />
         <InfoRow icon={<Briefcase size={14} />} label="Business" value={lead?.business_description || lead?.business_desc || lead?.summary || "N/A"} />
-      </div>
+      </div>}
 
       <div className="bg-white border rounded-lg dark:bg-slate-900 dark:border-slate-800">
         <div className="flex gap-2 px-4 py-3 border-b dark:border-slate-800">
