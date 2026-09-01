@@ -35,22 +35,12 @@ export function DatePickerWithRange({
   className,
 }: DatePickerWithRangeProps) {
   const pickerId = React.useId()
-  const [compact, setCompact] = React.useState(() =>
-    typeof window !== "undefined" ? window.matchMedia("(max-width: 767px)").matches : false
-  )
   // Do not display a range the parent has not actually applied. The previous
   // Jan-20 default was cosmetic, so the UI claimed a filter while sending no
   // start_date/end_date parameters to the API.
   const [internalDate, setInternalDate] = React.useState<DateRange | undefined>(value)
 
   React.useEffect(() => setInternalDate(value), [value])
-  React.useEffect(() => {
-    const media = window.matchMedia("(max-width: 767px)")
-    const update = () => setCompact(media.matches)
-    update()
-    media.addEventListener("change", update)
-    return () => media.removeEventListener("change", update)
-  }, [])
 
   // Keep picker usable when controlled from a parent.
   const selected = value ?? internalDate
@@ -77,8 +67,8 @@ export function DatePickerWithRange({
               </span>
             </Button>
           </PopoverTrigger>
-          <PopoverContent className="max-h-[calc(100vh-6rem)] max-w-[calc(100vw-1rem)] overflow-auto p-0" align="start" collisionPadding={8}>
-            <Calendar mode="range" defaultMonth={selected?.from} selected={selected} onSelect={onSelect} numberOfMonths={compact ? 1 : 2} />
+          <PopoverContent className="w-[320px] max-w-[calc(100vw-1rem)] overflow-hidden p-0" align="start" collisionPadding={8}>
+            <Calendar mode="range" defaultMonth={selected?.from} selected={selected} onSelect={onSelect} numberOfMonths={1} />
           </PopoverContent>
         </Popover>
         {showClear && onClear && (
