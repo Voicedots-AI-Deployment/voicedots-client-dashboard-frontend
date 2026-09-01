@@ -21,6 +21,8 @@ const SOURCE_TABS = [
   { key: "phone_call", label: "Phone" },
 ] as const;
 
+const CATEGORIES = ["Follow Up", "Interested", "General Inquiry", "Not Interested", "Callback Required", "Not Assessable"];
+
 export function ConversationsPage() {
   const { user } = useAuth();
   const [searchQuery, setSearchQuery] = useState("");
@@ -39,6 +41,7 @@ export function ConversationsPage() {
   const [startDate, setStartDate] = useState("");
   const [endDate, setEndDate] = useState("");
   const [source, setSource] = useState("all");
+  const [category, setCategory] = useState("");
   const [kpiSummary, setKpiSummary] = useState<KpiSummary | null>(null);
 
   const [isLoading, setIsLoading] = useState(true);
@@ -72,7 +75,8 @@ export function ConversationsPage() {
             startDate,
             endDate,
             source,
-            appliedSearch
+            appliedSearch,
+            category
           ),
           p === 1 ? kpiAPI.getKpiSummary(user?.agent_id, startDate, endDate, source) : Promise.resolve(null)
         ]);
@@ -85,7 +89,7 @@ export function ConversationsPage() {
         setIsLoading(false);
       }
     },
-    [user?.agent_id, pagination.limit, startDate, endDate, source, appliedSearch]
+    [user?.agent_id, pagination.limit, startDate, endDate, source, appliedSearch, category]
   );
 
   useEffect(() => {
@@ -97,7 +101,7 @@ export function ConversationsPage() {
     setPagination(p => ({...p, page: 1}));
     setStack([]);
     fetchConversations(null, 1);
-  }, [startDate, endDate, source, appliedSearch, fetchConversations]);
+  }, [startDate, endDate, source, category, appliedSearch, fetchConversations]);
 
   useEffect(() => {
     if (pagination.page !== 1) {
@@ -119,7 +123,7 @@ export function ConversationsPage() {
         </div>
 
         {/* FILTERS — full-width row */}
-        <div className="grid grid-cols-1 items-end gap-2 md:grid-cols-[auto_auto_minmax(260px,1fr)] md:gap-3">
+        <div className="grid grid-cols-1 items-end gap-2 md:grid-cols-[auto_auto_auto_minmax(260px,1fr)] md:gap-3">
           {/* SOURCE TABS */}
           <div className="flex h-10 items-center gap-1 bg-white border border-slate-200 rounded-xl p-1 shadow-sm ring-1 ring-slate-100 dark:bg-slate-900 dark:border-slate-800 dark:ring-slate-800">
             {SOURCE_TABS.map((tab) => (
@@ -151,6 +155,16 @@ export function ConversationsPage() {
             className="w-full md:w-auto"
             showClear={Boolean(startDate || endDate)}
           />
+
+          <select
+            value={category}
+            onChange={(event) => setCategory(event.target.value)}
+            aria-label="Conversation category"
+            className="h-10 rounded-xl border border-slate-200 bg-white px-3 text-sm font-semibold text-slate-700 shadow-sm outline-none hover:border-slate-300 dark:border-slate-800 dark:bg-slate-900 dark:text-slate-200"
+          >
+            <option value="">All Categories</option>
+            {CATEGORIES.map((value) => <option key={value} value={value}>{value}</option>)}
+          </select>
 
           {/* SEARCH — takes remaining space */}
           <div className="relative min-w-0">

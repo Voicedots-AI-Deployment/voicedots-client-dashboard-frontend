@@ -12,6 +12,7 @@ export interface ConversationsListSummary {
   end_time: number;
   time_format: string
   source?: string | null;
+  category?: "Follow Up" | "Interested" | "General Inquiry" | "Not Interested" | "Callback Required" | "Not Assessable";
 }
 
 export interface GetConversationsResponse {
