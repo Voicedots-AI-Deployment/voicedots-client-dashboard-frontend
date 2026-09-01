@@ -22,7 +22,7 @@ const authApi = {
         form,
         { headers: { "Content-Type": "application/x-www-form-urlencoded" } }
       );
-    } catch (e: any) {
+    } catch (primaryError: unknown) {
       // Fallback to V1 backend if V3 isn't running, gets blocked by middleware, or throws CORS
       try {
         response = await apiClient.post<LoginResponse>(
@@ -30,8 +30,8 @@ const authApi = {
           form,
           { headers: { "Content-Type": "application/x-www-form-urlencoded" } }
         );
-      } catch (fallbackError) {
-        throw e; // throw original V3 error or fallback error based on preference, let's throw fallback
+      } catch (fallbackError: unknown) {
+        throw fallbackError || primaryError;
       }
     }
     
@@ -45,4 +45,3 @@ const authApi = {
 };
 
 export default authApi;
-

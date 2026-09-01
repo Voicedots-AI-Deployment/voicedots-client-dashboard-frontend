@@ -10,8 +10,6 @@ import ticketsApi from "@/api/tickets";
 import { TicketDetailsDrawer } from "@/components/TicketDetailsDrawer";
 import type { Ticket } from "@/types/ticket.types";
 
-const DRAWER_WIDTH = 420;
-
 export function TicketsPage() {
     const [tickets, setTickets] = useState<Ticket[]>([]);
     const [search, setSearch] = useState("");
@@ -61,10 +59,10 @@ export function TicketsPage() {
 
     const filteredTickets = tickets.filter(
         (t) =>
-            t.name.toLowerCase().includes(search.toLowerCase()) ||
-            t.email.toLowerCase().includes(search.toLowerCase()) ||
-            t.category.toLowerCase().includes(search.toLowerCase()) ||
-            t.sub_category.toLowerCase().includes(search.toLowerCase())
+            (t.name || "").toLowerCase().includes(search.toLowerCase()) ||
+            (t.email || "").toLowerCase().includes(search.toLowerCase()) ||
+            (t.category || "").toLowerCase().includes(search.toLowerCase()) ||
+            (t.sub_category || "").toLowerCase().includes(search.toLowerCase())
     );
 
     const totalTickets = tickets.length;
@@ -80,14 +78,7 @@ export function TicketsPage() {
     return (
         <>
             {/* ================= MAIN CONTENT ================= */}
-            <div
-                className="flex flex-col gap-6 transition-all duration-300"
-                style={{
-                    marginRight: (drawerOpen && window.innerWidth > 1024)
-                        ? `${DRAWER_WIDTH}px`
-                        : "0px",
-                }}
-            >
+            <div className={`flex flex-col gap-6 transition-[margin] duration-300 ${drawerOpen ? "lg:mr-[420px]" : ""}`}>
                 {/* ================= HEADER ================= */}
                 <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4 shrink-0">
                     <div>

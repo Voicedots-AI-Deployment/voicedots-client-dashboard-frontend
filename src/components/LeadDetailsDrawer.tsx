@@ -87,7 +87,7 @@ export function LeadDetailsDrawer({
       }}
     >
       {/* ================= STICKY HEADER ================= */}
-      <div className="sticky top-0 z-10 bg-white border-b px-5 py-4 flex items-start justify-between dark:bg-slate-900">
+      <div className="shrink-0 bg-white border-b px-5 py-4 flex items-start justify-between dark:bg-slate-900">
         <div className="flex items-start gap-3">
           <div className="w-10 h-10 rounded-full bg-gray-100 dark:bg-slate-800 flex items-center justify-center text-sm font-semibold">
             {getInitials(lead.name || "Unknown")}
@@ -113,7 +113,7 @@ export function LeadDetailsDrawer({
       </div>
 
       {/* ================= STICKY STATUS ================= */}
-      <div className="sticky top-[73px] z-10 bg-white border-b px-5 py-3 relative dark:bg-slate-900">
+      <div className="relative shrink-0 bg-white border-b px-5 py-3 dark:bg-slate-900">
         <select
           value={lead.status}
           onChange={(e) => handleStatusChange(e.target.value as LeadStatus)}
@@ -138,7 +138,7 @@ export function LeadDetailsDrawer({
       </div>
 
       {/* ================= STICKY ACTIONS ================= */}
-      <div className="sticky top-[130px] z-10 bg-white border-b px-5 py-4 mb-10 grid grid-cols-3 gap-3 dark:bg-slate-900">
+      <div className="grid shrink-0 grid-cols-3 gap-3 border-b bg-white px-5 py-4 dark:bg-slate-900">
         <Action
           icon={<Phone size={16} />}
           label="Call"
@@ -168,7 +168,7 @@ export function LeadDetailsDrawer({
       </div>
 
       {/* ================= STICKY TABS ================= */}
-      <div className="sticky top-[200px] z-10 bg-white border-b px-5 flex gap-4 dark:bg-slate-900">
+      <div className="flex shrink-0 gap-4 border-b bg-white px-5 dark:bg-slate-900">
         {[
           ["details", "Details"],
           ["notes", "Notes"],

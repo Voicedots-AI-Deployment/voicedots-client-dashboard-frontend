@@ -151,7 +151,7 @@ export default function SettingsPage() {
     : "U";
 
   return (
-    <div className="w-full min-h-screen px-4 sm:px-6 py-8 max-w-4xl mx-auto space-y-12">
+    <div className="mx-auto w-full max-w-4xl space-y-12 py-2">
       
       {/* Header */}
       <div className="space-y-1">

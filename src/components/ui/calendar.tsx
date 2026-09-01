@@ -18,7 +18,9 @@ function Calendar({
       showOutsideDays={showOutsideDays}
       className={cn("p-3", className)}
       classNames={{
-        months: "flex flex-col sm:flex-row space-y-4 sm:space-x-4 sm:space-y-0",
+        root: "relative",
+        months: "flex flex-col gap-4 sm:flex-row",
+        month: "min-w-[280px]",
         month_caption: "flex justify-center pt-1 pb-2",
         caption_label: "text-sm font-medium text-slate-600 dark:text-slate-300",
         nav: "space-x-1 flex items-center",
@@ -30,7 +32,7 @@ function Calendar({
           "absolute right-1 h-7 w-7 rounded-lg border border-slate-200 bg-white text-slate-600 hover:bg-slate-50 dark:border-slate-800 dark:bg-slate-900 dark:text-slate-300 dark:hover:bg-slate-800",
           "transition-colors"
         ),
-        month_grid: "w-full border-collapse text-sm",
+        month_grid: "w-full border-collapse text-sm table-fixed",
         weekdays: "flex",
         weekday: "text-slate-400 dark:text-slate-500 font-semibold w-9 h-9",
         week: "flex w-full mt-1",

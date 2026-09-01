@@ -5,6 +5,7 @@ import {
 import { useNavigate, useLocation } from "react-router-dom";
 import authApi from "@/api/authApi";
 import SidebarLogo from "./SideBarLogo";
+import { useAuth } from "@/context/AuthContext";
 
 interface SidebarProps {
   isOpen: boolean;
@@ -29,6 +30,7 @@ interface NavItem {
 export function Sidebar({ isOpen, onClose, isCollapsed }: SidebarProps) {
   const navigate = useNavigate();
   const location = useLocation();
+  const { logout } = useAuth();
 
   const navItems: NavItem[] = [
     { id: "home", icon: Home, label: "Home", path: "/dashboard" },
@@ -135,7 +137,12 @@ export function Sidebar({ isOpen, onClose, isCollapsed }: SidebarProps) {
           <div className="px-3 mt-auto pt-4 border-t border-slate-100 dark:border-slate-800">
             <button
               type="button"
-              onClick={(e) => { e.stopPropagation(); authApi.logout().then(() => navigate("/login", { replace: true })); }}
+              onClick={async (e) => {
+                e.stopPropagation();
+                await authApi.logout();
+                logout();
+                navigate("/login", { replace: true });
+              }}
               className={`w-full flex items-center gap-x-3.5 py-3 px-4 text-sm font-bold text-red-500 rounded-xl hover:bg-red-50 dark:hover:bg-red-900/10 transition-all ${isCollapsed ? "md:justify-center md:px-0" : ""}`}
             >
               <LogOut size={20} />

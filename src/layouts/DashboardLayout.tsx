@@ -18,7 +18,7 @@ const DashboardLayout = () => {
       />
 
       {/* MAIN COLUMN */}
-      <div className="flex flex-col flex-1 w-full">
+      <div className="flex min-w-0 flex-1 flex-col">
         {/* TOP BAR (sticky at top) */}
         <TopBar
           onMenuClick={() => setIsSidebarOpen(true)}

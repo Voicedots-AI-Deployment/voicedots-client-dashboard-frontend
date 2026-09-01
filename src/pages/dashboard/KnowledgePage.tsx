@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import {
   BookOpen, Loader2, Save, RotateCcw, AlertCircle, CheckCircle2,
   FileText, Eye, Pencil, History,
@@ -43,13 +43,13 @@ export default function KnowledgePage() {
 
   const dirty = draft !== content;
 
-  const loadList = async () => {
+  const loadList = useCallback(async () => {
     setLoading(true);
     try {
       const res = await knowledgeAPI.listDocuments();
       setDocuments(res.documents);
       setError("");
-      if (res.documents.length && !selected) setSelected(res.documents[0].filename);
+      if (res.documents.length) setSelected((current) => current || res.documents[0].filename);
     } catch (e: any) {
       setError(
         e?.response?.status === 404
@@ -59,9 +59,9 @@ export default function KnowledgePage() {
     } finally {
       setLoading(false);
     }
-  };
+  }, []);
 
-  const openDocument = async (filename: string) => {
+  const openDocument = useCallback(async (filename: string) => {
     setLoadingDoc(true);
     setNotice("");
     try {
@@ -74,10 +74,10 @@ export default function KnowledgePage() {
     } finally {
       setLoadingDoc(false);
     }
-  };
+  }, []);
 
-  useEffect(() => { loadList(); }, []);
-  useEffect(() => { if (selected) openDocument(selected); }, [selected]);
+  useEffect(() => { void loadList(); }, [loadList]);
+  useEffect(() => { if (selected) void openDocument(selected); }, [selected, openDocument]);
   useEffect(() => {
     if (tab === "history" && selected) {
       knowledgeAPI.listVersions(selected).then(setVersions).catch(() => setVersions([]));

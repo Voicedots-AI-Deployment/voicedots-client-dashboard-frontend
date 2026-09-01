@@ -1,5 +1,5 @@
 import { useEffect, useState, useCallback, useDeferredValue } from "react";
-import { format } from "date-fns";
+import { format, parseISO } from "date-fns";
 import {
   Phone,
   Search,
@@ -14,8 +14,6 @@ import { DatePickerWithRange } from "@/components/DatePickerWithRange";
 import type { Lead } from "@/types/lead.types";
 import { useAuth } from "@/context/AuthContext";
 import { UI } from "@/ui/colors";
-
-const DRAWER_WIDTH = 420;
 
 export function LeadsPage() {
   const { user } = useAuth();
@@ -110,7 +108,7 @@ export function LeadsPage() {
 
   return (
     <>
-      <div className="flex flex-col gap-6 transition-all duration-300" style={{ marginRight: (drawerOpen && window.innerWidth > 1024) ? `${DRAWER_WIDTH}px` : "0px" }}>
+      <div className={`flex flex-col gap-6 transition-[margin] duration-300 ${drawerOpen ? "lg:mr-[420px]" : ""}`}>
         <div className="flex flex-col items-center md:items-end md:flex-row md:justify-between gap-4 mb-4">
           <div className="text-center md:text-left">
             <h1 className="text-3xl font-bold tracking-tight leading-tight" style={{ color: UI.colors.text.primary }}>
@@ -124,8 +122,8 @@ export function LeadsPage() {
           <div className="flex flex-wrap items-center justify-center md:justify-end gap-3 px-2">
             <DatePickerWithRange
               value={
-                startDate && endDate
-                  ? { from: new Date(startDate), to: new Date(endDate) }
+                startDate
+                  ? { from: parseISO(startDate), to: endDate ? parseISO(endDate) : undefined }
                   : undefined
               }
               onChange={(range) => {

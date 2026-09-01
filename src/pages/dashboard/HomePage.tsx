@@ -3,7 +3,7 @@ import {
   MessageSquare,
   Clock,
 } from "lucide-react";
-import { format } from "date-fns";
+import { format, parseISO } from "date-fns";
 import { type DateRange } from "react-day-picker";
 import { useEffect, useMemo, useState, useCallback, useRef } from "react";
 import { useAuth } from "@/context/AuthContext";
@@ -333,7 +333,7 @@ export function HomePage() {
           <div className="hidden sm:block h-6 w-px bg-slate-200 mx-2"></div>
           <div className="flex items-center px-2 py-1">
             <DatePickerWithRange
-              value={from && to ? { from: new Date(from), to: new Date(to) } : undefined}
+              value={from ? { from: parseISO(from), to: to ? parseISO(to) : undefined } : undefined}
               onChange={(range: DateRange | undefined) => {
                 setPreset("custom");
                 setRange({
@@ -392,5 +392,4 @@ export function HomePage() {
     </motion.div>
   );
 }
-
 

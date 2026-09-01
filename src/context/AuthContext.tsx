@@ -40,7 +40,13 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
 
   const login = async () => {
     setIsAuthenticated(true);
-    await refreshUser();
+    try {
+      setUser(await usersApi.getMe());
+    } catch (error) {
+      setIsAuthenticated(false);
+      setUser(null);
+      throw error;
+    }
   };
 
   const logout = () => {

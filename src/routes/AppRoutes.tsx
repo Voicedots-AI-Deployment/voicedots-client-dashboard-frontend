@@ -1,23 +1,26 @@
 import { Routes, Route, Navigate } from "react-router-dom";
+import { lazy, Suspense } from "react";
 import AuthLayout from "../layouts/AuthLayout";
 import DashboardLayout from "../layouts/DashboardLayout";
-import LoginPage from "../pages/LoginPage";
-
-import { HomePage } from "@/pages/dashboard/HomePage";
-import { ConversationsPage } from "@/pages/dashboard/ConversationsPage";
-import { ConversationDetails } from "@/pages/dashboard/ConversationDetails";
-import SettingsPage from "@/pages/dashboard/SettingsPage";
-import EmailPage from "@/pages/dashboard/email/EmailPage";
-import CallingPage from "@/pages/dashboard/communications/CallingPage";
-import WhatsAppPage from "@/pages/dashboard/communications/WhatsAppPage";
 import ProtectedRoute from "@/routes/ProtectedRoute";
-import { LeadsPage } from "@/pages/dashboard/LeadsPage";
-import KnowledgePage from "@/pages/dashboard/KnowledgePage";
-import { TicketsPage } from "@/pages/dashboard/TicketsPage";
+
+const LoginPage = lazy(() => import("../pages/LoginPage"));
+const HomePage = lazy(() => import("@/pages/dashboard/HomePage").then((module) => ({ default: module.HomePage })));
+const ConversationsPage = lazy(() => import("@/pages/dashboard/ConversationsPage").then((module) => ({ default: module.ConversationsPage })));
+const ConversationDetails = lazy(() => import("@/pages/dashboard/ConversationDetails").then((module) => ({ default: module.ConversationDetails })));
+const LeadsPage = lazy(() => import("@/pages/dashboard/LeadsPage").then((module) => ({ default: module.LeadsPage })));
+const TicketsPage = lazy(() => import("@/pages/dashboard/TicketsPage").then((module) => ({ default: module.TicketsPage })));
+const KnowledgePage = lazy(() => import("@/pages/dashboard/KnowledgePage"));
+const SettingsPage = lazy(() => import("@/pages/dashboard/SettingsPage"));
+const CallingPage = lazy(() => import("@/pages/dashboard/communications/CallingPage"));
+const WhatsAppPage = lazy(() => import("@/pages/dashboard/communications/WhatsAppPage"));
+const EmailPage = lazy(() => import("@/pages/dashboard/email/EmailPage"));
+
+const PageLoader = () => <div className="flex min-h-48 items-center justify-center text-sm font-medium text-slate-500">Loading…</div>;
 
 const AppRoutes = () => {
   return (
-    <Routes>
+    <Suspense fallback={<PageLoader />}><Routes>
       {/* ROOT */}
       <Route path="/" element={<Navigate to="/login" replace />} />
 
@@ -71,7 +74,7 @@ const AppRoutes = () => {
         {/* GLOBAL 404 */}
         <Route path="*" element={<div>Page not found</div>} />
       </Route>
-    </Routes>
+    </Routes></Suspense>
   );
 };
 

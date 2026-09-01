@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback } from "react";
-import { format } from "date-fns";
+import { format, parseISO } from "date-fns";
 import {
   Search,
   Loader2,
@@ -45,6 +45,7 @@ export function ConversationsPage() {
   const [kpiSummary, setKpiSummary] = useState<KpiSummary | null>(null);
 
   const [isLoading, setIsLoading] = useState(true);
+  const [loadError, setLoadError] = useState("");
 
   const push = (item: string) => {
     setStack((prev) => [...prev, item]);
@@ -65,6 +66,7 @@ export function ConversationsPage() {
       if (!user?.agent_id) return;
       try {
         setIsLoading(true);
+        setLoadError("");
         // Fetch conversations and KPIs in parallel
         const [convData, kpiData] = await Promise.all([
           conversationsApi.getConversations(
@@ -85,6 +87,9 @@ export function ConversationsPage() {
         setNextPage(convData.nextPage);
         if (convData.pagination) setPagination(convData.pagination as any);
         if (kpiData) setKpiSummary(kpiData);
+      } catch (error) {
+        console.error("Failed to load conversations", error);
+        setLoadError("Conversations could not be loaded. Please retry.");
       } finally {
         setIsLoading(false);
       }
@@ -102,12 +107,6 @@ export function ConversationsPage() {
     setStack([]);
     fetchConversations(null, 1);
   }, [startDate, endDate, source, category, appliedSearch, fetchConversations]);
-
-  useEffect(() => {
-    if (pagination.page !== 1) {
-       fetchConversations(null, pagination.page);
-    }
-  }, [fetchConversations]);
 
   return (
     <div className="flex flex-col gap-4 md:gap-6">
@@ -143,8 +142,8 @@ export function ConversationsPage() {
 
           <DatePickerWithRange
             value={
-              startDate && endDate
-                ? { from: new Date(startDate), to: new Date(endDate) }
+              startDate
+                ? { from: parseISO(startDate), to: endDate ? parseISO(endDate) : undefined }
                 : undefined
             }
             onChange={(range) => {
@@ -196,7 +195,9 @@ export function ConversationsPage() {
 
       {/* LIST */}
       <div className="flex flex-col gap-3 pr-1 md:pr-2">
-        {isLoading ? (
+        {loadError && !isLoading ? (
+          <div className="rounded-xl border border-rose-200 bg-rose-50 px-4 py-8 text-center text-sm font-semibold text-rose-700 dark:border-rose-900 dark:bg-rose-950/30 dark:text-rose-300">{loadError}</div>
+        ) : isLoading ? (
           <div className="flex justify-center py-20">
             <Loader2 className="animate-spin text-gray-400" />
           </div>
@@ -209,7 +210,7 @@ export function ConversationsPage() {
             />
           ))
         )}
-        {!isLoading && conversations.length === 0 && (
+        {!isLoading && !loadError && conversations.length === 0 && (
           <div className="rounded-xl border border-dashed border-slate-200 py-16 text-center text-sm text-slate-500 dark:border-slate-800">
             No conversations match these filters.
           </div>

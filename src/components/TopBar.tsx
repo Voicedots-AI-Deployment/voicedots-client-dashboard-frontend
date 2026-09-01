@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState, startTransition } from "react";
+import { useEffect, useRef, useState } from "react";
 import { Bell, Menu, ChevronDown, PanelLeft, Sun, Moon } from "lucide-react";
 import { useTheme } from "@/context/ThemeContext";
 import { useNavigate } from "react-router-dom";
@@ -22,7 +22,6 @@ export function TopBar({
   const { theme, toggleTheme } = useTheme();
   const [profileOpen, setProfileOpen] = useState(false);
   const [notifOpen, setNotifOpen] = useState(false);
-  const [hasUnread, setHasUnread] = useState(true);
 
   // Avatar initials
   const initials = user?.name ? user.name.split(" ").map(n => n[0]).join("").toUpperCase().substring(0, 2) : "U";
@@ -48,15 +47,6 @@ export function TopBar({
     return () =>
       document.removeEventListener("mousedown", handleClickOutside);
   }, []);
-
-  // Remove red dot when notifications opened
-  useEffect(() => {
-    if (notifOpen) {
-      startTransition(() => {
-        setHasUnread(false);
-      });
-    }
-  }, [notifOpen]);
 
   return (
     <header className="sticky top-0 inset-x-0 z-50 w-full bg-white border-b border-gray-200 dark:bg-slate-900 dark:border-slate-700">
@@ -103,9 +93,6 @@ export function TopBar({
               className="relative h-9 w-9 rounded-full border border-gray-200 flex items-center justify-center bg-white hover:bg-gray-50 dark:bg-slate-900 dark:border-slate-700 dark:text-gray-400"
             >
               <Bell size={18} />
-              {hasUnread && (
-                <span className="absolute top-0 right-0 h-2.5 w-2.5 rounded-full bg-red-500 ring-2 ring-white dark:ring-slate-900" />
-              )}
             </button>
 
             {notifOpen && (
