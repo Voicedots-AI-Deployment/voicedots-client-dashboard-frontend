@@ -77,6 +77,9 @@ export interface GetConversationDetailsResponse {
 }
 
 export interface SentimentAnalysis {
+  // The bucket the model chose. The top-level `category` is what the UI shows;
+  // this is the raw value it was resolved from.
+  category?: ConversationsListSummary["category"];
   overall_sentiment?: string;
   interest_level?: string;
   intent?: string;
