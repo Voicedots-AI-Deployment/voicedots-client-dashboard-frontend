@@ -115,6 +115,7 @@ const conversationsApi = {
     end_time: formatIST(response.data.end_time),
     duration: response.data.duration,
     source: response.data.source,
+    category: response.data.category,
     sentiment_analysis: response.data.sentiment_analysis,
   };
 },

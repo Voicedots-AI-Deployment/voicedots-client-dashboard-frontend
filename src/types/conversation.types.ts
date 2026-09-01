@@ -72,6 +72,7 @@ export interface GetConversationDetailsResponse {
   end_time: number;
   duration: number;
   source?: string | null;
+  category?: ConversationsListSummary["category"];
   sentiment_analysis?: SentimentAnalysis | null;
 }
 
@@ -95,6 +96,7 @@ export interface GetConversationDetailsResult {
   end_time: string;
   duration: number;
   source?: string | null;
+  category?: ConversationsListSummary["category"];
   sentiment_analysis?: SentimentAnalysis | null;
 }
 

@@ -191,7 +191,7 @@ export function ConversationDetails() {
         {/* DESKTOP SIDEBAR */}
         {!isLoading && (
           <aside className="hidden md:block border-l bg-gray-50 px-4 py-6 sticky top-16 h-[calc(100vh-64px)] overflow-y-auto custom-scrollbar dark:bg-slate-900 dark:border-slate-800">
-            <LeadInfo lead={lead} duration={data?.duration} sentiment={data?.sentiment_analysis} showContact={showLeadInfo} />
+            <LeadInfo lead={lead} duration={data?.duration} sentiment={data?.sentiment_analysis} category={data?.category} showContact={showLeadInfo} />
           </aside>
         )}
       </div>
@@ -206,7 +206,7 @@ export function ConversationDetails() {
                 <X />
               </button>
             </div>
-            <LeadInfo lead={lead} duration={data?.duration} sentiment={data?.sentiment_analysis} showContact={showLeadInfo} />
+            <LeadInfo lead={lead} duration={data?.duration} sentiment={data?.sentiment_analysis} category={data?.category} showContact={showLeadInfo} />
           </div>
         </div>
       )}
@@ -217,7 +217,7 @@ export function ConversationDetails() {
 
 /* ========== SHARED LEAD INFO ========== */
 
-function LeadInfo({ lead, duration, sentiment, showContact }: any) {
+function LeadInfo({ lead, duration, sentiment, category, showContact }: any) {
   const durationText = typeof duration === "number"
     ? `${Math.floor(duration / 60)}m ${duration % 60}s`
     : "N/A";
@@ -246,7 +246,7 @@ function LeadInfo({ lead, duration, sentiment, showContact }: any) {
         </div>
         <div className="px-4 py-3 space-y-2 text-sm">
           <SummaryRow icon={<Clock size={14} />} label="Duration" value={durationText} />
-          <SummaryRow icon={<PhoneCall size={14} />} label="Outcome" value={lead?.status || "Unqualified"} />
+          <SummaryRow icon={<PhoneCall size={14} />} label="Category" value={category || "Not Assessable"} />
         </div>
       </div>
 

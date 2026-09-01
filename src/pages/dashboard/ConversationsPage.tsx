@@ -123,7 +123,7 @@ export function ConversationsPage() {
         </div>
 
         {/* FILTERS — full-width row */}
-        <div className="grid grid-cols-1 items-end gap-2 md:grid-cols-[auto_auto_auto_minmax(260px,1fr)] md:gap-3">
+        <div className="grid grid-cols-1 items-end gap-2 md:grid-cols-[auto_auto_minmax(260px,1fr)] md:gap-3">
           {/* SOURCE TABS */}
           <div className="flex h-10 items-center gap-1 bg-white border border-slate-200 rounded-xl p-1 shadow-sm ring-1 ring-slate-100 dark:bg-slate-900 dark:border-slate-800 dark:ring-slate-800">
             {SOURCE_TABS.map((tab) => (
@@ -156,16 +156,6 @@ export function ConversationsPage() {
             showClear={Boolean(startDate || endDate)}
           />
 
-          <select
-            value={category}
-            onChange={(event) => setCategory(event.target.value)}
-            aria-label="Conversation category"
-            className="h-10 rounded-xl border border-slate-200 bg-white px-3 text-sm font-semibold text-slate-700 shadow-sm outline-none hover:border-slate-300 dark:border-slate-800 dark:bg-slate-900 dark:text-slate-200"
-          >
-            <option value="">All Categories</option>
-            {CATEGORIES.map((value) => <option key={value} value={value}>{value}</option>)}
-          </select>
-
           {/* SEARCH — takes remaining space */}
           <div className="relative min-w-0">
             <Search size={16} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400" />
@@ -176,6 +166,24 @@ export function ConversationsPage() {
               className="w-full h-10 pl-10 pr-4 rounded-xl border border-slate-200 bg-white text-sm font-medium outline-none focus:ring-2 focus:ring-slate-100 shadow-sm transition-all hover:border-slate-300 dark:bg-slate-900 dark:border-slate-800 dark:ring-slate-800 dark:text-slate-100 dark:placeholder:text-slate-500"
             />
           </div>
+        </div>
+
+        <div className="flex items-center gap-2 overflow-x-auto pb-1" aria-label="Filter conversations by category">
+          <span className="mr-1 shrink-0 text-xs font-semibold text-slate-500 dark:text-slate-400">Category</span>
+          {["", ...CATEGORIES].map((value) => (
+            <button
+              type="button"
+              key={value || "all"}
+              onClick={() => setCategory(value)}
+              aria-pressed={category === value}
+              className={`h-8 shrink-0 rounded-full border px-3 text-xs font-semibold transition ${category === value
+                ? "border-slate-900 bg-slate-900 text-white shadow-sm dark:border-slate-100 dark:bg-slate-100 dark:text-slate-900"
+                : "border-slate-200 bg-white text-slate-600 hover:border-slate-300 hover:text-slate-900 dark:border-slate-800 dark:bg-slate-900 dark:text-slate-400 dark:hover:border-slate-700 dark:hover:text-slate-100"
+              }`}
+            >
+              {value || "All"}
+            </button>
+          ))}
         </div>
       </div>
 
