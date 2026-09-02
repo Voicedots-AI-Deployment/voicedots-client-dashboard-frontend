@@ -11,8 +11,7 @@ import { ConversationCard } from "@/components/ConversationCard";
 import { ConversationsKpi } from "@/components/ConversationsKpi";
 import { DatePickerWithRange } from "@/components/DatePickerWithRange";
 import conversationsApi from "@/api/conversations";
-import { kpiAPI } from "@/api/kpi";
-import type { ConversationsListSummary, KpiSummary } from "@/types/conversation.types";
+import type { ConversationsListSummary } from "@/types/conversation.types";
 import { useAuth } from "@/context/AuthContext";
 
 const SOURCE_TABS = [
@@ -42,7 +41,6 @@ export function ConversationsPage() {
   const [endDate, setEndDate] = useState("");
   const [source, setSource] = useState("all");
   const [category, setCategory] = useState("");
-  const [kpiSummary, setKpiSummary] = useState<KpiSummary | null>(null);
 
   const [isLoading, setIsLoading] = useState(true);
   const [loadError, setLoadError] = useState("");
@@ -67,26 +65,21 @@ export function ConversationsPage() {
       try {
         setIsLoading(true);
         setLoadError("");
-        // Fetch conversations and KPIs in parallel
-        const [convData, kpiData] = await Promise.all([
-          conversationsApi.getConversations(
-            user?.agent_id,
-            cursor,
-            p,
-            pagination.limit,
-            startDate,
-            endDate,
-            source,
-            appliedSearch,
-            category
-          ),
-          p === 1 ? kpiAPI.getKpiSummary(user?.agent_id, startDate, endDate, source) : Promise.resolve(null)
-        ]);
+        const convData = await conversationsApi.getConversations(
+          user?.agent_id,
+          cursor,
+          p,
+          pagination.limit,
+          startDate,
+          endDate,
+          source,
+          appliedSearch,
+          category
+        );
 
         setConversations(convData.conversations);
         setNextPage(convData.nextPage);
         if (convData.pagination) setPagination(convData.pagination as any);
-        if (kpiData) setKpiSummary(kpiData);
       } catch (error) {
         console.error("Failed to load conversations", error);
         setLoadError("Conversations could not be loaded. Please retry.");
@@ -186,10 +179,14 @@ export function ConversationsPage() {
         </div>
       </div>
 
-      {/* KPIS */}
-      {!isLoading && kpiSummary && (
+      {/* KPIS — the count of what the current filters actually match, which is
+          the same number the pager reports. It used to come from the KPI
+          summary endpoint, which was never told about the category or the
+          search, so it sat at the unfiltered total while the list below it
+          showed two rows. */}
+      {!isLoading && (
         <ConversationsKpi 
-          totalConversations={kpiSummary.total_conversations}
+          totalConversations={pagination.total}
         />
       )}
 
