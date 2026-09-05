@@ -118,6 +118,8 @@ export const whatsappApi = {
     ).data,
   submitTemplate: async (id: string) =>
     (await apiClient.post(`${base}/templates/${id}/submit`)).data,
+  deleteTemplate: async (id: string) =>
+    (await apiClient.delete(`${base}/templates/${id}`)).data,
   sync: async (account_id: string) =>
     (
       await apiClient.post(`${base}/templates/sync`, null, {

@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { Loader2, RefreshCw, Send } from "lucide-react";
+import { Loader2, RefreshCw, Send, Trash2 } from "lucide-react";
 import type { Account, Template } from "@/api/whatsapp";
 import { card, input, button, secondary, errorText } from "./shared";
 import { Field, Badge, Bubble } from "./WhatsAppUi";
@@ -198,44 +198,64 @@ export default function Templates({
                 </p>
               )}
               {t.error && <p className="text-sm text-rose-600">{t.error}</p>}
-              {t.status === "DRAFT" && (
-                <div className="flex gap-2">
-                  <button
-                    disabled={busy}
-                    className={secondary}
-                    onClick={() => {
-                      setEditing(t.id);
-                      setName(t.name);
-                      setBody(t.body);
-                      setLanguage(t.language);
-                      setCategory(t.category);
-                      const values =
-                        t.components.find((c) => c.type === "BODY")?.example
-                          ?.body_text?.[0] || [];
-                      setExamples(
-                        Object.fromEntries(
-                          t.variables.map((k, i) => [k, values[i] || ""]),
-                        ),
+              <div className="flex flex-wrap gap-2">
+                {t.status === "DRAFT" && (
+                  <>
+                    <button
+                      disabled={busy}
+                      className={secondary}
+                      onClick={() => {
+                        setEditing(t.id);
+                        setName(t.name);
+                        setBody(t.body);
+                        setLanguage(t.language);
+                        setCategory(t.category);
+                        const values =
+                          t.components.find((c) => c.type === "BODY")?.example
+                            ?.body_text?.[0] || [];
+                        setExamples(
+                          Object.fromEntries(
+                            t.variables.map((k, i) => [k, values[i] || ""]),
+                          ),
+                        );
+                      }}
+                    >
+                      Edit
+                    </button>
+                    <button
+                      disabled={busy}
+                      className={button}
+                      onClick={() =>
+                        action(
+                          () => api.submitTemplate(t.id),
+                          "Template submitted. Sync to check approval.",
+                        )
+                      }
+                    >
+                      <Send size={14} />
+                      Submit to Meta
+                    </button>
+                  </>
+                )}
+                <button
+                  disabled={busy}
+                  className={`${secondary} text-rose-600`}
+                  onClick={() => {
+                    const warning =
+                      t.status === "DRAFT"
+                        ? `Delete the draft "${t.name}"?`
+                        : `Delete "${t.name}" (${t.language}) from Meta as well? This cannot be undone.`;
+                    if (window.confirm(warning))
+                      void action(
+                        () => api.deleteTemplate(t.id),
+                        "Template deleted.",
                       );
-                    }}
-                  >
-                    Edit
-                  </button>
-                  <button
-                    disabled={busy}
-                    className={button}
-                    onClick={() =>
-                      action(
-                        () => api.submitTemplate(t.id),
-                        "Template submitted. Sync to check approval.",
-                      )
-                    }
-                  >
-                    <Send size={14} />
-                    Submit to Meta
-                  </button>
-                </div>
-              )}
+                  }}
+                >
+                  <Trash2 size={14} />
+                  Delete
+                </button>
+              </div>
             </div>
           ))}
         </div>
