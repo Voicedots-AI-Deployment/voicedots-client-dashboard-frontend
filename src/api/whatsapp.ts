@@ -56,6 +56,10 @@ export type Message = {
   updated_at: string;
 };
 export type Page<T> = { items: T[]; total: number; fields?: string[] };
+export type MessagePage = Page<Message> & {
+  window_closes_at?: string | null;
+  window_open?: boolean;
+};
 export type Thread = {
   destination: string;
   contact_name: string;
@@ -209,7 +213,7 @@ export const whatsappApi = {
     campaign_id?: string,
   ) =>
     (
-      await apiClient.get<Page<Message>>(`${base}/messages`, {
+      await apiClient.get<MessagePage>(`${base}/messages`, {
         params: {
           account_id,
           offset,
@@ -228,6 +232,13 @@ export const whatsappApi = {
     consent_confirmed: true;
     consent_declaration: string;
   }) => (await apiClient.post<Message>(`${base}/messages`, data)).data,
+  reply: async (data: {
+    account_id: string;
+    destination: string;
+    contact_name: string;
+    body: string;
+    idempotency_key: string;
+  }) => (await apiClient.post<Message>(`${base}/messages/reply`, data)).data,
   report: async (id: string) => {
     const res = await apiClient.get(`${base}/campaigns/${id}/report`, {
       responseType: "blob",

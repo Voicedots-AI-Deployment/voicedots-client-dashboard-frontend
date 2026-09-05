@@ -3,13 +3,20 @@ import {
   ArrowLeft,
   CheckCheck,
   ChevronRight,
+  Loader2,
   MessageCircle,
   Search,
   Send,
   UserRound,
   X,
 } from "lucide-react";
-import type { Account, Message, Template, Thread } from "@/api/whatsapp";
+import type {
+  Account,
+  Message,
+  MessagePage,
+  Template,
+  Thread,
+} from "@/api/whatsapp";
 import { whatsappApi as api } from "@/api/whatsapp";
 import { card, secondary, emptyPage, errorText } from "./shared";
 import { Badge, Pager } from "./WhatsAppUi";
@@ -229,7 +236,7 @@ function Conversation({
   mobileOpen: boolean;
   back: () => void;
 }) {
-  const [messages, setMessages] = useState(emptyPage<Message>()),
+  const [messages, setMessages] = useState<MessagePage>(emptyPage<Message>()),
     [offset, setOffset] = useState(0),
     [error, setError] = useState(""),
     [compose, setCompose] = useState(false),
@@ -363,6 +370,14 @@ function Conversation({
               {notice}
             </p>
           )}
+          {account && messages.window_open && (
+            <ReplyBox
+              account={account}
+              thread={thread}
+              closesAt={messages.window_closes_at}
+              notify={setNotice}
+            />
+          )}
           {account ? (
             <button
               disabled={!account.ready}
@@ -374,7 +389,9 @@ function Conversation({
                   Use an approved template
                 </span>
                 <span className="mt-1 block text-xs text-slate-500">
-                  Send a personalized follow-up to this recipient
+                  {messages.window_open
+                    ? "Send a personalized follow-up to this recipient"
+                    : "The 24-hour reply window is closed, so only an approved template can reach this recipient"}
                 </span>
               </span>
               <span className="rounded-full bg-indigo-700 p-2.5 text-white">
@@ -500,5 +517,100 @@ function TemplateDialog({
         initialName={thread.contact_name}
       />
     </dialog>
+  );
+}
+
+function windowLeft(closesAt?: string | null) {
+  if (!closesAt) return "";
+  const ms = new Date(closesAt).getTime() - Date.now();
+  if (ms <= 0) return "";
+  const hours = Math.floor(ms / 3600000),
+    minutes = Math.floor((ms % 3600000) / 60000);
+  return hours
+    ? `${hours}h ${minutes}m left to reply freely`
+    : `${minutes}m left to reply freely`;
+}
+
+/** Free-text reply. Shown only while Meta's 24-hour service window is open. */
+function ReplyBox({
+  account,
+  thread,
+  closesAt,
+  notify,
+}: {
+  account: Account;
+  thread: Thread;
+  closesAt?: string | null;
+  notify: (s: string) => void;
+}) {
+  const [body, setBody] = useState(""),
+    [busy, setBusy] = useState(false);
+  const attempt = useRef({ body: "", key: "" });
+  const remaining = windowLeft(closesAt);
+  return (
+    <form
+      className="space-y-2"
+      onSubmit={async (e) => {
+        e.preventDefault();
+        const text = body.trim();
+        if (!text || busy) return;
+        setBusy(true);
+        // Retrying the same text reuses its key so a timeout cannot double-send.
+        if (attempt.current.body !== text)
+          attempt.current = { body: text, key: crypto.randomUUID() };
+        try {
+          await api.reply({
+            account_id: account.id,
+            destination: thread.destination,
+            contact_name: thread.contact_name,
+            body: text,
+            idempotency_key: attempt.current.key,
+          });
+          setBody("");
+          attempt.current = { body: "", key: "" };
+          notify("Reply queued.");
+        } catch (error) {
+          notify(errorText(error));
+        } finally {
+          setBusy(false);
+        }
+      }}
+    >
+      <div className="flex items-end gap-2">
+        <textarea
+          aria-label={`Reply to ${thread.contact_name || thread.destination}`}
+          className="max-h-40 min-h-[44px] w-full flex-1 resize-y rounded-2xl border border-violet-100 bg-white px-4 py-3 text-sm outline-none focus:border-indigo-400 dark:border-slate-800 dark:bg-slate-900"
+          rows={2}
+          maxLength={4096}
+          placeholder="Write a reply…"
+          value={body}
+          disabled={busy || !account.ready}
+          onChange={(e) => setBody(e.target.value)}
+          onKeyDown={(e) => {
+            if (e.key === "Enter" && !e.shiftKey) {
+              e.preventDefault();
+              e.currentTarget.form?.requestSubmit();
+            }
+          }}
+        />
+        <button
+          type="submit"
+          aria-label="Send reply"
+          disabled={busy || !body.trim() || !account.ready}
+          className="shrink-0 rounded-full bg-indigo-700 p-3 text-white disabled:opacity-40"
+        >
+          {busy ? (
+            <Loader2 size={16} className="animate-spin" />
+          ) : (
+            <Send size={16} />
+          )}
+        </button>
+      </div>
+      {remaining && (
+        <p className="text-[11px] text-slate-500">
+          {remaining} · Enter sends, Shift+Enter adds a line
+        </p>
+      )}
+    </form>
   );
 }
