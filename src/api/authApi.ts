@@ -1,4 +1,5 @@
 import { apiClient, setAuthHeader } from './apiClient';
+import axios from 'axios';
 
 export interface LoginResponse {
   access_token: string;
@@ -23,16 +24,19 @@ const authApi = {
         { headers: { "Content-Type": "application/x-www-form-urlencoded" } }
       );
     } catch (primaryError: unknown) {
-      // Fallback to V1 backend if V3 isn't running, gets blocked by middleware, or throws CORS
-      try {
-        response = await apiClient.post<LoginResponse>(
-          "/v1/auth/login",
-          form,
-          { headers: { "Content-Type": "application/x-www-form-urlencoded" } }
-        );
-      } catch (fallbackError: unknown) {
-        throw fallbackError || primaryError;
+      // Retry only when the deployed backend explicitly does not provide V3.
+      // Authentication and server failures must be shown as-is, not retried.
+      const status = axios.isAxiosError(primaryError)
+        ? primaryError.response?.status
+        : undefined;
+      if (status !== 404 && status !== 405 && status !== 501) {
+        throw primaryError;
       }
+      response = await apiClient.post<LoginResponse>(
+        "/v1/auth/login",
+        form,
+        { headers: { "Content-Type": "application/x-www-form-urlencoded" } }
+      );
     }
     
     setAuthHeader(response.data.access_token);

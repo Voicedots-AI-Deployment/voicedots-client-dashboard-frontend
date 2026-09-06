@@ -1,14 +1,15 @@
 import { Navigate, Outlet, useLocation } from "react-router-dom";
-
-const isAuthenticated = () => {
-  return !!localStorage.getItem("access_token");
-};
+import { useAuth } from "../context/AuthContext";
 
 const ProtectedRoute = () => {
   const location = useLocation();
-  const isAuth = isAuthenticated();
+  const { isAuthenticated, isCheckingAuth } = useAuth();
 
-  if (!isAuth) {
+  if (isCheckingAuth) {
+    return <div className="flex min-h-screen items-center justify-center text-sm text-slate-500">Loading…</div>;
+  }
+
+  if (!isAuthenticated) {
     return (
       <Navigate
         to="/login"
