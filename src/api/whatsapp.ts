@@ -5,6 +5,29 @@ export type Account = {
   enabled: boolean;
   ready: boolean;
 };
+export type HeaderFormat = "NONE" | "TEXT" | "IMAGE" | "VIDEO" | "DOCUMENT";
+export type ButtonType = "QUICK_REPLY" | "URL" | "PHONE_NUMBER";
+export type TemplateHeader = {
+  format: HeaderFormat;
+  text: string;
+  example: string;
+  handle: string;
+};
+export type TemplateButton = {
+  type: ButtonType;
+  text: string;
+  url: string;
+  url_example: string;
+  phone_number: string;
+};
+/** The builder's editable shape, mirrored by the backend so a saved draft reopens. */
+export type TemplateStructure = {
+  header: TemplateHeader;
+  body: string;
+  examples: string[];
+  footer: string;
+  buttons: TemplateButton[];
+};
 export type Template = {
   id: string;
   account_id: string;
@@ -14,6 +37,12 @@ export type Template = {
   status: string;
   body: string;
   variables: string[];
+  slots: string[];
+  header_type: HeaderFormat;
+  button_count: number;
+  created_at: string;
+  updated_at: string;
+  structure: TemplateStructure;
   supported: boolean;
   error?: string;
   components: Array<{ type: string; example?: { body_text?: string[][] } }>;
@@ -98,19 +127,31 @@ export type TemplateInput = {
   name: string;
   language: string;
   category: string;
+  header: TemplateHeader;
   body: string;
   examples: string[];
+  footer: string;
+  buttons: TemplateButton[];
+};
+export type TemplateFilters = {
+  search?: string;
+  status?: string;
+  category?: string;
+  language?: string;
+  sort?: string;
 };
 const base = "/v3/whatsapp";
 export const whatsappApi = {
   settings: async () =>
     (await apiClient.get<{ accounts: Account[] }>(`${base}/settings`)).data,
-  templates: async (account_id: string) =>
+  templates: async (account_id: string, filters: TemplateFilters = {}) =>
     (
       await apiClient.get<Template[]>(`${base}/templates`, {
-        params: { account_id },
+        params: { account_id, ...filters },
       })
     ).data,
+  duplicateTemplate: async (id: string) =>
+    (await apiClient.post<Template>(`${base}/templates/${id}/duplicate`)).data,
   saveTemplate: async (data: TemplateInput, id?: string) =>
     (id
       ? await apiClient.patch<Template>(`${base}/templates/${id}`, data)

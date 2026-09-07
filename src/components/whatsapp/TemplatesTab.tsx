@@ -1,9 +1,41 @@
-import { useState } from "react";
-import { Loader2, RefreshCw, Send, Trash2 } from "lucide-react";
+import { useCallback, useEffect, useState } from "react";
+import {
+  Copy,
+  Loader2,
+  Plus,
+  RefreshCw,
+  Search,
+  Send,
+  Trash2,
+} from "lucide-react";
 import type { Account, Template } from "@/api/whatsapp";
-import { card, input, button, secondary, errorText } from "./shared";
-import { Field, Badge, Bubble } from "./WhatsAppUi";
 import { whatsappApi as api } from "@/api/whatsapp";
+import { card, button, secondary, errorText } from "./shared";
+import { Badge } from "./WhatsAppUi";
+import TemplateBuilder from "./TemplateBuilder";
+import TemplatePreview from "./TemplatePreview";
+
+const STATUSES = [
+  "all",
+  "DRAFT",
+  "PENDING",
+  "APPROVED",
+  "REJECTED",
+  "PAUSED",
+  "DISABLED",
+];
+const SORTS = [
+  { value: "updated", label: "Last updated" },
+  { value: "created", label: "Newest" },
+  { value: "name", label: "Name" },
+  { value: "status", label: "Status" },
+];
+/** Meta will not reopen a template once it leaves DRAFT; those are duplicated instead. */
+const EDITABLE = "DRAFT";
+
+const filterSelect =
+  "rounded-xl border border-slate-300 bg-white px-3 py-2 text-sm dark:border-slate-700 dark:bg-slate-950";
+
 export default function Templates({
   account,
   templates,
@@ -15,21 +47,46 @@ export default function Templates({
   refresh: () => Promise<void>;
   notify: (s: string) => void;
 }) {
-  const [editing, setEditing] = useState<string>(),
-    [name, setName] = useState(""),
-    [body, setBody] = useState(""),
-    [language, setLanguage] = useState("en_US"),
-    [category, setCategory] = useState("MARKETING");
-  const [examples, setExamples] = useState<Record<string, string>>({}),
+  const [rows, setRows] = useState<Template[]>(templates),
+    [loading, setLoading] = useState(false),
     [busy, setBusy] = useState(false);
-  const keys = [
-    ...new Set([...body.matchAll(/{{(\d+)}}/g)].map((m) => m[1])),
-  ].sort((a, b) => Number(a) - Number(b));
+  const [search, setSearch] = useState(""),
+    [status, setStatus] = useState("all"),
+    [category, setCategory] = useState("all"),
+    [language, setLanguage] = useState("all"),
+    [sort, setSort] = useState("updated");
+  const [building, setBuilding] = useState(false),
+    [editing, setEditing] = useState<Template>();
+  const languages = [...new Set(templates.map((t) => t.language))].sort();
+
+  const load = useCallback(async () => {
+    setLoading(true);
+    try {
+      setRows(
+        await api.templates(account.id, {
+          search,
+          status,
+          category,
+          language,
+          sort,
+        }),
+      );
+    } catch (e) {
+      notify(errorText(e));
+    } finally {
+      setLoading(false);
+    }
+  }, [account.id, search, status, category, language, sort, notify]);
+  useEffect(() => {
+    const timer = window.setTimeout(() => void load(), 200);
+    return () => window.clearTimeout(timer);
+  }, [load]);
+
   const action = async (work: () => Promise<unknown>, message: string) => {
     setBusy(true);
     try {
       await work();
-      await refresh();
+      await Promise.all([refresh(), load()]);
       notify(message);
     } catch (e) {
       notify(errorText(e));
@@ -37,125 +94,34 @@ export default function Templates({
       setBusy(false);
     }
   };
+
+  if (building || editing)
+    return (
+      <TemplateBuilder
+        account={account}
+        editing={editing}
+        refresh={async () => {
+          await Promise.all([refresh(), load()]);
+        }}
+        notify={notify}
+        done={() => {
+          setBuilding(false);
+          setEditing(undefined);
+        }}
+      />
+    );
+
   return (
-    <div className="grid gap-5 xl:grid-cols-[1fr_1fr]">
-      <section className={`${card} p-5`}>
-        <h2 className="text-lg font-bold">
-          {editing ? "Edit template draft" : "Create template"}
-        </h2>
-        <p className="mt-1 text-sm text-slate-500">
-          Use numbered variables such as {"{{1}}"} for student names. Meta
-          reviews templates before they can be sent.
-        </p>
-        <form
-          className="mt-5 space-y-4"
-          onSubmit={(e) => {
-            e.preventDefault();
-            void action(async () => {
-              await api.saveTemplate(
-                {
-                  account_id: account.id,
-                  name,
-                  body,
-                  language,
-                  category,
-                  examples: keys.map((k) => examples[k] || ""),
-                },
-                editing,
-              );
-              setEditing(undefined);
-              setName("");
-              setBody("");
-              setExamples({});
-            }, "Template draft saved. Submit it when ready.");
-          }}
-        >
-          <Field label="Template name">
-            <input
-              required
-              className={input}
-              placeholder="admission_reminder"
-              pattern="[a-z][a-z0-9_]*"
-              value={name}
-              onChange={(e) => setName(e.target.value)}
-            />
-          </Field>
-          <div className="grid grid-cols-2 gap-3">
-            <Field label="Language code">
-              <input
-                required
-                className={input}
-                value={language}
-                onChange={(e) => setLanguage(e.target.value)}
-              />
-            </Field>
-            <Field label="Category">
-              <select
-                className={input}
-                value={category}
-                onChange={(e) => setCategory(e.target.value)}
-              >
-                <option value="MARKETING">Marketing</option>
-                <option value="UTILITY">Utility</option>
-              </select>
-            </Field>
-          </div>
-          <Field label="Message">
-            <textarea
-              required
-              rows={5}
-              maxLength={1024}
-              className={input}
-              placeholder="Hi {{1}}, admissions for {{2}} are now open."
-              value={body}
-              onChange={(e) => setBody(e.target.value)}
-            />
-          </Field>
-          <p className="text-right text-xs text-slate-500">
-            {body.length}/1,024 characters
+    <section className={`${card} overflow-hidden`}>
+      <div className="flex flex-wrap items-center justify-between gap-3 border-b border-slate-200 p-5 dark:border-slate-800">
+        <div>
+          <h2 className="text-lg font-bold">Message templates</h2>
+          <p className="mt-1 text-sm text-slate-500">
+            {rows.length} of {templates.length} template
+            {templates.length === 1 ? "" : "s"}
           </p>
-          {keys.map((k) => (
-            <Field key={k} label={`Example for {{${k}}}`}>
-              <input
-                required
-                className={input}
-                value={examples[k] || ""}
-                onChange={(e) =>
-                  setExamples({ ...examples, [k]: e.target.value })
-                }
-              />
-            </Field>
-          ))}
-          <Bubble
-            body={body.replace(
-              /{{(\d+)}}/g,
-              (whole, key) => examples[key] || whole,
-            )}
-          />
-          <div className="flex gap-2">
-            <button disabled={busy} className={button}>
-              {busy && <Loader2 size={16} className="animate-spin" />}Save draft
-            </button>
-            {editing && (
-              <button
-                type="button"
-                className={secondary}
-                onClick={() => {
-                  setEditing(undefined);
-                  setName("");
-                  setBody("");
-                  setExamples({});
-                }}
-              >
-                New template
-              </button>
-            )}
-          </div>
-        </form>
-      </section>
-      <section className={`${card} overflow-hidden`}>
-        <div className="flex items-center justify-between border-b border-slate-200 p-5 dark:border-slate-800">
-          <h2 className="text-lg font-bold">Your templates</h2>
+        </div>
+        <div className="flex flex-wrap gap-2">
           <button
             disabled={busy}
             className={secondary}
@@ -169,56 +135,131 @@ export default function Templates({
             <RefreshCw size={16} />
             Sync
           </button>
+          <button className={button} onClick={() => setBuilding(true)}>
+            <Plus size={16} />
+            New template
+          </button>
         </div>
-        <div className="max-h-[800px] overflow-y-auto">
-          {!templates.length && (
-            <p className="p-8 text-center text-sm text-slate-500">
-              Create your first template or sync existing templates.
-            </p>
-          )}
-          {templates.map((t) => (
-            <div
-              key={t.id}
-              className="space-y-3 border-b border-slate-200 p-5 dark:border-slate-800"
-            >
-              <div className="flex flex-wrap justify-between gap-2">
-                <div>
-                  <h3 className="font-semibold">{t.name}</h3>
-                  <p className="text-xs text-slate-500">
-                    {t.language} · {t.category}
+      </div>
+
+      <div className="flex flex-wrap gap-2 border-b border-slate-200 p-4 dark:border-slate-800">
+        <label className="flex min-w-[200px] flex-1 items-center gap-2 rounded-xl bg-violet-50/70 px-3 py-2 dark:bg-slate-950">
+          <Search size={15} className="shrink-0 text-slate-400" />
+          <input
+            aria-label="Search templates"
+            className="w-full min-w-0 bg-transparent text-sm outline-none"
+            placeholder="Search name or wording…"
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+          />
+        </label>
+        <select
+          aria-label="Filter by status"
+          className={filterSelect}
+          value={status}
+          onChange={(e) => setStatus(e.target.value)}
+        >
+          {STATUSES.map((s) => (
+            <option key={s} value={s}>
+              {s === "all" ? "All statuses" : s}
+            </option>
+          ))}
+        </select>
+        <select
+          aria-label="Filter by category"
+          className={filterSelect}
+          value={category}
+          onChange={(e) => setCategory(e.target.value)}
+        >
+          <option value="all">All categories</option>
+          <option value="MARKETING">Marketing</option>
+          <option value="UTILITY">Utility</option>
+        </select>
+        <select
+          aria-label="Filter by language"
+          className={filterSelect}
+          value={language}
+          onChange={(e) => setLanguage(e.target.value)}
+        >
+          <option value="all">All languages</option>
+          {languages.map((l) => (
+            <option key={l} value={l}>
+              {l}
+            </option>
+          ))}
+        </select>
+        <select
+          aria-label="Sort templates"
+          className={filterSelect}
+          value={sort}
+          onChange={(e) => setSort(e.target.value)}
+        >
+          {SORTS.map((s) => (
+            <option key={s.value} value={s.value}>
+              {s.label}
+            </option>
+          ))}
+        </select>
+      </div>
+
+      <div className="divide-y divide-slate-200 dark:divide-slate-800">
+        {loading && !rows.length && (
+          <p className="p-8 text-center text-sm text-slate-500">
+            Loading templates…
+          </p>
+        )}
+        {!loading && !rows.length && (
+          <p className="p-8 text-center text-sm text-slate-500">
+            {templates.length
+              ? "No templates match these filters."
+              : "Create your first template or sync existing templates from Meta."}
+          </p>
+        )}
+        {rows.map((t) => (
+          <article
+            key={t.id}
+            className="grid gap-4 p-5 lg:grid-cols-[1fr_300px]"
+          >
+            <div className="min-w-0 space-y-3">
+              <div className="flex flex-wrap items-start justify-between gap-2">
+                <div className="min-w-0">
+                  <h3 className="truncate font-semibold">{t.name}</h3>
+                  <p className="mt-1 text-xs text-slate-500">
+                    {t.language} · {t.category} · header{" "}
+                    {t.header_type.toLowerCase()} ·{" "}
+                    {t.button_count
+                      ? `${t.button_count} button${t.button_count > 1 ? "s" : ""}`
+                      : "no buttons"}{" "}
+                    · updated {new Date(t.updated_at).toLocaleDateString()}
                   </p>
                 </div>
                 <Badge value={t.status} />
               </div>
-              <Bubble body={t.body} />
+              {t.status === "REJECTED" && (
+                <div className="rounded-xl bg-rose-50 p-3 text-sm text-rose-700 dark:bg-rose-950/40 dark:text-rose-300">
+                  <p className="font-semibold">Meta rejected this template.</p>
+                  <p className="mt-1">
+                    {t.error ||
+                      "No reason was supplied. Duplicate it, revise the wording and submit the copy."}
+                  </p>
+                </div>
+              )}
+              {t.status !== "REJECTED" && t.error && (
+                <p className="text-sm text-rose-600">{t.error}</p>
+              )}
               {!t.supported && (
                 <p className="text-sm text-amber-600">
-                  This template includes media or dynamic components that this
-                  campaign editor does not support yet.
+                  Media headers can be built and submitted, but sending one
+                  needs per-recipient media, which arrives with media messaging.
                 </p>
               )}
-              {t.error && <p className="text-sm text-rose-600">{t.error}</p>}
               <div className="flex flex-wrap gap-2">
-                {t.status === "DRAFT" && (
+                {t.status === EDITABLE && (
                   <>
                     <button
                       disabled={busy}
                       className={secondary}
-                      onClick={() => {
-                        setEditing(t.id);
-                        setName(t.name);
-                        setBody(t.body);
-                        setLanguage(t.language);
-                        setCategory(t.category);
-                        const values =
-                          t.components.find((c) => c.type === "BODY")?.example
-                            ?.body_text?.[0] || [];
-                        setExamples(
-                          Object.fromEntries(
-                            t.variables.map((k, i) => [k, values[i] || ""]),
-                          ),
-                        );
-                      }}
+                      onClick={() => setEditing(t)}
                     >
                       Edit
                     </button>
@@ -239,10 +280,24 @@ export default function Templates({
                 )}
                 <button
                   disabled={busy}
+                  className={secondary}
+                  title="Copy into a new editable draft"
+                  onClick={() =>
+                    action(
+                      () => api.duplicateTemplate(t.id),
+                      "Copied into a new draft you can edit.",
+                    )
+                  }
+                >
+                  <Copy size={14} />
+                  Duplicate
+                </button>
+                <button
+                  disabled={busy}
                   className={`${secondary} text-rose-600`}
                   onClick={() => {
                     const warning =
-                      t.status === "DRAFT"
+                      t.status === EDITABLE
                         ? `Delete the draft "${t.name}"?`
                         : `Delete "${t.name}" (${t.language}) from Meta as well? This cannot be undone.`;
                     if (window.confirm(warning))
@@ -255,11 +310,15 @@ export default function Templates({
                   <Trash2 size={14} />
                   Delete
                 </button>
+                {busy && (
+                  <Loader2 size={16} className="animate-spin self-center" />
+                )}
               </div>
             </div>
-          ))}
-        </div>
-      </section>
-    </div>
+            <TemplatePreview draft={t.structure} />
+          </article>
+        ))}
+      </div>
+    </section>
   );
 }
