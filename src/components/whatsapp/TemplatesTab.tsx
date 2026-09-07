@@ -14,6 +14,7 @@ import { card, button, secondary, errorText } from "./shared";
 import { Badge } from "./WhatsAppUi";
 import TemplateBuilder from "./TemplateBuilder";
 import TemplatePreview from "./TemplatePreview";
+import { structureOf } from "./templateRules";
 
 const STATUSES = [
   "all",
@@ -226,11 +227,14 @@ export default function Templates({
                   <h3 className="truncate font-semibold">{t.name}</h3>
                   <p className="mt-1 text-xs text-slate-500">
                     {t.language} · {t.category} · header{" "}
-                    {t.header_type.toLowerCase()} ·{" "}
+                    {(t.header_type || "NONE").toLowerCase()} ·{" "}
                     {t.button_count
                       ? `${t.button_count} button${t.button_count > 1 ? "s" : ""}`
                       : "no buttons"}{" "}
-                    · updated {new Date(t.updated_at).toLocaleDateString()}
+                    · updated{" "}
+                    {new Date(
+                      t.updated_at || t.created_at,
+                    ).toLocaleDateString()}
                   </p>
                 </div>
                 <Badge value={t.status} />
@@ -315,7 +319,7 @@ export default function Templates({
                 )}
               </div>
             </div>
-            <TemplatePreview draft={t.structure} />
+            <TemplatePreview draft={structureOf(t)} />
           </article>
         ))}
       </div>

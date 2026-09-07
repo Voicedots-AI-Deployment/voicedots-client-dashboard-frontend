@@ -1,5 +1,5 @@
-import { useMemo, useState } from "react";
-import { Loader2, Plus, Trash2 } from "lucide-react";
+import { useMemo, useRef, useState } from "react";
+import { Check, Loader2, Plus, Trash2, Upload } from "lucide-react";
 import type {
   Account,
   ButtonType,
@@ -24,8 +24,16 @@ import {
   MEDIA_FORMATS,
   bodyKeys,
   emptyDraft,
+  structureOf,
   validate,
 } from "./templateRules";
+
+/** Meta's accepted header media, narrowed per format. */
+const HEADER_ACCEPT: Record<string, string> = {
+  IMAGE: "image/jpeg,image/png",
+  VIDEO: "video/mp4,video/3gpp",
+  DOCUMENT: "application/pdf",
+};
 
 function Problem({ message }: { message?: string }) {
   if (!message) return null;
@@ -53,10 +61,16 @@ export default function TemplateBuilder({
     [language, setLanguage] = useState(editing?.language || "en_US"),
     [category, setCategory] = useState(editing?.category || "MARKETING");
   const [draft, setDraft] = useState<TemplateStructure>(
-    editing?.structure || emptyDraft(),
+    editing ? structureOf(editing) : emptyDraft(),
   );
   const [busy, setBusy] = useState(false),
     [touched, setTouched] = useState(false);
+  const [uploading, setUploading] = useState(false),
+    [headerFile, setHeaderFile] = useState(
+      editing?.structure.header.handle ? "Uploaded" : "",
+    ),
+    [uploadError, setUploadError] = useState("");
+  const headerPicker = useRef<HTMLInputElement>(null);
   const errors = useMemo(() => validate(name, draft), [name, draft]);
   const keys = bodyKeys(draft.body);
   const patch = (change: Partial<TemplateStructure>) =>
@@ -193,23 +207,62 @@ export default function TemplateBuilder({
             )}
             {MEDIA_FORMATS.includes(draft.header.format) && (
               <div className="mt-3 space-y-2">
-                <Field label="Uploaded media handle">
-                  <input
-                    className={input}
-                    placeholder="4::aW1hZ2UvcG5n::ARZ…"
-                    value={draft.header.handle}
-                    onChange={(e) =>
+                <input
+                  ref={headerPicker}
+                  type="file"
+                  className="hidden"
+                  accept={HEADER_ACCEPT[draft.header.format]}
+                  onChange={async (e) => {
+                    const file = e.target.files?.[0];
+                    e.target.value = "";
+                    if (!file) return;
+                    setUploading(true);
+                    setUploadError("");
+                    try {
+                      // Meta's Resumable Upload API returns a handle, which is
+                      // what a template header example needs; a media ID is
+                      // rejected there.
+                      const result = await api.uploadTemplateHeader(
+                        account.id,
+                        file,
+                      );
                       patch({
-                        header: { ...draft.header, handle: e.target.value },
-                      })
+                        header: { ...draft.header, handle: result.handle },
+                      });
+                      setHeaderFile(result.filename);
+                    } catch (error) {
+                      setUploadError(errorText(error));
+                    } finally {
+                      setUploading(false);
                     }
-                  />
-                </Field>
+                  }}
+                />
+                <div className="flex flex-wrap items-center gap-2">
+                  <button
+                    type="button"
+                    className={secondary}
+                    disabled={uploading}
+                    onClick={() => headerPicker.current?.click()}
+                  >
+                    {uploading ? (
+                      <Loader2 size={14} className="animate-spin" />
+                    ) : (
+                      <Upload size={14} />
+                    )}
+                    {draft.header.handle ? "Replace file" : "Upload file"}
+                  </button>
+                  {draft.header.handle && !uploading && (
+                    <span className="inline-flex items-center gap-1.5 text-xs text-emerald-700 dark:text-emerald-400">
+                      <Check size={14} />
+                      {headerFile || "Uploaded"}
+                    </span>
+                  )}
+                </div>
                 <p className="text-xs text-slate-500">
-                  Meta requires a Resumable Upload handle for media headers, not
-                  a media ID. In-dashboard uploading arrives with media
-                  messaging; paste an existing handle to use one now.
+                  Meta reviews this file as the header example. Recipients see
+                  the media attached to each individual send.
                 </p>
+                <Problem message={uploadError} />
               </div>
             )}
             <Problem message={show("header")} />

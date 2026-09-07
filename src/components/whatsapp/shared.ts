@@ -20,3 +20,16 @@ export function errorText(error: unknown) {
     return String(detail.message);
   return "Unable to complete this action. Please try again.";
 }
+
+/** Human file size for attachment tiles and upload previews. */
+export function readableSize(bytes: number) {
+  if (!bytes) return "";
+  const units = ["B", "KB", "MB"];
+  let value = bytes,
+    unit = 0;
+  while (value >= 1024 && unit < units.length - 1) {
+    value /= 1024;
+    unit += 1;
+  }
+  return `${value >= 10 || unit === 0 ? Math.round(value) : value.toFixed(1)} ${units[unit]}`;
+}

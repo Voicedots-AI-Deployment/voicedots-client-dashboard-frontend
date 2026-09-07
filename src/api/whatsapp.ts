@@ -72,12 +72,26 @@ export type Contact = {
   destination: string;
   extra: Record<string, string>;
 };
+export type MediaKind = "image" | "video" | "audio" | "document" | "sticker";
+export type Media = {
+  id: string;
+  kind: MediaKind;
+  filename: string;
+  mime_type: string;
+  file_size: number;
+  status: "uploading" | "uploaded" | "failed";
+  error?: string;
+};
 export type Message = {
   id: string;
   campaign_id?: string;
   contact_name: string;
   destination: string;
   direction: string;
+  /** Meta's own message type, so a new kind needs no new message shape. */
+  kind: string;
+  media_id?: string;
+  media?: Media | null;
   body: string;
   status: string;
   error?: string;
@@ -284,6 +298,72 @@ export const whatsappApi = {
     body: string;
     idempotency_key: string;
   }) => (await apiClient.post<Message>(`${base}/messages/reply`, data)).data,
+  /** Upload first, send second: a large file must not sit inside the send request. */
+  uploadMedia: async (
+    account_id: string,
+    file: File,
+    kind = "",
+    onProgress?: (percent: number) => void,
+  ) => {
+    const form = new FormData();
+    form.append("account_id", account_id);
+    form.append("file", file);
+    if (kind) form.append("kind", kind);
+    return (
+      await apiClient.post<Media>(`${base}/media`, form, {
+        headers: { "Content-Type": "multipart/form-data" },
+        onUploadProgress: (e) =>
+          onProgress?.(e.total ? Math.round((e.loaded * 100) / e.total) : 0),
+      })
+    ).data;
+  },
+  /** Meta requires a Resumable Upload handle for template headers, not a media ID. */
+  uploadTemplateHeader: async (account_id: string, file: File) => {
+    const form = new FormData();
+    form.append("account_id", account_id);
+    form.append("file", file);
+    return (
+      await apiClient.post<{
+        handle: string;
+        kind: string;
+        filename: string;
+        mime_type: string;
+        file_size: number;
+      }>(`${base}/media/template-header`, form, {
+        headers: { "Content-Type": "multipart/form-data" },
+      })
+    ).data;
+  },
+  /** The media proxy is authenticated with a bearer header, which an <img src>
+   *  cannot send, so attachments are fetched as a blob and shown from an object
+   *  URL. Callers must revoke the URL when the bubble unmounts. */
+  fetchMedia: async (id: string) => {
+    const res = await apiClient.get(`${base}/media/${id}`, {
+      responseType: "blob",
+    });
+    return URL.createObjectURL(res.data);
+  },
+  downloadMedia: async (id: string, filename: string) => {
+    const res = await apiClient.get(`${base}/media/${id}`, {
+      responseType: "blob",
+    });
+    const url = URL.createObjectURL(res.data);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = filename || "attachment";
+    a.click();
+    URL.revokeObjectURL(url);
+  },
+  sendMedia: async (data: {
+    account_id: string;
+    media_id: string;
+    destination: string;
+    contact_name: string;
+    caption: string;
+    idempotency_key: string;
+  }) => (await apiClient.post<Message>(`${base}/messages/media`, data)).data,
+  retryMessage: async (id: string) =>
+    (await apiClient.post<Message>(`${base}/messages/${id}/retry`)).data,
   deleteMessage: async (id: string) =>
     (await apiClient.delete(`${base}/messages/${id}`)).data,
   deleteThread: async (account_id: string, destination: string) =>

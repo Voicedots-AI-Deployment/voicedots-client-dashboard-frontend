@@ -369,7 +369,12 @@ export default function Campaigns({
                         className="inline-flex items-center gap-1 rounded-lg px-2 py-1.5 text-xs font-medium text-rose-600 hover:bg-rose-50 dark:hover:bg-rose-950/30"
                         aria-label={`Delete ${c.name}`}
                         onClick={async () => {
-                          if (!window.confirm(`Delete “${c.name}” and all of its messages and contacts? This cannot be undone.`)) return;
+                          if (
+                            !window.confirm(
+                              `Delete “${c.name}” and all of its messages and contacts? This cannot be undone.`,
+                            )
+                          )
+                            return;
                           try {
                             await api.deleteCampaign(c.id);
                             if (selected === c.id) setSelected("");

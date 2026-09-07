@@ -1,6 +1,7 @@
 import type {
   ButtonType,
   HeaderFormat,
+  Template,
   TemplateStructure,
 } from "@/api/whatsapp";
 
@@ -65,7 +66,7 @@ export function validate(
       errors.header = "The header variable is missing an example value.";
   }
   if (MEDIA_FORMATS.includes(header.format) && !header.handle.trim())
-    errors.header = "Add the uploaded media handle for this header.";
+    errors.header = "Upload the header media before saving this template.";
   if (!body.trim()) errors.body = "Enter the message body.";
   const keys = bodyKeys(body);
   if (keys.length && keys[keys.length - 1] !== keys.length)
@@ -109,4 +110,21 @@ export function validate(
       errors.buttons = `WhatsApp allows at most ${BUTTON_LIMITS[kind]} ${BUTTON_LABEL[kind].toLowerCase()} button(s).`;
   });
   return errors;
+}
+
+/** The builder shape for a template, tolerating a backend that predates it.
+ *
+ *  Frontend and backend deploy separately, so a dashboard can briefly talk to an
+ *  API that does not send `structure` yet. Falling back to the flat body keeps
+ *  the templates page readable instead of crashing on an undefined header. */
+export function structureOf(template: Template): TemplateStructure {
+  if (template.structure?.header) return template.structure;
+  const examples =
+    template.components?.find((c) => c.type === "BODY")?.example
+      ?.body_text?.[0] || [];
+  return {
+    ...emptyDraft(),
+    body: template.body || "",
+    examples: [...examples],
+  };
 }

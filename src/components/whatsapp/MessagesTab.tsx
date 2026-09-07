@@ -22,6 +22,8 @@ import { whatsappApi as api } from "@/api/whatsapp";
 import { card, secondary, emptyPage, errorText } from "./shared";
 import { Badge, Pager } from "./WhatsAppUi";
 import Single from "./SingleMessageTab";
+import Composer from "./Composer";
+import MediaAttachment from "./MediaAttachment";
 
 function initials(name: string) {
   return (
@@ -379,9 +381,24 @@ function Conversation({
                 <article
                   className={`max-w-[90%] rounded-2xl p-4 text-sm shadow-sm sm:max-w-[82%] ${m.direction === "outbound" ? "ml-auto rounded-tr-sm bg-indigo-700 text-white" : "rounded-tl-sm bg-white text-slate-700 dark:bg-slate-800 dark:text-slate-100"}`}
                 >
-                  <p className="whitespace-pre-wrap break-words leading-relaxed">
-                    {m.body}
-                  </p>
+                  {m.media && (
+                    <div className="mb-2">
+                      <MediaAttachment
+                        media={m.media}
+                        outbound={m.direction === "outbound"}
+                      />
+                    </div>
+                  )}
+                  {/* A document bubble already shows its filename in the tile. */}
+                  {m.body &&
+                    !(
+                      m.media?.kind === "document" &&
+                      m.body === m.media.filename
+                    ) && (
+                      <p className="whitespace-pre-wrap break-words leading-relaxed">
+                        {m.body}
+                      </p>
+                    )}
                   <div
                     className={`mt-3 flex flex-wrap items-center justify-end gap-2 text-[10px] ${m.direction === "outbound" ? "text-indigo-100" : "text-slate-400"}`}
                   >
@@ -429,6 +446,23 @@ function Conversation({
                     )}
                   </div>
                   {m.error && <p className="mt-2 text-xs">{m.error}</p>}
+                  {["failed", "blocked"].includes(m.status) &&
+                    m.direction === "outbound" && (
+                      <button
+                        type="button"
+                        className="mt-2 rounded-lg bg-white/20 px-2.5 py-1 text-[11px] font-semibold"
+                        onClick={async () => {
+                          try {
+                            await api.retryMessage(m.id);
+                            setNotice("Message queued again.");
+                          } catch (e) {
+                            setNotice(errorText(e));
+                          }
+                        }}
+                      >
+                        Retry
+                      </button>
+                    )}
                 </article>
               </div>
             );
@@ -444,12 +478,20 @@ function Conversation({
             </p>
           )}
           {account && messages.window_open && (
-            <ReplyBox
-              account={account}
-              thread={thread}
-              closesAt={messages.window_closes_at}
-              notify={setNotice}
-            />
+            <>
+              <Composer
+                account={account}
+                thread={thread}
+                notify={setNotice}
+                sent={() => setOffset(0)}
+              />
+              {windowLeft(messages.window_closes_at) && (
+                <p className="text-[11px] text-slate-500">
+                  {windowLeft(messages.window_closes_at)} · Enter sends,
+                  Shift+Enter adds a line
+                </p>
+              )}
+            </>
           )}
           {account ? (
             <button
@@ -602,88 +644,4 @@ function windowLeft(closesAt?: string | null) {
   return hours
     ? `${hours}h ${minutes}m left to reply freely`
     : `${minutes}m left to reply freely`;
-}
-
-/** Free-text reply. Shown only while Meta's 24-hour service window is open. */
-function ReplyBox({
-  account,
-  thread,
-  closesAt,
-  notify,
-}: {
-  account: Account;
-  thread: Thread;
-  closesAt?: string | null;
-  notify: (s: string) => void;
-}) {
-  const [body, setBody] = useState(""),
-    [busy, setBusy] = useState(false);
-  const attempt = useRef({ body: "", key: "" });
-  const remaining = windowLeft(closesAt);
-  return (
-    <form
-      className="space-y-2"
-      onSubmit={async (e) => {
-        e.preventDefault();
-        const text = body.trim();
-        if (!text || busy) return;
-        setBusy(true);
-        // Retrying the same text reuses its key so a timeout cannot double-send.
-        if (attempt.current.body !== text)
-          attempt.current = { body: text, key: crypto.randomUUID() };
-        try {
-          await api.reply({
-            account_id: account.id,
-            destination: thread.destination,
-            contact_name: thread.contact_name,
-            body: text,
-            idempotency_key: attempt.current.key,
-          });
-          setBody("");
-          attempt.current = { body: "", key: "" };
-          notify("Reply queued.");
-        } catch (error) {
-          notify(errorText(error));
-        } finally {
-          setBusy(false);
-        }
-      }}
-    >
-      <div className="flex items-end gap-2">
-        <textarea
-          aria-label={`Reply to ${thread.contact_name || thread.destination}`}
-          className="max-h-40 min-h-[44px] w-full flex-1 resize-y rounded-2xl border border-violet-100 bg-white px-4 py-3 text-sm outline-none focus:border-indigo-400 dark:border-slate-800 dark:bg-slate-900"
-          rows={2}
-          maxLength={4096}
-          placeholder="Write a reply…"
-          value={body}
-          disabled={busy || !account.ready}
-          onChange={(e) => setBody(e.target.value)}
-          onKeyDown={(e) => {
-            if (e.key === "Enter" && !e.shiftKey) {
-              e.preventDefault();
-              e.currentTarget.form?.requestSubmit();
-            }
-          }}
-        />
-        <button
-          type="submit"
-          aria-label="Send reply"
-          disabled={busy || !body.trim() || !account.ready}
-          className="shrink-0 rounded-full bg-indigo-700 p-3 text-white disabled:opacity-40"
-        >
-          {busy ? (
-            <Loader2 size={16} className="animate-spin" />
-          ) : (
-            <Send size={16} />
-          )}
-        </button>
-      </div>
-      {remaining && (
-        <p className="text-[11px] text-slate-500">
-          {remaining} · Enter sends, Shift+Enter adds a line
-        </p>
-      )}
-    </form>
-  );
 }
