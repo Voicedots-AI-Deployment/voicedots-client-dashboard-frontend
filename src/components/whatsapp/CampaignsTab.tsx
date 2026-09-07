@@ -27,6 +27,7 @@ import type {
   UploadResult,
 } from "@/api/whatsapp";
 import { whatsappApi as api } from "@/api/whatsapp";
+import { MediaHeaderPicker } from "./SlotInputs";
 import {
   card,
   input,
@@ -561,7 +562,8 @@ function CampaignEditor({
     );
   const draft = campaign.status === "draft";
   const mapped =
-    !!template && template.variables.every((k) => mapping[k]?.value.trim());
+    !!template &&
+    template.slot_fields.every((f) => mapping[f.slot]?.value.trim());
   const step = !draft
     ? 4
     : preview && !preview.rejected_count
@@ -924,65 +926,108 @@ function CampaignEditor({
               <div>
                 <h3 className="text-sm font-semibold">Data association</h3>
                 <p className="mt-1 text-xs text-slate-500">
-                  Match each variable to a contact field or a fixed value.
+                  Only what this template requires is shown. Match each to a CSV
+                  column or a fixed value.
                 </p>
               </div>
-              {template?.variables.map((k) => (
-                <div
-                  key={k}
-                  className="grid items-center gap-2 rounded-xl bg-violet-50/70 p-3 sm:grid-cols-[80px_20px_1fr] dark:bg-slate-950"
-                >
-                  <code className="break-all text-xs text-indigo-700 dark:text-indigo-300">{`{{${k}}}`}</code>
-                  <ArrowRightLeft
-                    size={13}
-                    className="hidden text-slate-400 sm:block"
-                  />
-                  <div className="grid min-w-0 grid-cols-[105px_1fr] gap-2">
-                    <select
-                      aria-label={`Source for variable ${k}`}
-                      className={`${input} !mt-0 !px-2 !py-2 text-xs`}
-                      value={mapping[k]?.source || "field"}
-                      onChange={(e) => {
-                        setMapping({
-                          ...mapping,
-                          [k]: {
-                            source: e.target.value as "field" | "fixed",
-                            value: "",
-                          },
-                        });
-                        invalidate();
-                      }}
-                    >
-                      <option value="field">Contact field</option>
-                      <option value="fixed">Fixed value</option>
-                    </select>
-                    <input
-                      aria-label={`Value for variable ${k}`}
-                      list={`columns-${id}`}
-                      className={`${input} !mt-0 min-w-0 !px-2 !py-2 text-xs`}
-                      placeholder={
-                        mapping[k]?.source === "fixed"
-                          ? "Enter value"
-                          : "Column name"
-                      }
-                      value={mapping[k]?.value || ""}
-                      onChange={(e) => {
-                        setMapping({
-                          ...mapping,
-                          [k]: {
-                            source: mapping[k]?.source || "field",
-                            value: e.target.value,
-                          },
-                        });
-                        invalidate();
-                      }}
-                    />
+              {/* Rendered from the template's own slots, so a header, a body
+                  variable, a dynamic link and a media header each appear only
+                  when that template actually declares one. */}
+              {(["header", "body", "button"] as const).map((section) => {
+                const group = (template?.slot_fields || []).filter(
+                  (f) => f.section === section,
+                );
+                if (!group.length) return null;
+                return (
+                  <div key={section} className="space-y-2">
+                    <h4 className="text-[10px] font-semibold uppercase tracking-wider text-slate-500">
+                      {section}
+                    </h4>
+                    {group.map((field) =>
+                      field.kind === "media" ? (
+                        <div
+                          key={field.slot}
+                          className="rounded-xl bg-violet-50/70 p-3 dark:bg-slate-950"
+                        >
+                          <p className="mb-2 text-xs font-medium">
+                            {field.label} — one file for the whole campaign
+                          </p>
+                          <MediaHeaderPicker
+                            account={account}
+                            format={field.media_format}
+                            value={mapping[field.slot]?.value || ""}
+                            change={(v) => {
+                              setMapping({
+                                ...mapping,
+                                [field.slot]: { source: "media", value: v },
+                              });
+                              invalidate();
+                            }}
+                          />
+                        </div>
+                      ) : (
+                        <div
+                          key={field.slot}
+                          className="grid items-center gap-2 rounded-xl bg-violet-50/70 p-3 sm:grid-cols-[120px_20px_1fr] dark:bg-slate-950"
+                        >
+                          <code className="break-all text-xs text-indigo-700 dark:text-indigo-300">
+                            {field.label}
+                          </code>
+                          <ArrowRightLeft
+                            size={13}
+                            className="hidden text-slate-400 sm:block"
+                          />
+                          <div className="grid min-w-0 grid-cols-[105px_1fr] gap-2">
+                            <select
+                              aria-label={`Source for ${field.label}`}
+                              className={`${input} !mt-0 !px-2 !py-2 text-xs`}
+                              value={mapping[field.slot]?.source || "field"}
+                              onChange={(e) => {
+                                setMapping({
+                                  ...mapping,
+                                  [field.slot]: {
+                                    source: e.target.value as "field" | "fixed",
+                                    value: "",
+                                  },
+                                });
+                                invalidate();
+                              }}
+                            >
+                              <option value="field">CSV column</option>
+                              <option value="fixed">Fixed value</option>
+                            </select>
+                            <input
+                              aria-label={`Value for ${field.label}`}
+                              list={`columns-${id}`}
+                              className={`${input} !mt-0 min-w-0 !px-2 !py-2 text-xs`}
+                              placeholder={
+                                mapping[field.slot]?.source === "fixed"
+                                  ? "Enter value"
+                                  : "Select a column"
+                              }
+                              value={mapping[field.slot]?.value || ""}
+                              onChange={(e) => {
+                                setMapping({
+                                  ...mapping,
+                                  [field.slot]: {
+                                    source:
+                                      mapping[field.slot]?.source || "field",
+                                    value: e.target.value,
+                                  },
+                                });
+                                invalidate();
+                              }}
+                            />
+                          </div>
+                        </div>
+                      ),
+                    )}
                   </div>
-                </div>
-              ))}
-              {template && !template.variables.length && (
-                <p className="text-xs text-slate-500">
-                  This template has no variables to map.
+                );
+              })}
+              {template && !template.slot_fields.length && (
+                <p className="rounded-xl bg-violet-50/70 p-3 text-xs text-slate-600 dark:bg-slate-950 dark:text-slate-300">
+                  This template does not require any variable mapping.
                 </p>
               )}
               <datalist id={`columns-${id}`}>

@@ -128,3 +128,20 @@ export function structureOf(template: Template): TemplateStructure {
     examples: [...examples],
   };
 }
+
+/** Substitute supplied values into the template's own structure so the preview,
+ *  the single send and the bulk campaign all render the same message. */
+export function previewOf(
+  template: Template,
+  values: Record<string, string>,
+): TemplateStructure {
+  const base = structureOf(template);
+  const body = (template.slot_fields || [])
+    .filter((f) => f.section === "body")
+    .map((f) => values[f.slot] || "");
+  return {
+    ...base,
+    header: { ...base.header, example: values.header || base.header.example },
+    examples: body.length ? body : base.examples,
+  };
+}

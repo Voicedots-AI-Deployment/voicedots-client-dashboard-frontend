@@ -2,8 +2,15 @@ import { useRef, useState } from "react";
 import { Loader2, Send } from "lucide-react";
 import type { Account, Template, Message } from "@/api/whatsapp";
 import { card, input, button, consent, errorText } from "./shared";
-import { Field, Bubble, TemplateSelect } from "./WhatsAppUi";
+import { Field, TemplateSelect } from "./WhatsAppUi";
 import { whatsappApi as api } from "@/api/whatsapp";
+import SlotInputs from "./SlotInputs";
+import { previewOf } from "./templateRules";
+import TemplatePreview from "./TemplatePreview";
+
+/** Send an approved template: select, fill whatever the template declares,
+ *  preview the exact message, confirm consent, send. Used standalone and from
+ *  inside a conversation, where the recipient is prefilled. */
 export default function Single({
   account,
   templates,
@@ -26,13 +33,20 @@ export default function Single({
     [sent, setSent] = useState<Message>();
   const attempt = useRef({ signature: "", key: "" });
   const template = templates.find((t) => t.id === templateId);
+  // Only the slots this template declares are required; a template with none
+  // is ready as soon as a recipient is entered.
+  const missing = (template?.slot_fields || []).filter(
+    (f) => !(values[f.slot] || "").trim(),
+  );
+  const ready =
+    !!template && !missing.length && !!destination.trim() && consented;
   return (
     <div className="grid gap-5 lg:grid-cols-2">
       <form
         className={`${card} space-y-4 p-5`}
         onSubmit={async (e) => {
           e.preventDefault();
-          if (!template || !consented) return;
+          if (!ready) return;
           setBusy(true);
           const signature = JSON.stringify({
             templateId,
@@ -40,6 +54,7 @@ export default function Single({
             name,
             values,
           });
+          // Retrying identical content reuses the key so a timeout cannot double-send.
           if (attempt.current.signature !== signature)
             attempt.current = { signature, key: crypto.randomUUID() };
           try {
@@ -66,86 +81,79 @@ export default function Single({
         <TemplateSelect
           templates={templates}
           value={templateId}
-          change={(value) => {
-            setTemplateId(value);
+          change={(id) => {
+            setTemplateId(id);
+            // Values belong to the previous template's slots; start clean.
             setValues({});
             setSent(undefined);
           }}
         />
-        <Field label="Student name">
-          <input
-            className={input}
-            value={name}
-            onChange={(e) => {
-              setName(e.target.value);
-              setSent(undefined);
-            }}
-          />
-        </Field>
-        <Field label="WhatsApp number">
-          <input
-            type="tel"
-            required
-            className={input}
-            value={destination}
-            placeholder="+91…"
-            onChange={(e) => {
-              setDestination(e.target.value);
-              setSent(undefined);
-            }}
-          />
-        </Field>
-        {template?.variables.map((k) => (
-          <Field key={k} label={`Value for {{${k}}}`}>
+        <div className="grid gap-3 sm:grid-cols-2">
+          <Field label="WhatsApp number">
             <input
               required
               className={input}
-              value={values[k] || ""}
-              onChange={(e) => {
-                setValues({ ...values, [k]: e.target.value });
-                setSent(undefined);
-              }}
+              placeholder="+919876543210"
+              value={destination}
+              onChange={(e) => setDestination(e.target.value)}
             />
           </Field>
-        ))}
-        <label className="flex items-start gap-3 text-sm">
+          <Field label="Contact name (optional)">
+            <input
+              className={input}
+              value={name}
+              onChange={(e) => setName(e.target.value)}
+            />
+          </Field>
+        </div>
+        {template && (
+          <SlotInputs
+            account={account}
+            template={template}
+            values={values}
+            change={(slot, value) =>
+              setValues((current) => ({ ...current, [slot]: value }))
+            }
+          />
+        )}
+        <label className="flex items-start gap-2 text-xs text-slate-600 dark:text-slate-300">
           <input
             type="checkbox"
-            className="mt-1"
+            className="mt-0.5"
             checked={consented}
             onChange={(e) => setConsented(e.target.checked)}
           />
           {consent}
         </label>
-        <button
-          className={button}
-          disabled={busy || !account.ready || !template || !consented || !!sent}
-        >
-          {busy ? (
-            <Loader2 size={16} className="animate-spin" />
-          ) : (
-            <Send size={16} />
-          )}
+        <button disabled={busy || !ready || !account.ready} className={button}>
+          {busy && <Loader2 size={16} className="animate-spin" />}
+          <Send size={16} />
           Send message
         </button>
+        {template && missing.length > 0 && (
+          <p className="text-xs text-slate-500">
+            {missing.length} field{missing.length > 1 ? "s" : ""} still needed:{" "}
+            {missing.map((f) => f.label).join(", ")}
+          </p>
+        )}
         {sent && (
-          <p role="status" className="text-sm text-emerald-600">
-            Message queued for {sent.destination}.
+          <p
+            role="status"
+            className="text-sm text-emerald-700 dark:text-emerald-400"
+          >
+            Queued as {sent.status}. Delivery updates arrive from WhatsApp.
           </p>
         )}
       </form>
-      <section className={`${card} space-y-4 p-5`}>
-        <h2 className="text-lg font-bold">Message preview</h2>
-        <p className="text-sm text-slate-500">
-          This is the personalized message your recipient will receive.
-        </p>
-        <Bubble
-          body={(template?.body || "").replace(
-            /{{(.*?)}}/g,
-            (whole, key) => values[key] || whole,
-          )}
-        />
-      </section>
+      <div className={`${card} p-4`}>
+        {template ? (
+          <TemplatePreview draft={previewOf(template, values)} />
+        ) : (
+          <p className="p-6 text-center text-sm text-slate-500">
+            Select an approved template to preview the exact message.
+          </p>
+        )}
+      </div>
     </div>
   );
 }

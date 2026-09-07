@@ -28,6 +28,16 @@ export type TemplateStructure = {
   footer: string;
   buttons: TemplateButton[];
 };
+/** One input a template actually requires, described by the backend so the UI
+ *  never re-derives variables or assumes a fixed count. */
+export type SlotField = {
+  slot: string;
+  section: "header" | "body" | "button";
+  kind: "text" | "media";
+  label: string;
+  index?: number;
+  media_format?: HeaderFormat;
+};
 export type Template = {
   id: string;
   account_id: string;
@@ -38,6 +48,7 @@ export type Template = {
   body: string;
   variables: string[];
   slots: string[];
+  slot_fields: SlotField[];
   header_type: HeaderFormat;
   button_count: number;
   created_at: string;
@@ -47,7 +58,9 @@ export type Template = {
   error?: string;
   components: Array<{ type: string; example?: { body_text?: string[][] } }>;
 };
-export type Binding = { source: "field" | "fixed"; value: string };
+/** How one template slot gets its value: a CSV column, a literal, or an
+ *  uploaded media row (the backend resolves that to a Meta media ID). */
+export type Binding = { source: "field" | "fixed" | "media"; value: string };
 export type Campaign = {
   id: string;
   name: string;
