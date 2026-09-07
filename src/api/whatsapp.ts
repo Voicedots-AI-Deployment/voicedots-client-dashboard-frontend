@@ -208,6 +208,8 @@ export const whatsappApi = {
     ).data,
   cancel: async (id: string) =>
     (await apiClient.post(`${base}/campaigns/${id}/cancel`)).data,
+  deleteCampaign: async (id: string) =>
+    (await apiClient.delete(`${base}/campaigns/${id}`)).data,
   messages: async (
     account_id: string,
     offset = 0,
@@ -241,6 +243,8 @@ export const whatsappApi = {
     body: string;
     idempotency_key: string;
   }) => (await apiClient.post<Message>(`${base}/messages/reply`, data)).data,
+  deleteMessage: async (id: string) =>
+    (await apiClient.delete(`${base}/messages/${id}`)).data,
   report: async (id: string) => {
     const res = await apiClient.get(`${base}/campaigns/${id}/report`, {
       responseType: "blob",

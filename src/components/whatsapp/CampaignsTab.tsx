@@ -308,6 +308,7 @@ export default function Campaigns({
                     "Read",
                     "Failed",
                     "Status",
+                    "Actions",
                   ].map((h) => (
                     <th
                       key={h}
@@ -361,6 +362,26 @@ export default function Campaigns({
                     <td className="px-4 text-rose-600">{c.failed ?? 0}</td>
                     <td className="px-4">
                       <Badge value={c.status} />
+                    </td>
+                    <td className="px-4">
+                      <button
+                        type="button"
+                        className="inline-flex items-center gap-1 rounded-lg px-2 py-1.5 text-xs font-medium text-rose-600 hover:bg-rose-50 dark:hover:bg-rose-950/30"
+                        aria-label={`Delete ${c.name}`}
+                        onClick={async () => {
+                          if (!window.confirm(`Delete “${c.name}” and all of its messages and contacts? This cannot be undone.`)) return;
+                          try {
+                            await api.deleteCampaign(c.id);
+                            if (selected === c.id) setSelected("");
+                            notify("Campaign deleted.");
+                            await load();
+                          } catch (error) {
+                            notify(errorText(error));
+                          }
+                        }}
+                      >
+                        <Trash2 size={14} /> Delete
+                      </button>
                     </td>
                   </tr>
                 ))}

@@ -15,7 +15,10 @@ import Templates from "@/components/whatsapp/TemplatesTab";
 import Single from "@/components/whatsapp/SingleMessageTab";
 import Messages from "@/components/whatsapp/MessagesTab";
 import { whatsappApi as api } from "@/api/whatsapp";
+import { useAuth } from "@/context/AuthContext";
 export default function WhatsAppPage() {
+  const { user } = useAuth();
+  const previewMode = user?.email?.toLowerCase() === "sona@voicedots.io";
   const [accounts, setAccounts] = useState<Account[]>([]),
     [accountId, setAccountId] = useState("");
   const [loading, setLoading] = useState(true),
@@ -86,7 +89,9 @@ export default function WhatsAppPage() {
           )}
         </div>
       </div>
-      {loading ? (
+      {previewMode ? (
+        <PreviewWorkspace />
+      ) : loading ? (
         <div className={`${card} flex items-center gap-3 p-8`}>
           <Loader2 className="animate-spin" />
           Loading WhatsApp…
@@ -118,6 +123,54 @@ export default function WhatsAppPage() {
           </p>
         </div>
       )}
+    </div>
+  );
+}
+function PreviewWorkspace() {
+  const [tab, setTab] = useState("campaigns");
+  const tabs = [
+    ["messages", "Inbox", Inbox],
+    ["templates", "Templates", LayoutTemplate],
+    ["campaigns", "Campaigns", Megaphone],
+    ["single", "Single message", Send],
+  ] as const;
+  const content: [string, string, string] = ({
+    messages: ["Inbox", "No conversations yet", "Incoming and outgoing conversations will appear here."],
+    templates: ["Message templates", "No templates yet", "Approved WhatsApp templates will appear here."],
+    campaigns: ["WhatsApp Campaigns", "Your first campaign starts here", "Create campaigns, add recipients, and review delivery analytics."],
+    single: ["Send a single message", "No sender connected", "Choose an approved template and recipient when your sender is activated."],
+  } as Record<string, [string, string, string]>)[tab];
+  const Icon = tabs.find(([key]) => key === tab)?.[2] || MessageCircle;
+  return (
+    <div className="space-y-5">
+      <div className="rounded-xl border border-indigo-200 bg-indigo-50 p-4 text-sm text-indigo-800 dark:border-indigo-900 dark:bg-indigo-950/20 dark:text-indigo-300">
+        Preview workspace — live WhatsApp data and actions are disabled for this account.
+      </div>
+      <div className="flex gap-1 overflow-x-auto rounded-xl bg-white p-1.5 dark:bg-slate-900" role="tablist" aria-label="WhatsApp preview sections">
+        {tabs.map(([key, label, TabIcon]) => (
+          <button key={key} role="tab" aria-selected={tab === key}
+            className={`inline-flex items-center gap-2 whitespace-nowrap rounded-lg px-4 py-2.5 text-xs font-medium ${tab === key ? "bg-indigo-700 text-white shadow-sm" : "text-slate-500 hover:bg-violet-50 dark:hover:bg-slate-800"}`}
+            onClick={() => setTab(key)}>
+            <TabIcon size={15} />{label}
+          </button>
+        ))}
+      </div>
+      <section className={`${card} p-5 sm:p-6`}>
+        <div className="flex flex-wrap items-center justify-between gap-4">
+          <div className="flex items-center gap-3">
+            <span className="rounded-xl bg-violet-100 p-3 text-indigo-700 dark:bg-indigo-950 dark:text-indigo-300"><Icon size={23} /></span>
+            <div><h2 className="text-xl font-semibold">{content[0]}</h2><p className="mt-1 text-xs text-slate-500">Feature preview</p></div>
+          </div>
+          <button disabled className="inline-flex items-center gap-2 rounded-xl bg-indigo-700 px-4 py-2.5 text-sm font-semibold text-white opacity-50">
+            <span>+</span>{tab === "single" ? "Send message" : tab === "messages" ? "New conversation" : tab === "templates" ? "New template" : "New campaign"}
+          </button>
+        </div>
+        <div className="mt-6 rounded-2xl border border-dashed border-violet-200 p-12 text-center dark:border-slate-700">
+          <Icon className="mx-auto mb-3 text-indigo-300" size={32} />
+          <h3 className="font-medium">{content[1]}</h3>
+          <p className="mx-auto mt-2 max-w-md text-sm text-slate-500">{content[2]}</p>
+        </div>
+      </section>
     </div>
   );
 }

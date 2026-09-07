@@ -7,6 +7,7 @@ import {
   MessageCircle,
   Search,
   Send,
+  Trash2,
   UserRound,
   X,
 } from "lucide-react";
@@ -340,6 +341,27 @@ function Conversation({
                   <div
                     className={`mt-3 flex flex-wrap items-center justify-end gap-2 text-[10px] ${m.direction === "outbound" ? "text-indigo-100" : "text-slate-400"}`}
                   >
+                    <button
+                      type="button"
+                      aria-label="Delete message"
+                      className="rounded p-1 hover:bg-black/10"
+                      onClick={async () => {
+                        if (!window.confirm("Delete this message? This cannot be undone.")) return;
+                        try {
+                          await api.deleteMessage(m.id);
+                          setMessages((current) => ({
+                            ...current,
+                            items: current.items.filter((item) => item.id !== m.id),
+                            total: Math.max(0, current.total - 1),
+                          }));
+                          setNotice("Message deleted.");
+                        } catch (e) {
+                          setNotice(errorText(e));
+                        }
+                      }}
+                    >
+                      <Trash2 size={12} />
+                    </button>
                     <time dateTime={m.created_at}>
                       {new Date(m.created_at).toLocaleTimeString(undefined, {
                         hour: "2-digit",
