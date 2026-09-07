@@ -231,10 +231,9 @@ export default function Templates({
                     {t.button_count
                       ? `${t.button_count} button${t.button_count > 1 ? "s" : ""}`
                       : "no buttons"}{" "}
-                    · updated{" "}
-                    {new Date(
-                      t.updated_at || t.created_at,
-                    ).toLocaleDateString()}
+                    {/* An API predating the builder sends neither timestamp. */}
+                    {(t.updated_at || t.created_at) &&
+                      ` · updated ${new Date(t.updated_at || t.created_at).toLocaleDateString()}`}
                   </p>
                 </div>
                 <Badge value={t.status} />
