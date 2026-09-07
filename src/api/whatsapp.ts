@@ -245,6 +245,12 @@ export const whatsappApi = {
   }) => (await apiClient.post<Message>(`${base}/messages/reply`, data)).data,
   deleteMessage: async (id: string) =>
     (await apiClient.delete(`${base}/messages/${id}`)).data,
+  deleteThread: async (account_id: string, destination: string) =>
+    (
+      await apiClient.delete(`${base}/messages/threads`, {
+        params: { account_id, destination },
+      })
+    ).data,
   report: async (id: string) => {
     const res = await apiClient.get(`${base}/campaigns/${id}/report`, {
       responseType: "blob",

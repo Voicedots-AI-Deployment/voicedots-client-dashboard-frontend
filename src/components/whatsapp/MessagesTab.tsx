@@ -85,6 +85,15 @@ export default function Messages({
       window.clearInterval(timer);
     };
   }, [accountId, campaignId, offset, search]);
+  const dropThread = (destination: string) => {
+    setThreads((current) => ({
+      ...current,
+      items: current.items.filter((t) => t.destination !== destination),
+      total: Math.max(0, current.total - 1),
+    }));
+    setSelected(null);
+    setMobileOpen(false);
+  };
   const current =
     (selected &&
       threads.items.find((t) => t.destination === selected.destination)) ||
@@ -204,6 +213,7 @@ export default function Messages({
             templates={templates}
             mobileOpen={mobileOpen}
             back={() => setMobileOpen(false)}
+            deleted={dropThread}
           />
         ) : (
           <div className="hidden items-center justify-center p-10 text-center text-slate-400 lg:flex">
@@ -228,6 +238,7 @@ function Conversation({
   templates,
   mobileOpen,
   back,
+  deleted,
 }: {
   thread: Thread;
   accountId: string;
@@ -236,11 +247,13 @@ function Conversation({
   templates: Template[];
   mobileOpen: boolean;
   back: () => void;
+  deleted: (destination: string) => void;
 }) {
   const [messages, setMessages] = useState<MessagePage>(emptyPage<Message>()),
     [offset, setOffset] = useState(0),
     [error, setError] = useState(""),
     [compose, setCompose] = useState(false),
+    [removing, setRemoving] = useState(false),
     [notice, setNotice] = useState("");
   useEffect(() => {
     let active = true;
@@ -292,9 +305,40 @@ function Conversation({
               </p>
             </div>
           </div>
-          <span className="hidden rounded-full bg-violet-50 px-3 py-1 text-[11px] text-indigo-600 dark:bg-indigo-950 dark:text-indigo-300 sm:block">
-            WhatsApp
-          </span>
+          <div className="flex shrink-0 items-center gap-2">
+            <span className="hidden rounded-full bg-violet-50 px-3 py-1 text-[11px] text-indigo-600 dark:bg-indigo-950 dark:text-indigo-300 sm:block">
+              WhatsApp
+            </span>
+            <button
+              type="button"
+              aria-label={`Delete chat with ${thread.contact_name || thread.destination}`}
+              disabled={removing}
+              className="rounded-full p-2 text-slate-400 hover:bg-rose-50 hover:text-rose-600 disabled:opacity-40 dark:hover:bg-rose-950/40"
+              onClick={async () => {
+                if (
+                  !window.confirm(
+                    `Delete the whole chat with ${thread.contact_name || thread.destination}? All ${thread.message_count} messages are removed for everyone on this account and cannot be recovered. Campaign contacts and opt-outs are kept.`,
+                  )
+                )
+                  return;
+                setRemoving(true);
+                try {
+                  await api.deleteThread(accountId, thread.destination);
+                  deleted(thread.destination);
+                } catch (e) {
+                  setNotice(errorText(e));
+                } finally {
+                  setRemoving(false);
+                }
+              }}
+            >
+              {removing ? (
+                <Loader2 size={16} className="animate-spin" />
+              ) : (
+                <Trash2 size={16} />
+              )}
+            </button>
+          </div>
         </header>
         <div
           className="min-h-0 flex-1 space-y-5 overflow-y-auto bg-[#f6f4ff] px-4 py-5 dark:bg-slate-950/60"
@@ -346,12 +390,19 @@ function Conversation({
                       aria-label="Delete message"
                       className="rounded p-1 hover:bg-black/10"
                       onClick={async () => {
-                        if (!window.confirm("Delete this message? This cannot be undone.")) return;
+                        if (
+                          !window.confirm(
+                            "Delete this message? This cannot be undone.",
+                          )
+                        )
+                          return;
                         try {
                           await api.deleteMessage(m.id);
                           setMessages((current) => ({
                             ...current,
-                            items: current.items.filter((item) => item.id !== m.id),
+                            items: current.items.filter(
+                              (item) => item.id !== m.id,
+                            ),
                             total: Math.max(0, current.total - 1),
                           }));
                           setNotice("Message deleted.");
