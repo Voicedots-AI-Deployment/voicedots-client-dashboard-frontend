@@ -111,7 +111,8 @@ export default function SlotInputs({
   /** When present, each text slot is chosen from these CSV columns instead of typed. */
   columns?: string[];
 }) {
-  const fields = template.slot_fields;
+  // An API response predating slot_fields must degrade, not crash the tab.
+  const fields = template.slot_fields || [];
   if (!fields.length)
     return (
       <p className="rounded-xl bg-violet-50/70 p-3 text-sm text-slate-600 dark:bg-slate-950 dark:text-slate-300">

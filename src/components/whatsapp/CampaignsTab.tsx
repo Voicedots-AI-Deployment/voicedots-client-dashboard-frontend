@@ -565,7 +565,7 @@ function CampaignEditor({
   const draft = campaign.status === "draft";
   const mapped =
     !!template &&
-    template.slot_fields.every((f) => mapping[f.slot]?.value.trim());
+    (template.slot_fields || []).every((f) => mapping[f.slot]?.value.trim());
   const step = !draft
     ? 4
     : preview && !preview.rejected_count
@@ -1027,7 +1027,7 @@ function CampaignEditor({
                   </div>
                 );
               })}
-              {template && !template.slot_fields.length && (
+              {template && !(template.slot_fields || []).length && (
                 <p className="rounded-xl bg-violet-50/70 p-3 text-xs text-slate-600 dark:bg-slate-950 dark:text-slate-300">
                   This template does not require any variable mapping.
                 </p>
@@ -1097,8 +1097,8 @@ function CampaignEditor({
                         {preview ? preview.valid : (result?.accepted ?? 0)}
                       </dd>
                     </div>
-                    {template.slot_fields.length ? (
-                      template.slot_fields.map((f) => (
+                    {(template.slot_fields || []).length ? (
+                      (template.slot_fields || []).map((f) => (
                         <div key={f.slot} className="flex gap-2">
                           <dt className="text-slate-400">{f.label}</dt>
                           <dd className="font-medium">

@@ -38,8 +38,17 @@ export default function Single({
   const missing = (template?.slot_fields || []).filter(
     (f) => !(values[f.slot] || "").trim(),
   );
-  const ready =
-    !!template && !missing.length && !!destination.trim() && consented;
+  // Every reason Send cannot run, in the order a person would fix them. A
+  // disabled button that explains nothing is indistinguishable from a broken
+  // one, which is exactly how this looked when consent was left unticked.
+  const blockers = [
+    !account.ready && "This WhatsApp sender is not connected yet.",
+    !template && "Choose an approved template.",
+    !destination.trim() && "Enter the recipient's WhatsApp number.",
+    missing.length > 0 && `Fill in ${missing.map((f) => f.label).join(", ")}.`,
+    !consented && "Tick the opt-in confirmation below.",
+  ].filter(Boolean) as string[];
+  const ready = !blockers.length;
   return (
     <div className="grid gap-5 lg:grid-cols-2">
       <form
@@ -125,16 +134,17 @@ export default function Single({
           />
           {consent}
         </label>
-        <button disabled={busy || !ready || !account.ready} className={button}>
+        <button disabled={busy || !ready} className={button}>
           {busy && <Loader2 size={16} className="animate-spin" />}
           <Send size={16} />
           Send message
         </button>
-        {template && missing.length > 0 && (
-          <p className="text-xs text-slate-500">
-            {missing.length} field{missing.length > 1 ? "s" : ""} still needed:{" "}
-            {missing.map((f) => f.label).join(", ")}
-          </p>
+        {blockers.length > 0 && (
+          <ul className="space-y-1 text-xs text-slate-500">
+            {blockers.map((reason) => (
+              <li key={reason}>· {reason}</li>
+            ))}
+          </ul>
         )}
         {sent && (
           <p
