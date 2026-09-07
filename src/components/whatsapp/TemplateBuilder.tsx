@@ -110,7 +110,7 @@ export default function TemplateBuilder({
         editing?.id,
       );
       await refresh();
-      notify("Template draft saved. Submit it when ready.");
+      notify("Draft saved. Submit it for approval when you are ready.");
       done();
     } catch (e) {
       notify(errorText(e));
@@ -127,7 +127,7 @@ export default function TemplateBuilder({
           {editing ? `Edit draft · ${editing.name}` : "Build a template"}
         </h2>
         <p className="mt-1 text-sm text-slate-500">
-          Meta reviews every template before it can be sent. The preview shows
+          Every template is reviewed before it can be sent. The preview shows
           exactly what a recipient sees.
         </p>
         <div className="mt-5 space-y-5">
@@ -265,8 +265,8 @@ export default function TemplateBuilder({
                   )}
                 </div>
                 <p className="text-xs text-slate-500">
-                  Meta reviews this file as the header example. Recipients see
-                  the media attached to each individual send.
+                  This file is used as the example for review. Each send
+                  attaches its own file to the header.
                 </p>
                 <Problem message={uploadError} />
               </div>
@@ -297,8 +297,7 @@ export default function TemplateBuilder({
             <div className="rounded-2xl bg-violet-50/70 p-4 dark:bg-slate-950">
               <h3 className="text-sm font-semibold">Variable examples</h3>
               <p className="mt-1 text-xs text-slate-500">
-                Meta reviews templates using these values, and the preview uses
-                them too.
+                These values are used for review and in the preview.
               </p>
               <div className="mt-3 space-y-3">
                 {keys.map((k) => (

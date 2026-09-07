@@ -129,7 +129,7 @@ export default function Templates({
             onClick={() =>
               action(
                 () => api.sync(account.id),
-                "Templates synchronized with Meta.",
+                "Your templates are up to date.",
               )
             }
           >
@@ -213,7 +213,7 @@ export default function Templates({
           <p className="p-8 text-center text-sm text-slate-500">
             {templates.length
               ? "No templates match these filters."
-              : "Create your first template or sync existing templates from Meta."}
+              : "Create your first template, or sync the ones already approved on your WhatsApp account."}
           </p>
         )}
         {rows.map((t) => (
@@ -240,10 +240,12 @@ export default function Templates({
               </div>
               {t.status === "REJECTED" && (
                 <div className="rounded-xl bg-rose-50 p-3 text-sm text-rose-700 dark:bg-rose-950/40 dark:text-rose-300">
-                  <p className="font-semibold">Meta rejected this template.</p>
+                  <p className="font-semibold">
+                    This template was not approved.
+                  </p>
                   <p className="mt-1">
                     {t.error ||
-                      "No reason was supplied. Duplicate it, revise the wording and submit the copy."}
+                      "No reason was given. Duplicate it, revise the wording, and submit the copy."}
                   </p>
                 </div>
               )}
@@ -252,8 +254,7 @@ export default function Templates({
               )}
               {!t.supported && (
                 <p className="text-sm text-amber-600">
-                  Media headers can be built and submitted, but sending one
-                  needs per-recipient media, which arrives with media messaging.
+                  This template uses features this dashboard cannot send yet.
                 </p>
               )}
               <div className="flex flex-wrap gap-2">
@@ -272,12 +273,12 @@ export default function Templates({
                       onClick={() =>
                         action(
                           () => api.submitTemplate(t.id),
-                          "Template submitted. Sync to check approval.",
+                          "Template submitted for approval. This usually takes a few minutes.",
                         )
                       }
                     >
                       <Send size={14} />
-                      Submit to Meta
+                      Submit for approval
                     </button>
                   </>
                 )}
@@ -302,7 +303,7 @@ export default function Templates({
                     const warning =
                       t.status === EDITABLE
                         ? `Delete the draft "${t.name}"?`
-                        : `Delete "${t.name}" (${t.language}) from Meta as well? This cannot be undone.`;
+                        : `Delete "${t.name}" (${t.language})? It is removed from your WhatsApp account too and cannot be recovered.`;
                     if (window.confirm(warning))
                       void action(
                         () => api.deleteTemplate(t.id),

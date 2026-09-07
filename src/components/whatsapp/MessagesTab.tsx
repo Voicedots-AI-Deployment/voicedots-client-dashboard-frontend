@@ -19,7 +19,7 @@ import type {
   Thread,
 } from "@/api/whatsapp";
 import { whatsappApi as api } from "@/api/whatsapp";
-import { card, secondary, emptyPage, errorText } from "./shared";
+import { card, secondary, emptyPage, errorText, statusLabel } from "./shared";
 import { Badge, Pager } from "./WhatsAppUi";
 import Single from "./SingleMessageTab";
 import Composer from "./Composer";
@@ -438,7 +438,7 @@ function Conversation({
                     </time>
                     {m.direction === "outbound" && (
                       <>
-                        <span>{m.status}</span>
+                        <span>{statusLabel(m.status)}</span>
                         {["delivered", "read"].includes(m.status) && (
                           <CheckCheck size={13} />
                         )}

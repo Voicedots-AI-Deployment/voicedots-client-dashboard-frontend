@@ -33,3 +33,45 @@ export function readableSize(bytes: number) {
   }
   return `${value >= 10 || unit === 0 ? Math.round(value) : value.toFixed(1)} ${units[unit]}`;
 }
+
+/** Plain-language labels for the states a message or template moves through.
+ *  Internal names like "accepted" or "queued" describe our plumbing, not what
+ *  happened to the customer's message, so they never reach the screen. */
+const MESSAGE_STATUS: Record<string, string> = {
+  queued: "Sending",
+  sending: "Sending",
+  accepted: "Sent",
+  sent: "Sent",
+  delivered: "Delivered",
+  read: "Read",
+  received: "Received",
+  failed: "Not delivered",
+  blocked: "Not sent",
+  cancelled: "Cancelled",
+  unknown: "Awaiting confirmation",
+};
+const TEMPLATE_STATUS: Record<string, string> = {
+  DRAFT: "Draft",
+  SUBMITTING: "Submitting",
+  PENDING: "In review",
+  APPROVED: "Approved",
+  REJECTED: "Not approved",
+  PAUSED: "Paused",
+  DISABLED: "Disabled",
+  UNKNOWN: "Awaiting confirmation",
+};
+const CAMPAIGN_STATUS: Record<string, string> = {
+  draft: "Draft",
+  running: "Sending",
+  completed: "Completed",
+  completed_with_errors: "Completed with errors",
+  cancelled: "Cancelled",
+};
+export function statusLabel(value: string) {
+  return (
+    MESSAGE_STATUS[value] ??
+    TEMPLATE_STATUS[value] ??
+    CAMPAIGN_STATUS[value] ??
+    value.replaceAll("_", " ")
+  );
+}

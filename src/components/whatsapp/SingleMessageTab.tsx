@@ -151,7 +151,8 @@ export default function Single({
             role="status"
             className="text-sm text-emerald-700 dark:text-emerald-400"
           >
-            Queued as {sent.status}. Delivery updates arrive from WhatsApp.
+            Message sent to {sent.destination}. You will see it marked delivered
+            and read in the conversation.
           </p>
         )}
       </form>
