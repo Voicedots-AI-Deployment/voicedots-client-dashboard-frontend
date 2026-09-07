@@ -50,6 +50,7 @@ export type Template = {
   slots: string[];
   slot_fields: SlotField[];
   header_type: HeaderFormat;
+  has_header_media: boolean;
   button_count: number;
   created_at: string;
   updated_at: string;
@@ -177,6 +178,14 @@ export const whatsappApi = {
         params: { account_id, ...filters },
       })
     ).data,
+  /** The approved header image/video/document, resolved from Meta on demand.
+   *  Authenticated like every other media read, so it is fetched as a blob. */
+  fetchTemplateHeader: async (id: string) => {
+    const res = await apiClient.get(`${base}/templates/${id}/header`, {
+      responseType: "blob",
+    });
+    return URL.createObjectURL(res.data);
+  },
   duplicateTemplate: async (id: string) =>
     (await apiClient.post<Template>(`${base}/templates/${id}/duplicate`)).data,
   saveTemplate: async (data: TemplateInput, id?: string) =>

@@ -147,7 +147,10 @@ export default function Single({
       </form>
       <div className={`${card} p-4`}>
         {template ? (
-          <TemplatePreview draft={previewOf(template, values)} />
+          <TemplatePreview
+            draft={previewOf(template, values)}
+            templateId={template.id}
+          />
         ) : (
           <p className="p-6 text-center text-sm text-slate-500">
             Select an approved template to preview the exact message.

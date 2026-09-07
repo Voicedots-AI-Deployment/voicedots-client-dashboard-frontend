@@ -28,6 +28,8 @@ import type {
 } from "@/api/whatsapp";
 import { whatsappApi as api } from "@/api/whatsapp";
 import { MediaHeaderPicker } from "./SlotInputs";
+import TemplatePreview from "./TemplatePreview";
+import { structureOf } from "./templateRules";
 import {
   card,
   input,
@@ -1079,6 +1081,46 @@ function CampaignEditor({
                     : "Awaiting validation"}
                 </span>
               </div>
+              {/* The campaign shows the same rendering as the builder and the
+                  chat, including the approved header image, so what is confirmed
+                  here is what recipients receive. */}
+              {template && (
+                <div className="mt-4 grid items-start gap-4 sm:grid-cols-[minmax(0,1fr)_260px]">
+                  <dl className="space-y-1.5 text-xs">
+                    <div className="flex gap-2">
+                      <dt className="text-slate-400">Template</dt>
+                      <dd className="font-medium">{template.name}</dd>
+                    </div>
+                    <div className="flex gap-2">
+                      <dt className="text-slate-400">Recipients</dt>
+                      <dd className="font-medium">
+                        {preview ? preview.valid : (result?.accepted ?? 0)}
+                      </dd>
+                    </div>
+                    {template.slot_fields.length ? (
+                      template.slot_fields.map((f) => (
+                        <div key={f.slot} className="flex gap-2">
+                          <dt className="text-slate-400">{f.label}</dt>
+                          <dd className="font-medium">
+                            →{" "}
+                            {mapping[f.slot]?.source === "media"
+                              ? "uploaded file"
+                              : mapping[f.slot]?.value || "not mapped"}
+                          </dd>
+                        </div>
+                      ))
+                    ) : (
+                      <div className="text-slate-500">
+                        This template does not require variable mapping.
+                      </div>
+                    )}
+                  </dl>
+                  <TemplatePreview
+                    draft={structureOf(template)}
+                    templateId={template.id}
+                  />
+                </div>
+              )}
               {preview ? (
                 <>
                   <div className="mt-4 max-h-[600px] space-y-3 overflow-y-auto">

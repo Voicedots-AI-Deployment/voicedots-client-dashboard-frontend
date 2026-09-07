@@ -69,7 +69,9 @@ export default function TemplateBuilder({
     [headerFile, setHeaderFile] = useState(
       editing?.structure.header.handle ? "Uploaded" : "",
     ),
-    [uploadError, setUploadError] = useState("");
+    [uploadError, setUploadError] = useState(""),
+    // Preview the chosen file at once; Meta holds no asset until it is saved.
+    [headerLocal, setHeaderLocal] = useState("");
   const headerPicker = useRef<HTMLInputElement>(null);
   const errors = useMemo(() => validate(name, draft), [name, draft]);
   const keys = bodyKeys(draft.body);
@@ -230,6 +232,10 @@ export default function TemplateBuilder({
                         header: { ...draft.header, handle: result.handle },
                       });
                       setHeaderFile(result.filename);
+                      setHeaderLocal((current) => {
+                        if (current) URL.revokeObjectURL(current);
+                        return URL.createObjectURL(file);
+                      });
                     } catch (error) {
                       setUploadError(errorText(error));
                     } finally {
@@ -458,7 +464,11 @@ export default function TemplateBuilder({
       </section>
       <aside className="xl:sticky xl:top-4 xl:self-start">
         <div className={`${card} p-4`}>
-          <TemplatePreview draft={draft} />
+          <TemplatePreview
+            draft={draft}
+            templateId={editing?.id}
+            localPreview={headerLocal}
+          />
         </div>
       </aside>
     </div>

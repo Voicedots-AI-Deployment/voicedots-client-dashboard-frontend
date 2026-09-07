@@ -219,7 +219,7 @@ export default function Templates({
         {rows.map((t) => (
           <article
             key={t.id}
-            className="grid gap-4 p-5 lg:grid-cols-[1fr_300px]"
+            className="grid items-start gap-4 p-5 lg:grid-cols-[1fr_300px]"
           >
             <div className="min-w-0 space-y-3">
               <div className="flex flex-wrap items-start justify-between gap-2">
@@ -318,7 +318,7 @@ export default function Templates({
                 )}
               </div>
             </div>
-            <TemplatePreview draft={structureOf(t)} />
+            <TemplatePreview draft={structureOf(t)} templateId={t.id} />
           </article>
         ))}
       </div>
