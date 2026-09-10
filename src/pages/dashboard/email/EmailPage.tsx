@@ -4,9 +4,6 @@ import { NavLink, Outlet } from "react-router-dom";
 const tabs = [
   ["Inbox", "/dashboard/communications/email/inbox"],
   ["Single Email", "/dashboard/communications/email/single"],
-  ["Templates", "/dashboard/communications/email/templates"],
-  ["Campaigns", "/dashboard/communications/email/campaigns"],
-  ["Automations", "/dashboard/communications/email/automations"],
   ["Settings", "/dashboard/communications/email/settings"],
 ];
 
