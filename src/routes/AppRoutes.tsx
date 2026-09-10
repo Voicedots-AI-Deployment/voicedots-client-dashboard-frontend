@@ -3,6 +3,7 @@ import { lazy, Suspense } from "react";
 import AuthLayout from "../layouts/AuthLayout";
 import DashboardLayout from "../layouts/DashboardLayout";
 import ProtectedRoute from "@/routes/ProtectedRoute";
+import EmailFeatureGuard from "@/routes/EmailFeatureGuard";
 
 const LoginPage = lazy(() => import("../pages/LoginPage"));
 const HomePage = lazy(() => import("@/pages/dashboard/HomePage").then((module) => ({ default: module.HomePage })));
@@ -15,6 +16,12 @@ const SettingsPage = lazy(() => import("@/pages/dashboard/SettingsPage"));
 const CallingPage = lazy(() => import("@/pages/dashboard/communications/CallingPage"));
 const WhatsAppPage = lazy(() => import("@/pages/dashboard/communications/WhatsAppPage"));
 const EmailPage = lazy(() => import("@/pages/dashboard/email/EmailPage"));
+const InboxPage = lazy(() => import("@/pages/dashboard/email/EmailWorkspacePages").then((m) => ({ default: m.InboxPage })));
+const SingleEmailPage = lazy(() => import("@/pages/dashboard/email/EmailWorkspacePages").then((m) => ({ default: m.SingleEmailPage })));
+const EmailTemplatesPage = lazy(() => import("@/pages/dashboard/email/EmailWorkspacePages").then((m) => ({ default: m.TemplatesPage })));
+const EmailCampaignsPage = lazy(() => import("@/pages/dashboard/email/EmailWorkspacePages").then((m) => ({ default: m.CampaignsPage })));
+const EmailAutomationsPage = lazy(() => import("@/pages/dashboard/email/EmailWorkspacePages").then((m) => ({ default: m.AutomationsPage })));
+const EmailSettingsPage = lazy(() => import("@/pages/dashboard/email/EmailWorkspacePages").then((m) => ({ default: m.EmailSettingsPage })));
 
 const PageLoader = () => <div className="flex min-h-48 items-center justify-center text-sm font-medium text-slate-500">Loading…</div>;
 
@@ -53,10 +60,19 @@ const AppRoutes = () => {
           <Route path="communications/calling" element={<CallingPage />} />
           <Route path="communications/whatsapp" element={<WhatsAppPage />} />
 
-          {/* EMAIL SERVICES */}
-          <Route path="email" element={<EmailPage />} />
-          <Route path="email/sender" element={<Navigate to="/dashboard/email" replace />} />
-          <Route path="email/templates" element={<Navigate to="/dashboard/email" replace />} />
+          {/* EMAIL SERVICES — organization entitlement required */}
+          <Route element={<EmailFeatureGuard />}>
+            <Route path="communications/email" element={<EmailPage />}>
+              <Route index element={<Navigate to="inbox" replace />} />
+              <Route path="inbox" element={<InboxPage />} />
+              <Route path="single" element={<SingleEmailPage />} />
+              <Route path="templates" element={<EmailTemplatesPage />} />
+              <Route path="campaigns" element={<EmailCampaignsPage />} />
+              <Route path="automations" element={<EmailAutomationsPage />} />
+              <Route path="settings" element={<EmailSettingsPage />} />
+            </Route>
+          </Route>
+          <Route path="email/*" element={<Navigate to="/dashboard/communications/email" replace />} />
 
           {/* KNOWLEDGE BASE */}
           <Route path="knowledge" element={<KnowledgePage />} />

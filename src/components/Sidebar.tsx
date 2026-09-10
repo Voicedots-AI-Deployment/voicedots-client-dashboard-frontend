@@ -6,6 +6,7 @@ import { useNavigate, useLocation } from "react-router-dom";
 import authApi from "@/api/authApi";
 import SidebarLogo from "./SideBarLogo";
 import { useAuth } from "@/context/AuthContext";
+import { useEmailCapabilities } from "@/hooks/useEmailCapabilities";
 
 interface SidebarProps {
   isOpen: boolean;
@@ -31,6 +32,7 @@ export function Sidebar({ isOpen, onClose, isCollapsed }: SidebarProps) {
   const navigate = useNavigate();
   const location = useLocation();
   const { logout } = useAuth();
+  const { enabled: emailEnabled } = useEmailCapabilities();
 
   const navItems: NavItem[] = [
     { id: "home", icon: Home, label: "Home", path: "/dashboard" },
@@ -43,14 +45,14 @@ export function Sidebar({ isOpen, onClose, isCollapsed }: SidebarProps) {
       children: [
         { id: "calling", label: "AI Calling", path: "/dashboard/communications/calling" },
         { id: "whatsapp", label: "WhatsApp", path: "/dashboard/communications/whatsapp" },
-        { id: "email", label: "Email", path: "/dashboard/email" },
+        ...(emailEnabled ? [{ id: "email", label: "Email", path: "/dashboard/communications/email" }] : []),
       ],
     },
     { id: "settings", icon: Settings, label: "Settings", path: "/dashboard/settings" },
   ];
 
   // A group owns its children's routes, which do not all sit under its own path
-  // (the email pages live at /dashboard/email/* but belong to Communications).
+  // Email is entitlement-gated and lives inside Communications.
   const inGroup = (item: NavItem) =>
     location.pathname.startsWith(item.path) ||
     !!item.children?.some((c) => location.pathname.startsWith(c.path));
