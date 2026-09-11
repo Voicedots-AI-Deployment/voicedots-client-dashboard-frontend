@@ -4,6 +4,8 @@ import { NavLink, Outlet } from "react-router-dom";
 const tabs = [
   ["Inbox", "/dashboard/communications/gmail/inbox"],
   ["Compose", "/dashboard/communications/gmail/single"],
+  ["Templates", "/dashboard/communications/gmail/templates"],
+  ["Campaigns", "/dashboard/communications/gmail/campaigns"],
   ["Settings", "/dashboard/communications/gmail/settings"],
 ];
 
