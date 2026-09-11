@@ -2,9 +2,9 @@ import { Mail } from "lucide-react";
 import { NavLink, Outlet } from "react-router-dom";
 
 const tabs = [
-  ["Inbox", "/dashboard/communications/email/inbox"],
-  ["Single Email", "/dashboard/communications/email/single"],
-  ["Settings", "/dashboard/communications/email/settings"],
+  ["Inbox", "/dashboard/communications/gmail/inbox"],
+  ["Compose", "/dashboard/communications/gmail/single"],
+  ["Settings", "/dashboard/communications/gmail/settings"],
 ];
 
 export default function EmailPage() {
@@ -14,8 +14,8 @@ export default function EmailPage() {
         <div className="flex items-center gap-3">
           <span className="rounded-xl bg-indigo-600 p-3 text-white"><Mail size={22} /></span>
           <div>
-            <h1 className="text-2xl font-bold">Email</h1>
-            <p className="text-sm text-slate-500">Manage connected mailboxes, conversations and outbound Email.</p>
+            <h1 className="text-2xl font-bold">Gmail</h1>
+            <p className="text-sm text-slate-500">Manage the connected Gmail mailbox, conversations and outgoing messages.</p>
           </div>
         </div>
         <nav className="mt-6 flex gap-2 overflow-x-auto">

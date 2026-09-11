@@ -45,14 +45,14 @@ export function Sidebar({ isOpen, onClose, isCollapsed }: SidebarProps) {
       children: [
         { id: "calling", label: "AI Calling", path: "/dashboard/communications/calling" },
         { id: "whatsapp", label: "WhatsApp", path: "/dashboard/communications/whatsapp" },
-        ...(emailEnabled ? [{ id: "email", label: "Email", path: "/dashboard/communications/email" }] : []),
+        ...(emailEnabled ? [{ id: "gmail", label: "Gmail", path: "/dashboard/communications/gmail" }] : []),
       ],
     },
     { id: "settings", icon: Settings, label: "Settings", path: "/dashboard/settings" },
   ];
 
   // A group owns its children's routes, which do not all sit under its own path
-  // Email is entitlement-gated and lives inside Communications.
+  // Gmail is entitlement-gated and lives inside Communications.
   const inGroup = (item: NavItem) =>
     location.pathname.startsWith(item.path) ||
     !!item.children?.some((c) => location.pathname.startsWith(c.path));
