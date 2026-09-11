@@ -10,6 +10,7 @@ const emailApi = {
   accounts: async () => (await apiClient.get<{ accounts: EmailAccount[] }>("/v3/email/accounts")).data.accounts,
   connect: async (provider: "google" | "microsoft") => (await apiClient.post<{ authorization_url: string }>(`/v3/email/oauth/${provider}/start`)).data,
   disconnect: async (id: string) => apiClient.delete(`/v3/email/accounts/${id}`),
+  reconnect: async (id: string) => (await apiClient.post<{ authorization_url: string }>(`/v3/email/accounts/${id}/reconnect`)).data,
   sync: async (id: string) => (await apiClient.post(`/v3/email/accounts/${id}/sync`)).data,
   threads: async () => (await apiClient.get<{ threads: EmailThread[] }>("/v3/email/threads")).data,
   thread: async (id: string) => (await apiClient.get<EmailThreadDetail>(`/v3/email/threads/${id}`)).data,

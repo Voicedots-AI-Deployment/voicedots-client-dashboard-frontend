@@ -60,9 +60,9 @@ const AppRoutes = () => {
           <Route path="communications/calling" element={<CallingPage />} />
           <Route path="communications/whatsapp" element={<WhatsAppPage />} />
 
-          {/* EMAIL SERVICES — organization entitlement required */}
+          {/* GMAIL CHANNEL — organization entitlement required */}
           <Route element={<EmailFeatureGuard />}>
-            <Route path="communications/email" element={<EmailPage />}>
+            <Route path="communications/gmail" element={<EmailPage />}>
               <Route index element={<Navigate to="inbox" replace />} />
               <Route path="inbox" element={<InboxPage />} />
               <Route path="single" element={<SingleEmailPage />} />
@@ -72,7 +72,8 @@ const AppRoutes = () => {
               <Route path="settings" element={<EmailSettingsPage />} />
             </Route>
           </Route>
-          <Route path="email/*" element={<Navigate to="/dashboard/communications/email" replace />} />
+          <Route path="communications/email/*" element={<Navigate to="/dashboard/communications/gmail" replace />} />
+          <Route path="email/*" element={<Navigate to="/dashboard/communications/gmail" replace />} />
 
           {/* KNOWLEDGE BASE */}
           <Route path="knowledge" element={<KnowledgePage />} />
