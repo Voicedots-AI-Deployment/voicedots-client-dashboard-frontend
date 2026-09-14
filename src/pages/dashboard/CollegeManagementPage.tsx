@@ -9,7 +9,7 @@ const button = 'inline-flex items-center justify-center gap-2 rounded-xl border 
 const primary = `${button} border-indigo-600 bg-indigo-600 text-white`;
 const list = (value: FormDataEntryValue | null) => String(value || '').split(',').map(v => v.trim()).filter(Boolean);
 const formatDate = (value?: string) => value ? new Date(value).toLocaleString() : 'Not scheduled';
-function localDate(value?: string) { if (!value) return ''; const d = new Date(value); return new Date(d.getTime() - d.getTimezoneOffset() * 60000).toISOString().slice(0, 16); }
+function localDate(value?: string) { if (!value) return ''; const d = new Date(value); if (!Number.isFinite(d.getTime())) return ''; return new Date(d.getTime() - d.getTimezoneOffset() * 60000).toISOString().slice(0, 16); }
 function Badge({ children }: { children: ReactNode }) { return <span className="inline-flex rounded-full bg-indigo-50 px-2.5 py-1 text-xs font-semibold capitalize text-indigo-700 dark:bg-indigo-950 dark:text-indigo-200">{children}</span>; }
 function Field({ label, children, wide = false }: { label: string; children: ReactNode; wide?: boolean }) { return <label className={`block min-w-0 text-sm font-medium ${wide ? 'sm:col-span-2' : ''}`}>{label}{children}</label>; }
 function Modal({ title, close, children, busy }: { title: string; close: () => void; children: ReactNode; busy: boolean }) {
