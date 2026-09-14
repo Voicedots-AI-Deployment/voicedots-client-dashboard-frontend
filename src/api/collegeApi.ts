@@ -1,6 +1,6 @@
 import axios from 'axios';
 import { apiClient } from './apiClient';
-export type CollegeAccess = { enabled: boolean; college_name?: string };
+export type CollegeAccess = { enabled: boolean; college_id?:string; college_name?: string };
 export type Drive = { id: string; company_name: string; role_title: string; status: string; job_type?: string; location?: string; jd_raw_text?: string; window_start_at?: string; window_end_at?: string; interview_duration_minutes?: number; criteria_min_cgpa?: number; criteria_department_codes?: string[]; criteria_programs?: string[]; criteria_graduation_years?: number[]; latest_snapshot_eligible_count?: number; assignment_count?: number };
 export type CollegeStudent = { batch_label?:string; attendance?:{attempts:number;completed:number;last_attended_at:string|null}; id: string; full_name: string; email: string; roll_number: string; phone?: string; program: string; department_code: string; graduation_year: number; cgpa?: number; status: string };
 export type Program = { code: string; display_name: string; duration_years: number; departments: { code: string; display_name: string }[] };
