@@ -78,6 +78,7 @@ test('student roster and academic setup work on a phone', async ({ page }) => {
   await page.getByLabel('Email', { exact: true }).fill('student@example.edu');
   await page.getByLabel('Phone', { exact: true }).fill('+919876543210');
   await page.getByLabel('CGPA', { exact: true }).fill('8.2');
+  await page.locator('input[name=photo]').setInputFiles({ name: 'student.jpg', mimeType: 'image/jpeg', buffer: Buffer.from('reference-photo') });
   let payload: Record<string, unknown> = {};
   await page.route('**/v3/college/students', route => {
     if (route.request().method() !== 'POST') return route.fallback();
@@ -86,6 +87,7 @@ test('student roster and academic setup work on a phone', async ({ page }) => {
   });
   await page.getByRole('button', { name: 'Save student' }).click();
   await expect(page.getByText('Student added.', { exact: false })).toBeVisible();
+  expect(payload.photo).toMatch(/^data:image\/jpeg;base64,/);
   expect(payload.program).toBe('B.Tech');
   expect(payload.department_code).toBe('CSE');
   await page.getByRole('button', { name: 'Academic setup', exact: true }).click();
