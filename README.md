@@ -71,3 +71,21 @@ export default defineConfig([
   },
 ])
 ```
+
+## College management
+
+College staff use their existing client login and **College management** in the
+sidebar (`/dashboard/college`). Access is enabled only after VoiceDots explicitly
+links the client account to a real college. The page manages placement drives,
+student rosters, programs and departments through the client API at
+`/v3/college/*`; no separate admin-portal login or student-service key is needed.
+Keep `VITE_API_URL` pointing to the client backend.
+
+The student backend enforces college isolation and eligibility. Only active drives
+are visible to qualifying students at `https://students.voicedots.io`. Creating a
+complete drive can automatically evaluate eligibility and activate it; backend
+validation messages and partial-save warnings are displayed in the form/page.
+
+Run the browser contract checks with `npm test` (install Chromium using
+`npx playwright install chromium` first). These mock API responses and do not
+create live colleges, accounts or placements.

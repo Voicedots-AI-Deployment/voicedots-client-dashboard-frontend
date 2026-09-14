@@ -5,6 +5,7 @@ import DashboardLayout from "../layouts/DashboardLayout";
 import ProtectedRoute from "@/routes/ProtectedRoute";
 import EmailFeatureGuard from "@/routes/EmailFeatureGuard";
 
+const CollegeManagementPage = lazy(() => import("@/pages/dashboard/CollegeManagementPage"));
 const LoginPage = lazy(() => import("../pages/LoginPage"));
 const HomePage = lazy(() => import("@/pages/dashboard/HomePage").then((module) => ({ default: module.HomePage })));
 const ConversationsPage = lazy(() => import("@/pages/dashboard/ConversationsPage").then((module) => ({ default: module.ConversationsPage })));
@@ -77,6 +78,8 @@ const AppRoutes = () => {
 
           {/* KNOWLEDGE BASE */}
           <Route path="knowledge" element={<KnowledgePage />} />
+
+          <Route path="college" element={<CollegeManagementPage />} />
 
           {/* SETTINGS */}
           <Route path="settings" element={<SettingsPage />} />
