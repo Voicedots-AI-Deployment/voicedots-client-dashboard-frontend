@@ -40,3 +40,8 @@ lint_output.txt
 .env
 .env.local
 .env*.local
+.vercel
+
+# Browser verification artifacts
+test-results/
+playwright-report/

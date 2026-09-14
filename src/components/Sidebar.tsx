@@ -1,11 +1,12 @@
 import { useState } from "react";
 import {
-  Home, MessageSquare, Settings, LogOut, Users, Radio, ChevronDown, BookOpen, TicketCheck,
+  GraduationCap, Home, MessageSquare, Settings, LogOut, Users, Radio, ChevronDown, BookOpen, TicketCheck,
 } from "lucide-react";
 import { useNavigate, useLocation } from "react-router-dom";
 import authApi from "@/api/authApi";
 import SidebarLogo from "./SideBarLogo";
 import { useAuth } from "@/context/AuthContext";
+import { useCollegeAccess } from "@/hooks/useCollegeAccess";
 import { useEmailCapabilities } from "@/hooks/useEmailCapabilities";
 
 interface SidebarProps {
@@ -32,6 +33,7 @@ export function Sidebar({ isOpen, onClose, isCollapsed }: SidebarProps) {
   const navigate = useNavigate();
   const location = useLocation();
   const { logout } = useAuth();
+  const { access: collegeAccess } = useCollegeAccess();
   const { enabled: emailEnabled } = useEmailCapabilities();
 
   const navItems: NavItem[] = [
@@ -48,6 +50,7 @@ export function Sidebar({ isOpen, onClose, isCollapsed }: SidebarProps) {
         ...(emailEnabled ? [{ id: "gmail", label: "Gmail", path: "/dashboard/communications/gmail" }] : []),
       ],
     },
+    ...(collegeAccess?.enabled ? [{ id: "college", icon: GraduationCap, label: "College management", path: "/dashboard/college" }] : []),
     { id: "settings", icon: Settings, label: "Settings", path: "/dashboard/settings" },
   ];
 
