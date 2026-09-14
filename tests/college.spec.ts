@@ -86,3 +86,15 @@ test('student roster and academic setup work on a phone', async ({ page }) => {
   expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(390);
   await page.screenshot({ path: 'test-results/college-management-mobile.png', fullPage: true });
 });
+
+test('drive editor handles an invalid stored date without crashing', async ({ page }) => {
+  await setup(page);
+  await page.route('**/v3/college/drives/drive-1', route => route.fulfill({json:{
+    id:'drive-1',company_name:'Example Company',role_title:'Engineer',status:'draft',
+    window_start_at:'invalid',window_end_at:'2027-01-11T12:30:00Z',
+  }}));
+  await page.getByRole('button',{name:'Edit drive',exact:true}).click();
+  await expect(page.getByRole('dialog')).toBeVisible();
+  await expect(page.getByLabel('Interview start')).toHaveValue('');
+  await expect(page.getByLabel('Company',{exact:true})).toHaveValue('Example Company');
+});
