@@ -50,7 +50,7 @@ export function Sidebar({ isOpen, onClose, isCollapsed }: SidebarProps) {
         ...(emailEnabled ? [{ id: "gmail", label: "Gmail", path: "/dashboard/communications/gmail" }] : []),
       ],
     },
-    ...(collegeAccess?.enabled ? [{ id: "college", icon: GraduationCap, label: "Placement management", path: "/dashboard/placement-management" }] : []),
+    ...(collegeAccess?.enabled ? [{ id: "college", icon: GraduationCap, label: "Placement management", path: "/dashboard/placement-management" }, { id: "attendance", icon: GraduationCap, label: "Attendance & staff", path: "/dashboard/attendance" }] : []),
     { id: "settings", icon: Settings, label: "Settings", path: "/dashboard/settings" },
   ];
 

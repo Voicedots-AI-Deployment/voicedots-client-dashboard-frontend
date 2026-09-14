@@ -257,6 +257,25 @@ export default function Templates({
                   This template uses features this dashboard cannot send yet.
                 </p>
               )}
+              <div className="rounded-2xl bg-violet-50/70 p-4 dark:bg-slate-950/70">
+                <p className="text-[10px] font-semibold uppercase tracking-wider text-slate-400">
+                  Message content
+                </p>
+                <p className="mt-2 whitespace-pre-wrap break-words text-sm leading-relaxed text-slate-700 dark:text-slate-200">
+                  {t.body || "No message body"}
+                </p>
+                <div className="mt-3 flex flex-wrap gap-2 text-[10px] font-medium text-slate-500">
+                  <span className="rounded-full bg-white px-2.5 py-1 dark:bg-slate-800">
+                    {(t.header_type || "NONE").toLowerCase()} header
+                  </span>
+                  <span className="rounded-full bg-white px-2.5 py-1 dark:bg-slate-800">
+                    {(t.slot_fields || []).filter((field) => field.kind === "text").length} variable fields
+                  </span>
+                  <span className="rounded-full bg-white px-2.5 py-1 dark:bg-slate-800">
+                    {t.button_count || 0} buttons
+                  </span>
+                </div>
+              </div>
               <div className="flex flex-wrap gap-2">
                 {t.status === EDITABLE && (
                   <>

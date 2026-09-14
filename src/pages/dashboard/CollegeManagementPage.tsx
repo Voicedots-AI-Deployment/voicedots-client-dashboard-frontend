@@ -93,8 +93,15 @@ export default function CollegeManagementPage() {
     e.preventDefault(); const f = new FormData(e.currentTarget); setBusy(true); setFormError('');
     const current = studentForm && studentForm !== 'new' ? studentForm : null;
     const payload = { full_name: f.get('full_name'), roll_number: f.get('roll_number'), email: f.get('email'), phone: f.get('phone'), program: studentProgram, department_code: f.get('department'), graduation_year: Number(f.get('year')), cgpa: Number(f.get('cgpa')), status: f.get('status') };
-    try { await collegeApi.save(current ? `students/${current.id}` : 'students', payload, !!current); setStudentForm(null); setNotice(current ? 'Student updated.' : 'Student added. They can set up their password on the student portal using their email and roll number.'); refresh(); }
-    catch (err) { setFormError(collegeError(err)); } finally { setBusy(false); }
+    try {
+      let photo: string | undefined;
+      if (!current) {
+        const file = f.get('photo');
+        if (!(file instanceof File) || !file.size || file.size > 2 * 1024 * 1024) throw new Error('Choose a student photo up to 2 MB.');
+        photo = await new Promise<string>((resolve, reject) => { const reader = new FileReader(); reader.onload = () => resolve(String(reader.result)); reader.onerror = () => reject(new Error('Could not read the student photo.')); reader.readAsDataURL(file); });
+      }
+      await collegeApi.save(current ? `students/${current.id}` : 'students', { ...payload, ...(photo ? { photo } : {}) }, !!current); setStudentForm(null); setNotice(current ? 'Student updated.' : 'Student added. They can set up their password on the student portal using their email and roll number.'); refresh(); }
+    catch (err) { setFormError(err instanceof Error && !('isAxiosError' in err) ? err.message : collegeError(err)); } finally { setBusy(false); }
   }
   if (accessLoading) return <p role="status" className="p-8 text-slate-500">Loading placement workspace…</p>;
   if (accessError) return <div role="alert" className={`${card} p-8`}><p>{accessError}</p><button className={`${button} mt-4`} onClick={retry}>Retry</button></div>;
@@ -146,6 +153,7 @@ export default function CollegeManagementPage() {
     </form></Modal>}
     {studentForm && <Modal title={currentStudent ? 'Edit student' : 'Add student'} busy={busy} close={() => setStudentForm(null)}><form onSubmit={saveStudent} className="grid gap-4 sm:grid-cols-2">
       {formError && <p role="alert" className="text-sm text-rose-600 sm:col-span-2">{formError}</p>}
+      {!currentStudent && <Field label="Student reference photo"><input className={input} name="photo" type="file" accept="image/jpeg,image/png" required /><p className="mt-1 text-xs text-slate-500">A clear photo containing only this student. Up to 2 MB.</p></Field>}
       <Field label="Full name"><input className={input} name="full_name" required defaultValue={currentStudent?.full_name} /></Field><Field label="Roll number"><input className={input} name="roll_number" required readOnly={!!currentStudent} defaultValue={currentStudent?.roll_number} /></Field><Field label="Email"><input className={input} name="email" type="email" required defaultValue={currentStudent?.email} /></Field><Field label="Phone"><input className={input} name="phone" type="tel" required defaultValue={currentStudent?.phone} /></Field>
       <Field label="Program"><select className={input} value={studentProgram} onChange={e => setStudentProgram(e.target.value)} required>{programs.map(p => <option key={p.code}>{p.code}</option>)}</select></Field><Field label="Department"><select key={studentProgram} className={input} name="department" required defaultValue={currentStudent?.department_code}>{programs.find(p => p.code === studentProgram)?.departments.map(d => <option key={d.code} value={d.code}>{displayName(d.display_name)} ({d.code})</option>)}</select></Field>
       <Field label="Graduation year"><input className={input} name="year" type="number" min={2000} max={2100} required defaultValue={currentStudent?.graduation_year || new Date().getFullYear() + 1} /></Field><Field label="CGPA"><input className={input} name="cgpa" type="number" min={0} max={10} step="0.01" required defaultValue={currentStudent?.cgpa} /></Field><Field label="Status"><select className={input} name="status" defaultValue={currentStudent?.status || 'active'}><option value="active">Active</option><option value="inactive">Inactive</option><option value="placed">Placed</option></select></Field>

@@ -44,19 +44,54 @@ import Messages from "./MessagesTab";
 
 const label = "text-[10px] font-medium uppercase tracking-wider text-slate-500";
 const rate = (value?: number | null) => (value == null ? "—" : `${value}%`);
-function SampleDownload() {
+function csvCell(value: string) {
+  return /[",\n\r]/.test(value) ? `"${value.replace(/"/g, '""')}"` : value;
+}
+function SampleDownload({
+  template,
+  mapping,
+}: {
+  template?: Template;
+  mapping: Record<string, Binding>;
+}) {
   const download = () => {
+    const structure = template ? structureOf(template) : undefined;
+    const used = new Set(["name", "phone"]);
+    const extra = (template?.slot_fields || [])
+      .filter((field) => field.kind === "text")
+      .map((field, position) => {
+        const mapped = mapping[field.slot];
+        const fallback = field.label
+          .toLowerCase()
+          .replace(/[^a-z0-9]+/g, "_")
+          .replace(/^_|_$/g, "") || `value_${position + 1}`;
+        let name = mapped?.source === "field" && mapped.value.trim()
+          ? mapped.value.trim()
+          : fallback;
+        if (used.has(name)) name = `${name}_${position + 1}`;
+        used.add(name);
+        const example = field.section === "header"
+          ? structure?.header.example
+          : field.section === "body"
+            ? structure?.examples[(field.index || 1) - 1]
+            : "Example value";
+        return { name, example: example || "Example value" };
+      });
+    const columns = ["name", "phone", ...extra.map((field) => field.name)];
+    const values = [
+      "Student Name",
+      "+919999999999",
+      ...extra.map((field) => field.example),
+    ];
     const url = URL.createObjectURL(
       new Blob(
-        [
-          "name,phone,course,application_link\nStudent Name,+919999999999,MBA,https://college.example/apply\n",
-        ],
+        [`\ufeff${columns.map(csvCell).join(",")}\n${values.map(csvCell).join(",")}\n`],
         { type: "text/csv" },
       ),
     );
     const a = document.createElement("a");
     a.href = url;
-    a.download = "whatsapp-contacts-sample.csv";
+    a.download = `${template?.name || "whatsapp-contacts"}-sample.csv`;
     a.click();
     URL.revokeObjectURL(url);
   };
@@ -67,7 +102,7 @@ function SampleDownload() {
       className="inline-flex items-center gap-1 text-xs font-medium text-indigo-600 dark:text-indigo-300"
     >
       <Download size={13} />
-      Download sample
+      Download {template ? "template CSV" : "sample CSV"}
     </button>
   );
 }
@@ -701,7 +736,7 @@ function CampaignEditor({
                     </p>
                   </div>
                 </div>
-                <SampleDownload />
+                <SampleDownload template={template} mapping={mapping} />
               </div>
               <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
                 {[
