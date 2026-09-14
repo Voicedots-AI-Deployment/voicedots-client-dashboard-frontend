@@ -12,4 +12,10 @@ Analytics includes unique participants, total attempts, completed attempts, repe
 
 Backend endpoints exist for daily guidance, learning-plan creation and retrieval, chat messages, plan PDF export/deletion and Deepgram voice sessions. Student identity and plan ownership are checked for plan reads, chat and voice. OpenAI and Deepgram are configured on the deployed backend.
 
-The current React student dashboard does not include an AI coach page, route or navigation entry. It therefore does not expose plan creation, teaching chat, PDF download or voice coaching to students. The backend implementation must not be described as a fully integrated student feature. This change checks the coach implementation; it does not add the missing coach frontend or claim a full coaching-session test.
+The React student dashboard now exposes `/coach`: job-description and placement-based plan creation, a daily roadmap, saved text conversations, PDF export, deletion, and 10/20-minute Deepgram voice lessons. Browser tests exercise plan/chat persistence, PCM playback acknowledgments and microphone cleanup; a human microphone conversation is still the final acceptance check for perceived voice quality.
+
+## Roster import and student resumes
+
+The roster uses TanStack Table and Query with server-side sorting/filtering/pagination. CSV and Excel (.xlsx) imports accept up to 10 MB and 10,000 rows. Downloadable templates have matching headers; the workbook includes the workspace's academic catalog and instructions. Existing roll numbers update records; blank status preserves existing status. Import results distinguish created, updated, rejected and warning rows.
+
+Student Profile stores projects, topics, skills and other experience in the database. Students can generate an evidence-grounded JD-specific resume, edit it, export PDF and save it to their resume library. A saved resume can be selected as main and is reused by Practice. New practice uploads are saved automatically. Resume bytes use private Supabase storage when configured, otherwise private PostgreSQL storage introduced by migration 0037. File access still requires ownership of the resume-library row. Provider keys remain backend-only.

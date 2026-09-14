@@ -1,3 +1,6 @@
+import {QueryClient,useQuery} from '@tanstack/react-query';
+import StudentRosterTable from './StudentRosterTable';
+import StudentImport from './StudentImport';
 import PlacementAnalytics, {type Analytics} from './PlacementAnalytics';
 import PlacementChoices from './PlacementChoices';
 import {displayName} from './placementDisplay';
@@ -24,8 +27,8 @@ function Modal({ title, close, children, busy }: { title: string; close: () => v
 export default function CollegeManagementPage() {
   const { access, loading: accessLoading, error: accessError, retry } = useCollegeAccess();
   const [tab, setTab] = useState<'drives' | 'students' | 'academic' | 'analytics'>('drives');
-  const [drives, setDrives] = useState<Drive[]>([]), [students, setStudents] = useState<CollegeStudent[]>([]), [programs, setPrograms] = useState<Program[]>([]);
-  const [total, setTotal] = useState(0), [offset, setOffset] = useState(0), [query, setQuery] = useState('');
+  const [drives, setDrives] = useState<Drive[]>([]), [programs, setPrograms] = useState<Program[]>([]);
+  const [offset, setOffset] = useState(0), [query, setQuery] = useState('');
   const [loading, setLoading] = useState(false), [busy, setBusy] = useState(false), [error, setError] = useState(''), [notice, setNotice] = useState('');
   const [version, setVersion] = useState(0);
   const [driveForm, setDriveForm] = useState<Drive | 'new' | null>(null), [studentForm, setStudentForm] = useState<CollegeStudent | 'new' | null>(null);
@@ -33,7 +36,7 @@ export default function CollegeManagementPage() {
   const [studentProgram, setStudentProgram] = useState('');
   const [filters,setFilters]=useState<Record<string,string>>({});
   const [options,setOptions]=useState<{batches:string[];graduation_years:number[];statuses:string[]}>({batches:[],graduation_years:[],statuses:[]});
-  const [rosterLoading,setRosterLoading]=useState(false);
+  const [queryClient]=useState(()=>new QueryClient({defaultOptions:{queries:{retry:1,staleTime:15000}}}));
   const [analytics,setAnalytics]=useState<Analytics|null>(null);
   const [drivePrograms,setDrivePrograms]=useState<string[]>([]), [driveDepartments,setDriveDepartments]=useState<string[]>([]), [driveYears,setDriveYears]=useState<string[]>([]);
   const rosterQuery=new URLSearchParams(Object.entries(filters).filter(([,v])=>v)).toString();
@@ -54,15 +57,11 @@ export default function CollegeManagementPage() {
     }).catch(e => { if (!controller.signal.aborted) setError(collegeError(e)); }).finally(() => { if (!controller.signal.aborted) setLoading(false); });
     return () => controller.abort();
   }, [access?.enabled, version]);
-  useEffect(()=>{
-    if(!access?.enabled) return;
-    const controller=new AbortController();setRosterLoading(true);setError('');
-    collegeApi.get<{items:CollegeStudent[];total:number}>(`students?limit=25&offset=${offset}&q=${encodeURIComponent(query)}&${rosterQuery}`,controller.signal)
-      .then(roster=>{if(!controller.signal.aborted){setStudents(roster.items);setTotal(roster.total);}})
-      .catch(e=>{if(!controller.signal.aborted)setError(collegeError(e));})
-      .finally(()=>{if(!controller.signal.aborted)setRosterLoading(false);});
-    return ()=>controller.abort();
-  },[access?.enabled,offset,query,rosterQuery,version]);
+  const roster=useQuery({queryKey:['student-roster',access?.college_id,query,rosterQuery,offset,version],enabled:!!access?.enabled,
+    queryFn:({signal})=>collegeApi.get<{items:CollegeStudent[];total:number}>(`students?limit=25&offset=${offset}&q=${encodeURIComponent(query)}&${rosterQuery}`,signal),
+    placeholderData:(previous,previousQuery)=>previousQuery?.queryKey[1]===access?.college_id?previous:undefined},queryClient);
+  const students=roster.data?.items||[],total=roster.data?.total||0,rosterLoading=roster.isFetching;
+
   async function act(path: string, payload: unknown, edit = false) {
     setBusy(true); setError(''); setNotice('');
     try { const result = await collegeApi.save<{ warnings?: string[] }>(path, payload, edit); setNotice(result.warnings?.length ? result.warnings.join(' ') : 'Changes saved. Student visibility follows the drive status and eligibility rules.'); refresh(); }
@@ -125,8 +124,9 @@ export default function CollegeManagementPage() {
       <Field label="Maximum cgpa"><input className={input} type="number" min={0} max={10} step="0.1" value={filters.max_cgpa||''} onChange={e=>changeFilter('max_cgpa',e.target.value)}/></Field>
       <Field label="Resume availability"><select className={input} value={filters.has_resume||''} onChange={e=>changeFilter('has_resume',e.target.value)}><option value="">All students</option><option value="true">Resume uploaded</option><option value="false">No readable resume</option></select></Field>
       <button className={button} onClick={()=>{setFilters({});setOffset(0);setQuery('');}}>Clear filters</button></div>
-      <div className={`${card} overflow-x-auto`}><table className="w-full text-left text-sm"><thead className="border-b border-slate-200 bg-slate-50 text-xs text-slate-500 dark:border-slate-700 dark:bg-slate-900"><tr>{['Student', 'Program', 'Batch', 'Graduation', 'Cgpa', 'Status', 'Attempts', 'Completed', ''].map((h, i) => <th key={i} className="whitespace-nowrap p-4">{h}</th>)}</tr></thead><tbody>{students.map(s => <tr key={s.id} className="border-b border-slate-100 dark:border-slate-800"><td className="p-4"><strong>{displayName(s.full_name)}</strong><p className="mt-1 text-xs text-slate-500">{s.email} · {s.roll_number}</p></td><td className="p-4">{s.program} / {s.department_code}</td><td className="p-4">{s.batch_label || 'Not set'}</td><td className="p-4">{s.graduation_year}</td><td className="p-4">{s.cgpa ?? 'Not provided'}</td><td className="p-4"><Badge>{s.status}</Badge></td><td className="p-4">{s.attendance?.attempts || 0}</td><td className="p-4">{s.attendance?.completed || 0}</td><td className="p-4"><button className={button} onClick={() => { setStudentForm(s); setStudentProgram(s.program); setFormError(''); }}>Edit</button></td></tr>)}</tbody></table>{!students.length && <p className="p-10 text-center text-sm text-slate-500">No students found. Add students to this workspace to make placements available to them.</p>}</div>
-      <div className="flex items-center justify-between gap-3 text-sm"><span>{total ? `${offset + 1}–${Math.min(offset + 25, total)} of ${total}` : '0 students'}</span><div className="flex gap-2"><button className={button} disabled={rosterLoading || offset === 0} onClick={() => setOffset(v => Math.max(0, v - 25))}>Previous</button><button className={button} disabled={rosterLoading || offset + 25 >= total} onClick={() => setOffset(v => v + 25)}>Next</button></div></div>
+      <StudentImport onComplete={refresh}/>
+      {roster.error&&<p role="alert" className="text-rose-600">{collegeError(roster.error)} <button onClick={()=>void roster.refetch()}>Retry</button></p>}
+      <StudentRosterTable students={students} total={total} offset={offset} busy={rosterLoading} onPage={setOffset} sorting={[{id:filters.sort||'roll_number',desc:filters.order==='desc'}]} onSort={value=>{setOffset(0);setFilters(f=>({...f,sort:value[0]?.id||'roll_number',order:value[0]?.desc?'desc':'asc'}));}} onEdit={student=>{setStudentForm(student);setStudentProgram(student.program);setFormError('');}}/>
     </> : tab === 'analytics' ? <PlacementAnalytics data={analytics}/> : <div className="space-y-5"><p className="text-sm text-slate-500">Configure programs and their departments before adding students. Drive eligibility options come from this catalog.</p><div className="grid gap-4 sm:grid-cols-2">{programs.map(p => <article key={p.code} className={`${card} p-5`}><h3 className="font-bold">{displayName(p.display_name)} <span className="text-sm font-normal text-slate-500">({p.code})</span></h3><p className="mt-2 text-sm text-slate-500">{p.duration_years} years</p><div className="mt-3 flex flex-wrap gap-2">{p.departments.map(d => <Badge key={d.code}>{displayName(d.display_name)} ({d.code})</Badge>)}</div></article>)}</div>
       <div className="grid gap-5 lg:grid-cols-2"><form className={`${card} space-y-4 p-5`} onSubmit={e => { e.preventDefault(); const f = new FormData(e.currentTarget); void act('academic-catalog/programs', { code: f.get('code'), display_name: f.get('name'), duration_years: Number(f.get('duration')) }); }}><h3 className="font-bold">Add or update program</h3><Field label="Program code"><input className={input} name="code" placeholder="B.Tech" required maxLength={40} /></Field><Field label="Display name"><input className={input} name="name" required maxLength={120} /></Field><Field label="Duration in years"><input className={input} name="duration" type="number" min={1} max={8} required defaultValue={4} /></Field><button className={primary} disabled={busy}>Save program</button></form>
       <form className={`${card} space-y-4 p-5`} onSubmit={e => { e.preventDefault(); const f = new FormData(e.currentTarget); void act('academic-catalog/departments', { program_code: f.get('program'), code: f.get('code'), display_name: f.get('name') }); }}><h3 className="font-bold">Add or update department</h3><Field label="Program"><select className={input} name="program" required>{programs.map(p => <option key={p.code}>{p.code}</option>)}</select></Field><Field label="Department code"><input className={input} name="code" placeholder="CSE" required maxLength={40} /></Field><Field label="Display name"><input className={input} name="name" placeholder="Computer Science" required maxLength={120} /></Field><button className={primary} disabled={busy || !programs.length}>Save department</button></form></div>
