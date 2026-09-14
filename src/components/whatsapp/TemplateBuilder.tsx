@@ -326,7 +326,7 @@ export default function TemplateBuilder({
               <input
                 className={input}
                 maxLength={FOOTER_MAX}
-                placeholder="Thank you for choosing Sona College of Technology."
+                placeholder="Thank you for getting in touch."
                 value={draft.footer}
                 onChange={(e) => patch({ footer: e.target.value })}
               />

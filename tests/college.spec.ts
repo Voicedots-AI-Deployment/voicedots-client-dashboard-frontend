@@ -6,10 +6,12 @@ async function setup(page: Page, enabled = true) {
     const values: Record<string, unknown> = {
       '/v1/users/me': { user_id: 'client-1', name: 'College Manager', email: 'manager@example.edu' },
       '/v3/email/capabilities': { email_enabled: false },
+      '/v3/college/roster-options': {batches:['2023-2027'],graduation_years:[2027,2028],statuses:['active']},
+      '/v3/college/analytics': {summary:{total_students:0,placed_students:0,students_attended:0,total_attempts:0,completed_attempts:0,repeat_students:0,not_attended:0,participation_rate:0,completion_rate:0,average_duration_minutes:null},by_drive:[],by_program:[],trend:[],scope:'Placement interviews only.'},
       '/v3/college/access': { enabled, college_name: 'Example Engineering College' },
       '/v3/college/drives': [{ id: 'drive-1', company_name: 'Example Company', role_title: 'Software Engineer', status: 'draft', location: 'Chennai' }],
       '/v3/college/students': { items: [], total: 0 },
-      '/v3/college/academic-catalog': { programs: [{ code: 'B.Tech', display_name: 'Bachelor of Technology', duration_years: 4, departments: [{ code: 'CSE', display_name: 'Computer Science' }] }] },
+      '/v3/college/academic-catalog': { programs: [{ code: 'B.Tech', display_name: 'Bachelor of Technology', duration_years: 4, departments: [{ code: 'CSE', display_name: 'Computer Science' },{ code: 'IT', display_name: 'Information Technology' }] }] },
     };
     return route.fulfill({ json: values[path] || {} });
   });
@@ -23,15 +25,20 @@ async function driveFields(page: Page) {
   await page.getByLabel('Job description', { exact: true }).fill('Build and maintain accessible web applications using JavaScript and Python.');
   await page.getByLabel('Interview start').fill('2027-01-10T09:00');
   await page.getByLabel('Interview end').fill('2027-01-11T18:00');
-  await page.getByLabel('Eligible program codes').fill('B.Tech');
-  await page.getByLabel('Eligible department codes').fill('CSE, IT');
-  await page.getByLabel('Graduation years').fill('2027, 2028');
+  await page.locator('fieldset').filter({has:page.getByText('Eligible programs',{exact:true})}).locator('summary').click();
+  await page.getByRole('checkbox',{name:'Bachelor of technology (B.Tech)'}).check();
+  await page.locator('fieldset').filter({has:page.getByText('Eligible departments',{exact:true})}).locator('summary').click();
+  await page.getByRole('checkbox',{name:'Computer science (CSE)'}).check();
+  await page.getByRole('checkbox',{name:'Information technology (IT)'}).check();
+  await page.locator('fieldset').filter({has:page.getByText('Graduation years',{exact:true})}).locator('summary').click();
+  await page.getByRole('checkbox',{name:'2027',exact:true}).check();
+  await page.getByRole('checkbox',{name:'2028',exact:true}).check();
 }
 
 test('unassigned client cannot see management navigation or controls', async ({ page }) => {
   await setup(page, false);
-  await expect(page.getByText('College management is not enabled', { exact: false })).toBeVisible();
-  await expect(page.getByRole('button', { name: 'College management', exact: true })).toHaveCount(0);
+  await expect(page.getByText('Placement management is not enabled', { exact: false })).toBeVisible();
+  await expect(page.getByRole('button', { name: 'Placement management', exact: true })).toHaveCount(0);
   await expect(page.getByRole('button', { name: 'Create drive', exact: true })).toHaveCount(0);
 });
 
@@ -97,4 +104,29 @@ test('drive editor handles an invalid stored date without crashing', async ({ pa
   await expect(page.getByRole('dialog')).toBeVisible();
   await expect(page.getByLabel('Interview start')).toHaveValue('');
   await expect(page.getByLabel('Company',{exact:true})).toHaveValue('Example Company');
+});
+
+
+test('roster filters reach the server and clear without leaving stale selections', async ({page})=>{
+ await setup(page);
+ await page.getByRole('button',{name:'Student roster',exact:true}).click();
+ const response=page.waitForRequest(r=>r.url().includes('/v3/college/students?')&&r.url().includes('program=B.Tech'));
+ await page.getByRole('combobox',{name:'Filter by program',exact:true}).selectOption('B.Tech');
+ await response;
+ const batchRequest=page.waitForRequest(r=>r.url().includes('batch_label=2023-2027'));
+ await page.getByRole('combobox',{name:'Filter by batch',exact:true}).selectOption('2023-2027');
+ await batchRequest;
+ await page.getByRole('button',{name:'Clear filters'}).click();
+ await expect(page.getByRole('combobox',{name:'Filter by program',exact:true})).toHaveValue('');
+ await expect(page.getByRole('combobox',{name:'Filter by batch',exact:true})).toHaveValue('');
+});
+
+test('analytics has honest empty data and fits a mobile viewport',async ({page})=>{
+ await page.setViewportSize({width:390,height:844});
+ await setup(page);
+ await page.getByRole('button',{name:'Analytics',exact:true}).click();
+ await expect(page.getByText('Students attended',{exact:true}).first()).toBeVisible();
+ await expect(page.getByText('No placement interviews started in this period.')).toBeVisible();
+ expect(await page.evaluate(()=>document.documentElement.scrollWidth)).toBeLessThanOrEqual(390);
+ await page.screenshot({path:'test-results/placement-analytics-mobile.png',fullPage:true});
 });

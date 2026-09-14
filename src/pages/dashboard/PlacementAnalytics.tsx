@@ -1,0 +1,19 @@
+import { displayName } from './placementDisplay';
+export type Analytics = {
+ summary: { total_students:number; placed_students:number; students_attended:number; total_attempts:number; completed_attempts:number; repeat_students:number; not_attended:number; participation_rate:number; completion_rate:number; average_duration_minutes:number|null };
+ by_drive: {id:string;company_name:string;role_title:string;status:string;students_attended:number;attempts:number;completed:number}[];
+ by_program: {program:string;students:number;students_attended:number;attempts:number;completed:number}[];
+ trend: {day:string;attempts:number;completed:number}[];
+ scope:string;
+};
+const panel='rounded-2xl border border-slate-200 bg-white p-5 dark:border-slate-800 dark:bg-slate-900';
+export default function PlacementAnalytics({data}:{data:Analytics|null}) {
+ if(!data) return <p role="status">Analytics are not available yet. Refresh to retry.</p>;
+ const s=data.summary;
+ const metrics:[string,string|number][]=[['Students',s.total_students],['Students attended',s.students_attended],['Not yet attended',s.not_attended],['Interview attempts',s.total_attempts],['Completed attempts',s.completed_attempts],['Repeat participants',s.repeat_students],['Participation rate',`${s.participation_rate}%`],['Completion rate',`${s.completion_rate}%`],['Average duration',s.average_duration_minutes==null?'Not available':`${s.average_duration_minutes} min`],['Students placed',s.placed_students]];
+ return <div className="space-y-5"><p className="text-sm text-slate-500">{data.scope}</p><div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-5">{metrics.map(([name,value])=><article key={name} className={panel}><p className="text-sm text-slate-500">{name}</p><strong className="mt-2 block text-2xl">{value}</strong></article>)}</div>
+ <section className={panel}><h3 className="mb-4 font-semibold">Interview attendance · Last 30 days</h3>{data.trend.length?<div className="space-y-3">{data.trend.map(row=><div key={row.day} className="grid grid-cols-[90px_1fr_70px] items-center gap-3 text-xs"><span>{row.day}</span><div className="h-4 overflow-hidden rounded bg-indigo-50 dark:bg-slate-800"><div className="h-full rounded bg-indigo-500" style={{width:`${100*row.attempts/Math.max(...data.trend.map(r=>r.attempts),1)}%`}}/></div><span>{row.attempts} attempts</span></div>)}</div>:<p className="text-sm text-slate-500">No placement interviews started in this period.</p>}</section>
+ <section className={`${panel} overflow-x-auto`}><h3 className="mb-4 font-semibold">Attendance by drive</h3><table className="w-full text-left text-sm"><thead><tr>{['Drive','Status','Students attended','Attempts','Completed'].map(x=><th key={x} className="p-3">{x}</th>)}</tr></thead><tbody>{data.by_drive.map(r=><tr key={r.id} className="border-t border-slate-200 dark:border-slate-800"><td className="p-3">{displayName(r.company_name)}<p className="text-xs text-slate-500">{displayName(r.role_title)}</p></td><td className="p-3">{displayName(r.status)}</td><td className="p-3">{r.students_attended}</td><td className="p-3">{r.attempts}</td><td className="p-3">{r.completed}</td></tr>)}</tbody></table>{!data.by_drive.length&&<p className="p-3 text-slate-500">No drives yet.</p>}</section>
+ <section className={`${panel} overflow-x-auto`}><h3 className="mb-4 font-semibold">Attendance by program</h3><table className="w-full text-left text-sm"><thead><tr>{['Program','Students','Students attended','Attempts','Completed'].map(x=><th key={x} className="p-3">{x}</th>)}</tr></thead><tbody>{data.by_program.map(r=><tr key={r.program} className="border-t border-slate-200 dark:border-slate-800"><td className="p-3">{r.program}</td><td className="p-3">{r.students}</td><td className="p-3">{r.students_attended}</td><td className="p-3">{r.attempts}</td><td className="p-3">{r.completed}</td></tr>)}</tbody></table></section>
+ </div>;
+}
