@@ -5,6 +5,7 @@ import DashboardLayout from "../layouts/DashboardLayout";
 import ProtectedRoute from "@/routes/ProtectedRoute";
 import EmailFeatureGuard from "@/routes/EmailFeatureGuard";
 
+const AttendancePage = lazy(() => import("@/pages/dashboard/AttendancePage"));
 const CollegeManagementPage = lazy(() => import("@/pages/dashboard/CollegeManagementPage"));
 const LoginPage = lazy(() => import("../pages/LoginPage"));
 const HomePage = lazy(() => import("@/pages/dashboard/HomePage").then((module) => ({ default: module.HomePage })));
@@ -81,6 +82,7 @@ const AppRoutes = () => {
 
           <Route path="college" element={<Navigate to="/dashboard/placement-management" replace />} />
           <Route path="placement-management" element={<CollegeManagementPage />} />
+          <Route path="attendance" element={<AttendancePage />} />
 
           {/* SETTINGS */}
           <Route path="settings" element={<SettingsPage />} />
