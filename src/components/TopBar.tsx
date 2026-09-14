@@ -1,3 +1,4 @@
+import {displayName} from '@/pages/dashboard/placementDisplay';
 import { useEffect, useRef, useState } from "react";
 import { Bell, Menu, ChevronDown, PanelLeft, Sun, Moon } from "lucide-react";
 import { useTheme } from "@/context/ThemeContext";
@@ -149,7 +150,7 @@ export function TopBar({
 
               {/* Hide name on small screens */}
               <span className="hidden md:block text-gray-600 dark:text-gray-400">
-                {user?.name || "User"}
+                {displayName(user?.name) || "User"}
               </span>
 
               <ChevronDown
@@ -174,7 +175,7 @@ export function TopBar({
               >
                 <div className="p-4 border-b border-gray-200 dark:border-slate-700">
                   <p className="text-sm font-semibold text-gray-800 dark:text-white">
-                    {user?.name || "User"}
+                    {displayName(user?.name) || "User"}
                   </p>
                   <p className="text-xs text-gray-500 dark:text-gray-400">
                     {user?.email || ""}

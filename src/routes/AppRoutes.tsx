@@ -79,7 +79,8 @@ const AppRoutes = () => {
           {/* KNOWLEDGE BASE */}
           <Route path="knowledge" element={<KnowledgePage />} />
 
-          <Route path="college" element={<CollegeManagementPage />} />
+          <Route path="college" element={<Navigate to="/dashboard/placement-management" replace />} />
+          <Route path="placement-management" element={<CollegeManagementPage />} />
 
           {/* SETTINGS */}
           <Route path="settings" element={<SettingsPage />} />
