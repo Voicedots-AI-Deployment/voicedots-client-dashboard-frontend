@@ -1,10 +1,11 @@
 import axios from 'axios';
 import { apiClient } from './apiClient';
 export type CollegeAccess = { enabled: boolean; college_id?:string; college_name?: string };
-export type Drive = { id: string; company_name: string; role_title: string; status: string; job_type?: string; location?: string; jd_raw_text?: string; window_start_at?: string; window_end_at?: string; interview_duration_minutes?: number; criteria_min_cgpa?: number; criteria_department_codes?: string[]; criteria_programs?: string[]; criteria_graduation_years?: number[]; latest_snapshot_eligible_count?: number; assignment_count?: number };
+export type Drive = { agent_selection?: import("@/pages/dashboard/interviewAgentTypes").Selection[]; question_source?: string; scripted_questions?: Record<string, string[]>; id: string; company_name: string; company_description?: string; role_title: string; status: string; job_type?: string; location?: string; jd_raw_text?: string; window_start_at?: string; window_end_at?: string; interview_duration_minutes?: number; max_attempts?: number; criteria_min_cgpa?: number; criteria_department_codes?: string[]; criteria_programs?: string[]; criteria_graduation_years?: number[]; latest_snapshot_eligible_count?: number; assignment_count?: number };
 export type CollegeStudent = { batch_label?:string; attendance?:{attempts:number;completed:number;last_attended_at:string|null}; id: string; full_name: string; email: string; roll_number: string; phone?: string; program: string; department_code: string; graduation_year: number; cgpa?: number; status: string };
 export type Program = { code: string; display_name: string; duration_years: number; departments: { code: string; display_name: string }[] };
 export const collegeApi = {
+  remove: async (path: string) => (await apiClient.delete(`/v3/college/${path}`)).data,
   get: async <T,>(path: string, signal?: AbortSignal) => (await apiClient.get<T>(`/v3/college/${path}`, { signal })).data,
   save: async <T,>(path: string, body: unknown, edit = false) => (await apiClient.request<T>({ url: `/v3/college/${path}`, method: edit ? 'PUT' : 'POST', data: body, timeout: 125000 })).data,
 };
