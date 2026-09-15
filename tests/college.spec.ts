@@ -9,6 +9,7 @@ async function setup(page: Page, enabled = true) {
       '/v3/college/roster-options': {batches:['2023-2027'],graduation_years:[2027,2028],statuses:['active']},
       '/v3/college/analytics': {summary:{total_students:0,placed_students:0,students_attended:0,total_attempts:0,completed_attempts:0,repeat_students:0,not_attended:0,participation_rate:0,completion_rate:0,average_duration_minutes:null},by_drive:[],by_program:[],trend:[],scope:'Placement interviews only.'},
       '/v3/college/access': { enabled, college_name: 'Example Engineering College' },
+      '/v3/college/agents': {agents:[],tracks:['hr','domain','industry','manager'].map((track,i)=>({track,default_profile:{track,name:['Priya','Arjun','Neha','Vikram'][i],role:track,intro_message:'Hello {name}',personality_prompt:'Interview for {role}',tone:'professional',voice_id:'flux-priya-en'}}))},
       '/v3/college/drives': [{ id: 'drive-1', company_name: 'Example Company', role_title: 'Software Engineer', status: 'draft', location: 'Chennai' }],
       '/v3/college/students': { items: [], total: 0 },
       '/v3/college/academic-catalog': { programs: [{ code: 'B.Tech', display_name: 'Bachelor of Technology', duration_years: 4, departments: [{ code: 'CSE', display_name: 'Computer Science' },{ code: 'IT', display_name: 'Information Technology' }] }] },
@@ -170,3 +171,88 @@ for (const existing of [true, false]) {
   await expect(page.getByAltText('Example Student verification reference')).toHaveAttribute('src',photo);
  });
 }
+
+
+test('agents follow academic setup and defaults cannot be edited', async ({ page }) => {
+  await setup(page);
+  await page.getByRole('button', { name: 'Interview Agents', exact: true }).click();
+  await expect(page.getByText('Locked default')).toHaveCount(4);
+  await expect(page.getByRole('button', { name: 'Edit', exact: true })).toHaveCount(0);
+  await page.getByRole('button', { name: 'Create agent', exact: true }).click();
+  await page.getByLabel('Name', {exact:true}).fill('Asha');
+  await page.getByLabel('Role', {exact:true}).fill('Product interviewer');
+  await page.getByLabel('First message').fill('Welcome {name} to {company}');
+  await page.getByLabel('System prompt').fill('Interview for {role} using product scenarios.');
+  let saved: Record<string, unknown> = {};
+  await page.route('**/v3/college/agents', route => {
+    if (route.request().method() !== 'POST') return route.fallback();
+    saved = route.request().postDataJSON(); return route.fulfill({json:{id:'custom-1',...saved}});
+  });
+  await page.getByRole('button', {name:'Save agent'}).click();
+  await expect(page.getByRole('button', {name:'Save agent'})).toHaveCount(0);
+  expect(saved.name).toBe('Asha'); expect(saved.intro_message).toContain('{company}');
+});
+
+test('single selected round saves manual questions in the drive', async ({ page }) => {
+  await setup(page);
+  let payload: Record<string, unknown> = {};
+  await page.route('**/v3/college/drives', route => {
+    if (route.request().method() !== 'POST') return route.fallback();
+    payload = route.request().postDataJSON(); return route.fulfill({json:{drive_id:'new',status:'active'}});
+  });
+  await driveFields(page);
+  const rounds = page.getByRole('group', {name:'Select interview agents / rounds'});
+  await rounds.getByRole('button', {name:'Remove',exact:true}).nth(3).click();
+  await rounds.getByRole('button', {name:'Remove',exact:true}).nth(2).click();
+  await rounds.getByRole('button', {name:'Remove',exact:true}).nth(0).click();
+  await page.getByLabel('Question source').selectOption('manual');
+  await page.getByRole('button', {name:'Add question',exact:true}).click();
+  await page.getByLabel('Arjun question 1').fill('How would you approach the JD requirements?');
+  await page.getByRole('button', {name:'Create & evaluate drive'}).click();
+  await expect(page.getByText('Drive saved (active).')).toBeVisible();
+  expect(payload.agent_selection).toEqual([{track:'domain',agent_id:null}]);
+  expect(payload.question_source).toBe('manual');
+  expect(payload.scripted_questions).toEqual({domain:['How would you approach the JD requirements?']});
+});
+
+test('manage drive opens the selected overview and results without evaluating eligibility', async ({ page }) => {
+  await setup(page);
+  let eligibilityWrites = 0;
+  await page.route('**/v3/college/drives/drive-1/**', route => {
+    const path = new URL(route.request().url()).pathname;
+    if (route.request().method() === 'POST' && path.endsWith('/eligibility')) eligibilityWrites++;
+    return route.fulfill({json:path.endsWith('/overview')?{metrics:{total_assigned:17,interview_completed:3}}:{candidates:[{student_id:'s1',full_name:'Anu',roll_number:'R1',overall_score:82}],pagination:{total:1}}});
+  });
+  await page.getByRole('button',{name:'Manage drive',exact:true}).click();
+  await expect(page).toHaveURL(/drive=drive-1/);
+  await expect(page.getByText('17',{exact:true})).toBeVisible();
+  await page.getByRole('button',{name:'Interview results',exact:true}).click();
+  await expect(page.getByText('Anu',{exact:true})).toBeVisible();
+  expect(eligibilityWrites).toBe(0);
+});
+
+test('AI preview uses drive role and JD and saves staff edits', async ({ page }) => {
+  await setup(page);
+  await driveFields(page);
+  let generation: Record<string, unknown> = {}, saved: Record<string, unknown> = {};
+  await page.route('**/v3/college/drive-questions/preview', route => {
+    generation = route.request().postDataJSON();
+    return route.fulfill({json:{scripted_questions:{hr:['Motivation?'],domain:['Explain Python?'],industry:['How would you test?'],manager:['How would you lead?']}}});
+  });
+  await page.route('**/v3/college/drives', route => {
+    if (route.request().method() !== 'POST') return route.fallback();
+    saved = route.request().postDataJSON(); return route.fulfill({json:{drive_id:'new',status:'active'}});
+  });
+  await page.getByLabel('Question source').selectOption('ai_generated');
+  await page.getByRole('button',{name:'Generate questions from role + JD'}).click();
+  await expect(page.getByLabel('Arjun question 1')).toHaveValue('Explain Python?');
+  await page.getByLabel('Arjun question 1').fill('How would you maintain this Python service?');
+  await page.getByRole('button',{name:'Move round 2 up'}).click();
+  await page.getByRole('button',{name:'Create & evaluate drive'}).click();
+  await expect(page.getByText('Drive saved (active).')).toBeVisible();
+  expect(generation.role_title).toBe('Software Engineer');
+  expect(String(generation.jd_text)).toContain('JavaScript and Python');
+  expect(saved.question_source).toBe('ai_generated');
+  expect((saved.scripted_questions as Record<string,string[]>).domain).toEqual(['How would you maintain this Python service?']);
+  expect((saved.agent_selection as {track:string}[])[0].track).toBe('domain');
+});
