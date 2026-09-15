@@ -86,8 +86,16 @@ test('student roster and academic setup work on a phone', async ({ page }) => {
     payload = route.request().postDataJSON();
     return route.fulfill({ json: { student_id: 'student-1' } });
   });
+  await page.locator('input[name=password]').fill('StudentSecure123!');
+  await page.locator('input[name=confirm_password]').fill('DifferentSecure123!');
   await page.getByRole('button', { name: 'Save student' }).click();
-  await expect(page.getByText('Student added.', { exact: false })).toBeVisible();
+  await expect(page.getByRole('alert')).toHaveText('Passwords do not match.');
+  expect(payload).toEqual({});
+  await page.locator('input[name=confirm_password]').fill('StudentSecure123!');
+  await page.getByRole('button', { name: 'Save student' }).click();
+  await expect(page.getByText('Student added with a login password.', { exact: false })).toBeVisible();
+  expect(payload.password).toBe('StudentSecure123!');
+  expect(payload.confirm_password).toBeUndefined();
   expect(payload.photo).toMatch(/^data:image\/jpeg;base64,/);
   expect(payload.program).toBe('B.Tech');
   expect(payload.department_code).toBe('CSE');

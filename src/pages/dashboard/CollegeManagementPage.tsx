@@ -109,13 +109,16 @@ export default function CollegeManagementPage() {
     const current = studentForm && studentForm !== 'new' ? studentForm : null;
     const payload = { full_name: f.get('full_name'), roll_number: f.get('roll_number'), email: f.get('email'), phone: f.get('phone'), program: studentProgram, department_code: f.get('department'), graduation_year: Number(f.get('year')), cgpa: Number(f.get('cgpa')), status: f.get('status') };
     try {
+      const password = String(f.get('password') || '');
+      if (!current && (password.length < 12 || password.length > 128 || !/[A-Z]/.test(password) || !/[a-z]/.test(password) || !/[0-9]/.test(password) || !/[^a-zA-Z0-9]/.test(password))) throw new Error('Password must be 12–128 characters and include uppercase, lowercase, a number, and a symbol.');
+      if (!current && password !== f.get('confirm_password')) throw new Error('Passwords do not match.');
       let photo: string | undefined;
       if (!current) {
         const file = f.get('photo');
         if (!(file instanceof File) || !file.size || file.size > 2 * 1024 * 1024) throw new Error('Choose a student photo up to 2 MB.');
         photo = await new Promise<string>((resolve, reject) => { const reader = new FileReader(); reader.onload = () => resolve(String(reader.result)); reader.onerror = () => reject(new Error('Could not read the student photo.')); reader.readAsDataURL(file); });
       }
-      await collegeApi.save(current ? `students/${current.id}` : 'students', { ...payload, ...(photo ? { photo } : {}) }, !!current); setStudentForm(null); setNotice(current ? 'Student updated.' : 'Student added. They can set up their password on the student portal using their email and roll number.'); refresh(); }
+      await collegeApi.save(current ? `students/${current.id}` : 'students', { ...payload, ...(photo ? { photo } : {}), ...(!current ? { password } : {}) }, !!current); setStudentForm(null); setNotice(current ? 'Student updated.' : 'Student added with a login password. Share the email and password securely with the student. Sign in at students.voicedots.io; camera verification is still required.'); refresh(); }
     catch (err) { setFormError(err instanceof Error && !('isAxiosError' in err) ? err.message : collegeError(err)); } finally { setBusy(false); }
   }
   if (accessLoading) return <p role="status" className="p-8 text-slate-500">Loading placement workspace…</p>;
@@ -176,6 +179,7 @@ export default function CollegeManagementPage() {
       <Field label="Full name"><input className={input} name="full_name" required defaultValue={currentStudent?.full_name} /></Field><Field label="Roll number"><input className={input} name="roll_number" required readOnly={!!currentStudent} defaultValue={currentStudent?.roll_number} /></Field><Field label="Email"><input className={input} name="email" type="email" required defaultValue={currentStudent?.email} /></Field><Field label="Phone"><input className={input} name="phone" type="tel" required defaultValue={currentStudent?.phone} /></Field>
       <Field label="Program"><select className={input} value={studentProgram} onChange={e => setStudentProgram(e.target.value)} required>{programs.map(p => <option key={p.code}>{p.code}</option>)}</select></Field><Field label="Department"><select key={studentProgram} className={input} name="department" required defaultValue={currentStudent?.department_code}>{programs.find(p => p.code === studentProgram)?.departments.map(d => <option key={d.code} value={d.code}>{displayName(d.display_name)} ({d.code})</option>)}</select></Field>
       <Field label="Graduation year"><input className={input} name="year" type="number" min={2000} max={2100} required defaultValue={currentStudent?.graduation_year || new Date().getFullYear() + 1} /></Field><Field label="CGPA"><input className={input} name="cgpa" type="number" min={0} max={10} step="0.01" required defaultValue={currentStudent?.cgpa} /></Field><Field label="Status"><select className={input} name="status" defaultValue={currentStudent?.status || 'active'}><option value="active">Active</option><option value="inactive">Inactive</option><option value="placed">Placed</option></select></Field>
+      {!currentStudent && <><Field label="Password"><input className={input} name="password" type="password" autoComplete="new-password" minLength={12} maxLength={128} required /><p className="mt-1 text-xs text-slate-500">12–128 characters with uppercase, lowercase, a number, and a symbol. Share securely with the student.</p></Field><Field label="Confirm password"><input className={input} name="confirm_password" type="password" autoComplete="new-password" minLength={12} maxLength={128} required /></Field></>}
       <button className={`${primary} sm:col-span-2`} disabled={busy || !programs.length}>{busy ? 'Saving…' : 'Save student'}</button>
     </form></Modal>}
   </div>;
