@@ -138,3 +138,35 @@ test('roster imports a workbook and offers a downloadable CSV template',async({p
  await page.route('**/v3/college/students/template?format=csv',route=>route.fulfill({contentType:'text/csv',body:'roll_number,full_name,email\r\n'}));
  await page.getByRole('button',{name:'Student roster',exact:true}).click();await page.getByText('Import students from CSV or Excel',{exact:true}).click();const downloaded=page.waitForEvent('download');await page.getByRole('button',{name:'Download CSV template'}).click();expect((await downloaded).suggestedFilename()).toBe('student-import-template.csv');await page.getByLabel('Student import file').setInputFiles({name:'roster.csv',mimeType:'text/csv',buffer:Buffer.from('roll_number,full_name,email\n001,Asha,asha@example.com')});await page.getByRole('button',{name:'Import students',exact:true}).click();await expect(page.getByText('2 created · 1 updated · 1 errors · 0 warnings')).toBeVisible();await expect(page.getByText('Students row 5: Email is required')).toBeVisible();
 });
+
+for (const existing of [true, false]) {
+ test(`existing student photo can be ${existing ? 'viewed and replaced' : 'added'} from the roster editor`, async ({page}) => {
+  await setup(page);
+  const student = {id:'student-1',full_name:'Example Student',email:'student@example.edu',roll_number:'CS01',phone:'9999999999',program:'B.Tech',department_code:'CSE',graduation_year:2027,cgpa:8,status:'active'};
+  const image = await page.evaluate(() => { const canvas=document.createElement('canvas');canvas.width=32;canvas.height=32;canvas.getContext('2d')!.fillRect(0,0,32,32);return canvas.toDataURL('image/png'); });
+  let photo = existing ? image : '';
+  let saves = 0, studentWrites = 0;
+  await page.route('**/v3/college/students**', route => {
+   if(route.request().method() !== 'GET') { studentWrites++; return route.fulfill({json:{}}); }
+   return route.fulfill({json:{items:[student],total:1}});
+  });
+  await page.route('**/v3/college/attendance/photos/students/student-1', route => {
+   if(route.request().method()==='POST') { photo=route.request().postDataJSON().photo;saves++;return route.fulfill({json:{saved:true}}); }
+   return route.fulfill({status:photo?200:404,json:photo?{photo}:{detail:'No photo enrolled.'}});
+  });
+  await page.getByRole('button',{name:'Student roster',exact:true}).click();
+  await page.getByRole('button',{name:'Edit',exact:true}).click();
+  const dialog=page.getByRole('dialog');
+  if(existing) await expect(dialog.getByAltText('Example Student verification reference')).toBeVisible();
+  else await expect(dialog.getByText('No photo enrolled')).toBeVisible();
+  await dialog.getByLabel('Upload photo').setInputFiles({name:'replacement.png',mimeType:'image/png',buffer:Buffer.from(image.split(',')[1],'base64')});
+  await expect(dialog.getByAltText('Example Student verification reference')).toBeVisible();
+  await dialog.getByRole('button',{name:'Save verification photo',exact:true}).click();
+  await expect(dialog.getByText('Verification photo saved.')).toBeVisible();
+  expect(saves).toBe(1);expect(studentWrites).toBe(0);
+  expect(photo).toMatch(/^data:image\/jpeg;base64,/);
+  await dialog.getByRole('button',{name:'Close form'}).click();
+  await page.getByRole('button',{name:'Edit',exact:true}).click();
+  await expect(page.getByAltText('Example Student verification reference')).toHaveAttribute('src',photo);
+ });
+}

@@ -1,6 +1,7 @@
 import {QueryClient,useQuery} from '@tanstack/react-query';
 import StudentRosterTable from './StudentRosterTable';
 import StudentImport from './StudentImport';
+import { PhotoEditor } from './AttendancePage';
 import PlacementAnalytics, {type Analytics} from './PlacementAnalytics';
 import PlacementChoices from './PlacementChoices';
 import {displayName} from './placementDisplay';
@@ -153,6 +154,7 @@ export default function CollegeManagementPage() {
     </form></Modal>}
     {studentForm && <Modal title={currentStudent ? 'Edit student' : 'Add student'} busy={busy} close={() => setStudentForm(null)}><form onSubmit={saveStudent} className="grid gap-4 sm:grid-cols-2">
       {formError && <p role="alert" className="text-sm text-rose-600 sm:col-span-2">{formError}</p>}
+      {currentStudent && <PhotoEditor key={currentStudent.id} inline kind="students" person={currentStudent} done={refresh} close={() => {}} />}
       {!currentStudent && <Field label="Student reference photo"><input className={input} name="photo" type="file" accept="image/jpeg,image/png" required /><p className="mt-1 text-xs text-slate-500">A clear photo containing only this student. Up to 2 MB.</p></Field>}
       <Field label="Full name"><input className={input} name="full_name" required defaultValue={currentStudent?.full_name} /></Field><Field label="Roll number"><input className={input} name="roll_number" required readOnly={!!currentStudent} defaultValue={currentStudent?.roll_number} /></Field><Field label="Email"><input className={input} name="email" type="email" required defaultValue={currentStudent?.email} /></Field><Field label="Phone"><input className={input} name="phone" type="tel" required defaultValue={currentStudent?.phone} /></Field>
       <Field label="Program"><select className={input} value={studentProgram} onChange={e => setStudentProgram(e.target.value)} required>{programs.map(p => <option key={p.code}>{p.code}</option>)}</select></Field><Field label="Department"><select key={studentProgram} className={input} name="department" required defaultValue={currentStudent?.department_code}>{programs.find(p => p.code === studentProgram)?.departments.map(d => <option key={d.code} value={d.code}>{displayName(d.display_name)} ({d.code})</option>)}</select></Field>

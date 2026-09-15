@@ -15,25 +15,28 @@ const primary = `${button} bg-indigo-600 text-white`;
 const card = 'rounded-2xl border border-slate-200 bg-white p-5 dark:border-slate-800 dark:bg-slate-900';
 const today = () => new Date().toLocaleDateString('en-CA', { timeZone: 'Asia/Kolkata' });
 
-function PhotoEditor({ kind, person, done, close }: { kind: 'staff' | 'students'; person: Staff | Student; done: () => void; close: () => void }) {
+export function PhotoEditor({ kind, person, done, close, inline = false }: { kind: 'staff' | 'students'; person: { id: string; full_name: string; has_photo?: boolean }; done: () => void; close: () => void; inline?: boolean }) {
   const video = useRef<HTMLVideoElement>(null);
   const stream = useRef<MediaStream | null>(null);
   const mounted = useRef(true);
   const [camera, setCamera] = useState(false);
   const [photo, setPhoto] = useState('');
   const [error, setError] = useState('');
+  const [loading, setLoading] = useState(person.has_photo !== false);
+  const [saved, setSaved] = useState(false);
   const [busy, setBusy] = useState(false);
   const dialog = useRef<HTMLDialogElement>(null);
   useEffect(() => { mounted.current = true; dialog.current?.showModal(); return () => { mounted.current = false; stream.current?.getTracks().forEach(t => t.stop()); }; }, []);
   useEffect(() => { if (camera && video.current) video.current.srcObject = stream.current; }, [camera]);
   useEffect(() => {
     let live = true;
-    if (person.has_photo) collegeApi.get<{ photo: string }>(`attendance/photos/${kind}/${person.id}`).then(r => { if (live) setPhoto(r.photo); }).catch(e => { if (live) setError(collegeError(e)); });
+    setPhoto(''); setSaved(false); setError(''); setLoading(person.has_photo !== false);
+    if (person.has_photo !== false) collegeApi.get<{ photo: string }>(`attendance/photos/${kind}/${person.id}`).then(r => { if (live) setPhoto(r.photo); }).catch(e => { if (live && e.response?.status !== 404) setError(collegeError(e)); }).finally(() => { if (live) setLoading(false); });
     return () => { live = false; };
   }, [kind, person.id]);
   const stop = () => { stream.current?.getTracks().forEach(t => t.stop()); stream.current = null; setCamera(false); };
   const start = async () => {
-    setError('');
+    setError(''); setSaved(false);
     try {
       const feed = await navigator.mediaDevices.getUserMedia({ video: { facingMode: 'user', width: 960 }, audio: false });
       if (!mounted.current) { feed.getTracks().forEach(t => t.stop()); return; }
@@ -47,7 +50,7 @@ function PhotoEditor({ kind, person, done, close }: { kind: 'staff' | 'students'
   };
   const upload = async (file?: File) => {
     if (!file) return;
-    setError('');
+    setError(''); setSaved(false);
     if (!['image/jpeg', 'image/png'].includes(file.type) || file.size > 8 * 1024 * 1024) { setError('Choose a JPEG or PNG under 8 MB.'); return; }
     try {
       const bitmap = await createImageBitmap(file);
@@ -59,18 +62,20 @@ function PhotoEditor({ kind, person, done, close }: { kind: 'staff' | 'students'
   };
   const save = async () => {
     setBusy(true); setError('');
-    try { await collegeApi.save(`attendance/photos/${kind}/${person.id}`, { photo }); done(); close(); }
+    try { await collegeApi.save(`attendance/photos/${kind}/${person.id}`, { photo }); setSaved(true); done(); if (!inline) close(); }
     catch (e) { setError(collegeError(e)); } finally { setBusy(false); }
   };
-  return <dialog ref={dialog} onCancel={e => { e.preventDefault(); if (!busy) close(); }} className={`${card} m-auto w-[calc(100%_-_24px)] max-w-lg text-slate-900 backdrop:bg-slate-950/50 dark:text-white`}>
-    <div className="flex items-start justify-between gap-3"><div><h2 className="text-xl font-bold">Verification photo</h2><p className="mt-1 text-sm text-slate-500">{person.full_name}</p></div><button className={button} aria-label="Close photo editor" disabled={busy} onClick={close}><X size={18} /></button></div>
+  const content = <>
+    <div className="flex items-start justify-between gap-3"><div><h2 className="text-xl font-bold">Verification photo</h2><p className="mt-1 text-sm text-slate-500">{person.full_name}</p></div>{!inline && <button type="button" className={button} aria-label="Close photo editor" disabled={busy} onClick={close}><X size={18} /></button>}</div>
     <p className="my-4 text-sm text-slate-500">Use a clear front-facing photo with one face. This becomes the saved reference for webcam verification.</p>
-    {camera ? <video ref={video} autoPlay playsInline muted className="max-h-72 w-full rounded-xl bg-slate-950" /> : photo ? <img src={photo} alt={`${person.full_name} verification reference`} className="max-h-72 w-full rounded-xl object-contain" /> : <div className="rounded-xl bg-slate-100 p-10 text-center text-slate-500">No photo enrolled</div>}
+    {loading ? <p role="status" className="py-4 text-sm text-slate-500">Loading saved photo…</p> : camera ? <video ref={video} autoPlay playsInline muted className="max-h-72 w-full rounded-xl bg-slate-950" /> : photo ? <img src={photo} alt={`${person.full_name} verification reference`} className="max-h-72 w-full rounded-xl object-contain" /> : <div className="rounded-xl bg-slate-100 p-10 text-center text-slate-500">No photo enrolled</div>}
+    {saved && <p role="status" className="my-3 text-sm text-slate-500">Verification photo saved.</p>}
     {error && <p role="alert" className="my-3 text-sm text-red-600">{error}</p>}
-    <div className="mt-4 flex flex-wrap gap-2">{camera ? <button className={button} onClick={capture}><Camera size={16} />Capture frame</button> : <button className={button} disabled={busy} onClick={start}><Camera size={16} />Use webcam</button>}
-      <label className={`${button} cursor-pointer`}><Upload size={16} />Upload photo<input type="file" accept="image/jpeg,image/png" className="sr-only" disabled={busy} onChange={e => void upload(e.target.files?.[0])} /></label>
-      <button className={primary} disabled={!photo || busy || camera} onClick={save}>{busy ? 'Checking face…' : 'Save verification photo'}</button></div>
-  </dialog>;
+    <div className="mt-4 flex flex-wrap gap-2">{camera ? <button type="button" className={button} onClick={capture}><Camera size={16} />Capture frame</button> : <button type="button" className={button} disabled={busy || loading} onClick={start}><Camera size={16} />Use webcam</button>}
+      <label className={`${button} cursor-pointer`}><Upload size={16} />Upload photo<input type="file" accept="image/jpeg,image/png" className="sr-only" disabled={busy || loading} onChange={e => void upload(e.target.files?.[0])} /></label>
+      <button type="button" className={primary} disabled={!photo || busy || loading || camera} onClick={save}>{busy ? 'Checking face…' : 'Save verification photo'}</button></div>
+  </>;
+  return inline ? <section className="sm:col-span-2 rounded-xl border border-slate-200 p-4 dark:border-slate-700">{content}</section> : <dialog ref={dialog} onCancel={e => { e.preventDefault(); if (!busy) close(); }} className={`${card} m-auto max-h-[90dvh] overflow-y-auto w-[calc(100%_-_24px)] max-w-lg text-slate-900 backdrop:bg-slate-950/50 dark:text-white`}>{content}</dialog>;
 }
 
 export default function AttendancePage() {
