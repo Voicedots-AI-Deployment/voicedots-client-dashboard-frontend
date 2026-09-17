@@ -4,6 +4,7 @@ import {
   collegeApi,
   collegeError,
   type Drive,
+  type Program,
   type RoundConfiguration,
 } from "@/api/collegeApi";
 import {
@@ -16,7 +17,7 @@ import {
 } from "./interviewAgentTypes";
 import { displayName } from "./placementDisplay";
 import CandidateReport from "./CandidateReport";
-import ResultCohortBuilder, {type ResultRule} from "./ResultCohortBuilder";
+import ResultCohortBuilder, {type ResultFilterOptions,type ResultRule} from "./ResultCohortBuilder";
 
 type Data = Record<string, unknown>;
 type Candidate = Data & {
@@ -1174,6 +1175,24 @@ export default function DriveManagement({
     [resultMatchMode, setResultMatchMode] = useState<"all"|"any">("all"),
     [excludeReviewRequired, setExcludeReviewRequired] = useState(false),
     [bulkDecision, setBulkDecision] = useState<"shortlist"|"hold"|"reject"|null>(null);
+  const [resultFilterOptions,setResultFilterOptions]=useState<ResultFilterOptions>({departmentPrograms:[],interviewRounds:[]});
+  useEffect(()=>{
+    if(tab!=="results")return;
+    const controller=new AbortController();
+    collegeApi.get<{programs:Program[]}>("academic-catalog",controller.signal).then(catalog=>{
+      const departmentPrograms:[string,string][]=[];
+      catalog.programs.forEach(program=>{
+        departmentPrograms.push([`program:${program.code}`,`${displayName(program.display_name)} (${program.code})`]);
+        program.departments.forEach(department=>departmentPrograms.push([`department:${department.code}`,`${displayName(department.display_name)} (${department.code})`]));
+      });
+      setResultFilterOptions(current=>({...current,departmentPrograms}));
+    }).catch(()=>{});
+    return()=>controller.abort();
+  },[tab]);
+  useEffect(()=>{
+    const interviewRounds=(drive?.agent_selection||[]).map(item=>[item.track,displayName(item.track)] as [string,string]);
+    setResultFilterOptions(current=>({...current,interviewRounds}));
+  },[drive]);
   useEffect(() => {
     const c = new AbortController();
     setLoading(true);
@@ -1186,8 +1205,8 @@ export default function DriveManagement({
     });
     if (tab === "results") {
       query.set("result_view", resultView);
-      const rules=resultRules.filter(rule=>rule.value!=='');
-      if(rules.length) query.set("filters",JSON.stringify(rules.map(({field,operator,value})=>({field,operator,value}))));
+      const rules=resultRules.filter(rule=>['is_empty','is_not_empty'].includes(rule.operator)||rule.value!==''||(rule.operator==='between'&&rule.valueEnd));
+      if(rules.length) query.set("filters",JSON.stringify(rules.map(({field,operator,value,valueEnd})=>({field,operator,value,value_end:valueEnd}))));
       query.set("match_mode",resultMatchMode);
       if(excludeReviewRequired) query.set("exclude_review_required","true");
     }
@@ -1249,7 +1268,7 @@ export default function DriveManagement({
     setError("");
     try {
       const query=new URLSearchParams({limit:String(Math.min(total,500)),offset:"0",q:search,result_view:resultView,match_mode:resultMatchMode});
-      const rules=resultRules.filter(rule=>rule.value!=='').map(({field,operator,value})=>({field,operator,value}));
+      const rules=resultRules.filter(rule=>['is_empty','is_not_empty'].includes(rule.operator)||rule.value!=='').map(({field,operator,value,valueEnd})=>({field,operator,value,value_end:valueEnd}));
       if(rules.length)query.set("filters",JSON.stringify(rules));
       if(excludeReviewRequired)query.set("exclude_review_required","true");
       const result=await collegeApi.get<Data>(`drives/${driveId}/dashboard/ranking?${query.toString()}`);
@@ -1774,7 +1793,7 @@ export default function DriveManagement({
                   ["decision_pending", "Officer Decision Pending"],
                 ].map(([value,label])=><button key={value} className={`${btn} ${resultView===value?"bg-indigo-600 text-white":""}`} aria-pressed={resultView===value} onClick={()=>{setOffset(0);setResultView(value)}}>{label}</button>)}
               </div>
-              <ResultCohortBuilder rules={resultRules} setRules={rules=>{setOffset(0);setResultRules(rules)}} matchMode={resultMatchMode} setMatchMode={value=>{setOffset(0);setResultMatchMode(value)}} total={total} excludeReview={excludeReviewRequired} setExcludeReview={value=>{setOffset(0);setExcludeReviewRequired(value)}} onReset={()=>{setResultRules([]);setExcludeReviewRequired(false);setResultMatchMode("all");setResultView("all");setOffset(0)}}/>
+              <ResultCohortBuilder rules={resultRules} setRules={rules=>{setOffset(0);setResultRules(rules)}} matchMode={resultMatchMode} setMatchMode={value=>{setOffset(0);setResultMatchMode(value)}} total={total} excludeReview={excludeReviewRequired} setExcludeReview={value=>{setOffset(0);setExcludeReviewRequired(value)}} options={resultFilterOptions} onReset={()=>{setResultRules([]);setExcludeReviewRequired(false);setResultMatchMode("all");setResultView("all");setOffset(0)}}/>
             </div>
           )}
           {tab === "results" && (
