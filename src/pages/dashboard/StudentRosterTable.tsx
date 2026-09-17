@@ -12,8 +12,6 @@ export default function StudentRosterTable({students,total,offset,busy,onPage,on
   {accessorKey:'graduation_year',header:'Graduation'},
   {accessorKey:'cgpa',header:'Cgpa'},
   {accessorKey:'status',header:'Status',enableSorting:false,cell:info=>displayName(String(info.getValue()))},
-  {id:'attempts',header:'Attempts',enableSorting:false,cell:({row})=>row.original.attendance?.attempts||0},
-  {id:'completed',header:'Completed',enableSorting:false,cell:({row})=>row.original.attendance?.completed||0},
   {id:'actions',header:'Actions',enableSorting:false,cell:({row})=><button className="rounded-lg border px-3 py-2" onClick={()=>onEdit(row.original)}>Edit</button>},
  ],[onEdit]);
  const table=useReactTable({data:students,columns,getCoreRowModel:getCoreRowModel(),manualPagination:true,manualSorting:true,rowCount:total,state:{pagination:{pageIndex:offset/25,pageSize:25},sorting},onSortingChange:updater=>onSort(typeof updater==='function'?updater(sorting):updater),onPaginationChange:updater=>{const p={pageIndex:offset/25,pageSize:25};onPage((typeof updater==='function'?updater(p):updater).pageIndex*25);}});
