@@ -1179,20 +1179,19 @@ export default function DriveManagement({
   useEffect(()=>{
     if(tab!=="results")return;
     const controller=new AbortController();
-    collegeApi.get<{programs:Program[]}>("academic-catalog",controller.signal).then(catalog=>{
+    Promise.all([collegeApi.get<{programs:Program[]}>("academic-catalog",controller.signal),collegeApi.get<AgentLibrary>("agents",controller.signal)]).then(([catalog,agentLibrary])=>{
       const departmentPrograms:[string,string][]=[];
+      const allowedPrograms=new Set(drive?.criteria_programs||[]);
+      const allowedDepartments=new Set(drive?.criteria_department_codes||[]);
       catalog.programs.forEach(program=>{
-        departmentPrograms.push([`program:${program.code}`,`${displayName(program.display_name)} (${program.code})`]);
-        program.departments.forEach(department=>departmentPrograms.push([`department:${department.code}`,`${displayName(department.display_name)} (${department.code})`]));
+        if(!allowedPrograms.size||allowedPrograms.has(program.code))departmentPrograms.push([`program:${program.code}`,`${displayName(program.display_name)} (${program.code})`]);
+        program.departments.forEach(department=>{if(!allowedDepartments.size||allowedDepartments.has(department.code))departmentPrograms.push([`department:${department.code}`,`${displayName(department.display_name)} (${department.code})`])});
       });
-      setResultFilterOptions(current=>({...current,departmentPrograms}));
+      const interviewRounds=(drive?.agent_selection||[]).map((item,index)=>[item.track,`Round ${index+1} — ${selectionName(item,agentLibrary)}`] as [string,string]);
+      setResultFilterOptions({departmentPrograms,interviewRounds});
     }).catch(()=>{});
     return()=>controller.abort();
-  },[tab]);
-  useEffect(()=>{
-    const interviewRounds=(drive?.agent_selection||[]).map(item=>[item.track,displayName(item.track)] as [string,string]);
-    setResultFilterOptions(current=>({...current,interviewRounds}));
-  },[drive]);
+  },[tab,drive]);
   useEffect(() => {
     const c = new AbortController();
     setLoading(true);
@@ -1205,8 +1204,8 @@ export default function DriveManagement({
     });
     if (tab === "results") {
       query.set("result_view", resultView);
-      const rules=resultRules.filter(rule=>['is_empty','is_not_empty'].includes(rule.operator)||rule.value!==''||(rule.operator==='between'&&rule.valueEnd));
-      if(rules.length) query.set("filters",JSON.stringify(rules.map(({field,operator,value,valueEnd})=>({field,operator,value,value_end:valueEnd}))));
+      const rules=resultRules.filter(rule=>['is_available','is_not_available'].includes(rule.operator)||(rule.operator==='is_any_of'&&rule.values?.length)||rule.value!==''||(rule.operator==='between'&&rule.valueEnd));
+      if(rules.length) query.set("filters",JSON.stringify(rules.map(({field,operator,value,valueEnd,values})=>({field,operator,value,value_end:valueEnd,values}))));
       query.set("match_mode",resultMatchMode);
       if(excludeReviewRequired) query.set("exclude_review_required","true");
     }
@@ -1268,7 +1267,7 @@ export default function DriveManagement({
     setError("");
     try {
       const query=new URLSearchParams({limit:String(Math.min(total,500)),offset:"0",q:search,result_view:resultView,match_mode:resultMatchMode});
-      const rules=resultRules.filter(rule=>['is_empty','is_not_empty'].includes(rule.operator)||rule.value!=='').map(({field,operator,value,valueEnd})=>({field,operator,value,value_end:valueEnd}));
+      const rules=resultRules.filter(rule=>['is_available','is_not_available'].includes(rule.operator)||(rule.operator==='is_any_of'&&rule.values?.length)||rule.value!==''||(rule.operator==='between'&&rule.valueEnd)).map(({field,operator,value,valueEnd,values})=>({field,operator,value,value_end:valueEnd,values}));
       if(rules.length)query.set("filters",JSON.stringify(rules));
       if(excludeReviewRequired)query.set("exclude_review_required","true");
       const result=await collegeApi.get<Data>(`drives/${driveId}/dashboard/ranking?${query.toString()}`);
