@@ -1,186 +1,36 @@
+import { useEffect, useMemo, useState } from 'react';
+import { ArrowUpRight, BriefcaseBusiness, CalendarClock, CheckCircle2, RefreshCw, Search, Users } from 'lucide-react';
 import { useSearchParams } from 'react-router-dom';
-import InterviewAgents, { DriveInterviewSetup } from './InterviewAgents';
-import { defaultSelection, type Selection } from './interviewAgentTypes';
-import DriveManagement from './DriveManagement';
-import {QueryClient,useQuery} from '@tanstack/react-query';
-import StudentRosterTable from './StudentRosterTable';
-import StudentImport from './StudentImport';
-import { PhotoEditor } from './AttendancePage';
-import PlacementAnalytics, {type Analytics} from './PlacementAnalytics';
-import PlacementChoices from './PlacementChoices';
-import {displayName} from './placementDisplay';
-import { useEffect, useRef, useState, type FormEvent, type ReactNode } from 'react';
-import { ArrowUpRight, BriefcaseBusiness, GraduationCap, Plus, RefreshCw, Users, X } from 'lucide-react';
-import { collegeApi, collegeError, type CollegeStudent, type Drive, type Program } from '@/api/collegeApi';
+import { collegeApi, collegeError, type Drive, type Program } from '@/api/collegeApi';
 import { useCollegeAccess } from '@/hooks/useCollegeAccess';
+import CreateDriveWizard from './CreateDriveWizard';
+import DriveManagement from './DriveManagement';
+import InterviewAgents from './InterviewAgents';
+import PlacementAnalytics, { type Analytics } from './PlacementAnalytics';
+import { displayName } from './placementDisplay';
 
-const card = 'rounded-2xl border border-slate-200 bg-white dark:border-slate-800 dark:bg-slate-900';
-const input = 'mt-1.5 w-full min-w-0 rounded-xl border border-slate-300 bg-white p-3 text-sm text-slate-900 outline-indigo-500 dark:border-slate-700 dark:bg-slate-900 dark:text-white';
-const button = 'inline-flex items-center justify-center gap-2 rounded-xl border border-slate-200 px-4 py-2.5 text-sm font-semibold disabled:opacity-50 dark:border-slate-700';
-const primary = `${button} border-indigo-600 bg-indigo-600 text-white`;
-const formatDate = (value?: string) => value ? new Date(value).toLocaleString() : 'Not scheduled';
-function localDate(value?: string) { if (!value) return ''; const d = new Date(value); if (!Number.isFinite(d.getTime())) return ''; return new Date(d.getTime() - d.getTimezoneOffset() * 60000).toISOString().slice(0, 16); }
-function Badge({ children }: { children: ReactNode }) { return <span className="inline-flex rounded-full bg-indigo-50 px-2.5 py-1 text-xs font-semibold text-indigo-700 dark:bg-indigo-950 dark:text-indigo-200">{typeof children === 'string' ? displayName(children) : children}</span>; }
-function Field({ label, children, wide = false }: { label: string; children: ReactNode; wide?: boolean }) { return <label className={`block min-w-0 text-sm font-medium ${wide ? 'sm:col-span-2' : ''}`}>{label}{children}</label>; }
-function Modal({ title, close, children, busy }: { title: string; close: () => void; children: ReactNode; busy: boolean }) {
-  const ref = useRef<HTMLDialogElement>(null);
-  useEffect(() => { const el = ref.current!; el.showModal(); return () => el.close(); }, []);
-  return <dialog ref={ref} aria-labelledby="college-modal-title" onCancel={e => { if (busy) e.preventDefault(); else close(); }} className={`${card} m-auto max-h-[90dvh] w-[calc(100%_-_24px)] max-w-[720px] overflow-y-auto p-5 text-slate-900 backdrop:bg-slate-950/50 sm:p-7 dark:text-white`}>
-    <div className="mb-6 flex items-center justify-between gap-4"><h2 id="college-modal-title" className="text-xl font-bold">{title}</h2><button type="button" className={button} aria-label="Close form" disabled={busy} onClick={close}><X size={18} /></button></div>{children}</dialog>;
+const card='rounded-2xl border border-slate-200 bg-white p-5 dark:border-slate-800 dark:bg-slate-900';
+const input='w-full rounded-xl border border-slate-300 bg-white px-3 py-2.5 text-sm outline-indigo-500 dark:border-slate-700 dark:bg-slate-900';
+const button='inline-flex items-center justify-center gap-2 rounded-xl border border-slate-200 px-4 py-2.5 text-sm font-semibold disabled:opacity-50 dark:border-slate-700';
+const primary=`${button} border-indigo-600 bg-indigo-600 text-white`;
+const date=(value?:string)=>value?new Date(value).toLocaleString():'Not scheduled';
+type Landing={active_drives?:number;upcoming_drives?:number;eligible_candidates?:number;interviews_completed?:number;completion_rate?:number};
+
+export default function CollegeManagementPage(){
+ const {access,loading:accessLoading,error:accessError,retry}=useCollegeAccess();const [params,setParams]=useSearchParams();
+ const tab=(params.get('view')||'placements') as 'placements'|'analytics'|'agents',driveId=params.get('drive'),creating=params.get('create')==='1';
+ const [drives,setDrives]=useState<Drive[]>([]),[programs,setPrograms]=useState<Program[]>([]),[analytics,setAnalytics]=useState<Analytics|null>(null),[overview,setOverview]=useState<Landing>({}),[loading,setLoading]=useState(false),[error,setError]=useState(''),[notice,setNotice]=useState(''),[version,setVersion]=useState(0),[query,setQuery]=useState(''),[status,setStatus]=useState(''),[type,setType]=useState(''),[sort,setSort]=useState('recent'),[editing,setEditing]=useState<Drive|null>(null);
+ useEffect(()=>{if(!access?.enabled)return;const c=new AbortController();setLoading(true);setError('');Promise.all([collegeApi.get<Drive[]>('drives',c.signal),collegeApi.get<{programs:Program[]}>('academic-catalog',c.signal),collegeApi.get<Analytics>('analytics',c.signal),collegeApi.get<any>('dashboard/overview',c.signal)]).then(([d,p,a,o])=>{setDrives(d);setPrograms(p.programs);setAnalytics(a);setOverview(o)}).catch(e=>!c.signal.aborted&&setError(collegeError(e))).finally(()=>!c.signal.aborted&&setLoading(false));return()=>c.abort()},[access?.enabled,version]);
+ const filtered=useMemo(()=>drives.filter(d=>(!query||`${d.company_name} ${d.role_title}`.toLowerCase().includes(query.toLowerCase()))&&(!status||d.status===status)&&(!type||d.drive_type===type)).sort((a,b)=>sort==='company'?a.company_name.localeCompare(b.company_name):sort==='starting'?+new Date(a.window_start_at||0)-+new Date(b.window_start_at||0):sort==='ending'?+new Date(a.window_end_at||0)-+new Date(b.window_end_at||0):+new Date(b.created_at||0)-+new Date(a.created_at||0)),[drives,query,status,type,sort]);
+ if(accessLoading)return <p role="status">Loading placement management…</p>;if(accessError||!access?.enabled)return <section className={card}><p role="alert">{accessError||'Placement management is not enabled for this account.'}</p><button className={`${button} mt-4`} onClick={retry}>Retry</button></section>;
+ const navigate=(view:string)=>setParams(p=>{p.set('view',view);p.delete('drive');p.delete('create');p.delete('section');return p});
+ if(creating||editing)return <CreateDriveWizard programs={programs} drive={editing} onCancel={()=>{setEditing(null);setParams(p=>{p.delete('create');return p})}} onSaved={message=>{setNotice(message);setEditing(null);setParams(p=>{p.delete('create');return p});setVersion(v=>v+1)}}/>;
+ if(driveId)return <DriveManagement driveId={driveId} back={()=>setParams(p=>{p.delete('drive');p.delete('section');return p})} edit={id=>{const found=drives.find(d=>d.id===id);if(found)setEditing(found);else collegeApi.get<Drive>(`drives/${id}`).then(setEditing).catch(e=>setError(collegeError(e)))}}/>;
+ return <div className="space-y-6 text-slate-900 dark:text-white"><header className="flex flex-wrap items-start justify-between gap-4"><div><p className="text-sm font-medium text-indigo-600">{displayName(access.college_name||'')}</p><h1 className="mt-1 text-3xl font-bold">Placement management</h1><p className="mt-2 text-sm text-slate-500">Manage placement drives, results and interview configuration.</p></div><a className={button} href="https://students.voicedots.io" target="_blank" rel="noreferrer">Student portal<ArrowUpRight size={16}/></a></header><nav className="flex gap-6 border-b" aria-label="Placement sections">{([['placements','Placements'],['analytics','Analytics'],['agents','Interview Agents']] as const).map(([key,label])=><button key={key} onClick={()=>navigate(key)} className={`border-b-2 px-1 pb-3 text-sm font-semibold ${tab===key?'border-indigo-600 text-indigo-700':'border-transparent text-slate-500'}`}>{label}</button>)}</nav>{error&&<p role="alert" className="rounded-xl bg-rose-50 p-4 text-rose-700">{error}</p>}{notice&&<p role="status" className="rounded-xl bg-emerald-50 p-4 text-emerald-700">{notice}</p>}{tab==='analytics'?<PlacementAnalytics data={analytics}/>:tab==='agents'?<InterviewAgents/>:<PlacementLanding drives={filtered} allDrives={drives} analytics={analytics} overview={overview} loading={loading} query={query} setQuery={setQuery} status={status} setStatus={setStatus} type={type} setType={setType} sort={sort} setSort={setSort} refresh={()=>setVersion(v=>v+1)} create={()=>setParams(p=>{p.set('create','1');return p})} manage={id=>setParams(p=>{p.set('drive',id);p.set('section','overview');return p})} edit={setEditing}/>}</div>
 }
 
-export default function CollegeManagementPage() {
-  const { access, loading: accessLoading, error: accessError, retry } = useCollegeAccess();
-  const [tab, setTab] = useState<'drives' | 'students' | 'academic' | 'analytics' | 'agents'>('drives');
-  const [drives, setDrives] = useState<Drive[]>([]), [programs, setPrograms] = useState<Program[]>([]);
-  const [offset, setOffset] = useState(0), [query, setQuery] = useState('');
-  const [loading, setLoading] = useState(false), [busy, setBusy] = useState(false), [error, setError] = useState(''), [notice, setNotice] = useState('');
-  const [version, setVersion] = useState(0);
-  const [driveForm, setDriveForm] = useState<Drive | 'new' | null>(null), [studentForm, setStudentForm] = useState<CollegeStudent | 'new' | null>(null);
-  const [formError, setFormError] = useState('');
-  const [studentProgram, setStudentProgram] = useState('');
-  const [filters,setFilters]=useState<Record<string,string>>({});
-  const [options,setOptions]=useState<{batches:string[];graduation_years:number[];statuses:string[]}>({batches:[],graduation_years:[],statuses:[]});
-  const [queryClient]=useState(()=>new QueryClient({defaultOptions:{queries:{retry:1,staleTime:15000}}}));
-  const [analytics,setAnalytics]=useState<Analytics|null>(null);
-  const [params, setParams] = useSearchParams();
-  const managedDrive = params.get('drive');
-  const [selection, setSelection] = useState<Selection[]>(defaultSelection);
-  const [previewBusy, setPreviewBusy] = useState(false);
-  const [questionSource, setQuestionSource] = useState('personalized');
-  const [scriptedQuestions, setScriptedQuestions] = useState<Record<string, string[]>>({});
-  const [driveFormElement, setDriveFormElement] = useState<HTMLFormElement | null>(null);
-  function openManagement(id: string) { setTab('drives'); setParams(p => { p.set('drive', id); p.delete('section'); return p; }); }
-  const [drivePrograms,setDrivePrograms]=useState<string[]>([]), [driveDepartments,setDriveDepartments]=useState<string[]>([]), [driveYears,setDriveYears]=useState<string[]>([]);
-  const rosterQuery=new URLSearchParams(Object.entries(filters).filter(([,v])=>v)).toString();
-  function changeFilter(key:string,value:string){setOffset(0);setFilters(f=>({...f,[key]:value,...(key==='program'?{department:''}:{})}));}
-  function startDrive(d:Drive|'new') {setSelection(d==='new'?defaultSelection:d.agent_selection?.length?d.agent_selection:defaultSelection);setQuestionSource(d==='new'?'personalized':d.question_source||'personalized');setScriptedQuestions(d==='new'?{}:d.scripted_questions||{});setDriveForm(d);setDrivePrograms(d==='new'?[]:d.criteria_programs||[]);setDriveDepartments(d==='new'?[]:d.criteria_department_codes||[]);setDriveYears(d==='new'?[]:(d.criteria_graduation_years||[]).map(String));}
-
-  const refresh = () => setVersion(v => v + 1);
-  useEffect(() => {
-    if (!access?.enabled) return;
-    const controller = new AbortController(); setLoading(true); setError('');
-    Promise.all([
-      collegeApi.get<Drive[]>('drives', controller.signal),
-      collegeApi.get<{ programs: Program[] }>('academic-catalog', controller.signal),
-      collegeApi.get<typeof options>('roster-options', controller.signal),
-      collegeApi.get<Analytics>('analytics', controller.signal),
-    ]).then(([driveData, catalog, rosterOptions, metrics]) => {
-      if (!controller.signal.aborted) { setDrives(driveData); setPrograms(catalog.programs); setOptions(rosterOptions); setAnalytics(metrics); }
-    }).catch(e => { if (!controller.signal.aborted) setError(collegeError(e)); }).finally(() => { if (!controller.signal.aborted) setLoading(false); });
-    return () => controller.abort();
-  }, [access?.enabled, version]);
-  const roster=useQuery({queryKey:['student-roster',access?.college_id,query,rosterQuery,offset,version],enabled:!!access?.enabled,
-    queryFn:({signal})=>collegeApi.get<{items:CollegeStudent[];total:number}>(`students?limit=25&offset=${offset}&q=${encodeURIComponent(query)}&${rosterQuery}`,signal),
-    placeholderData:(previous,previousQuery)=>previousQuery?.queryKey[1]===access?.college_id?previous:undefined},queryClient);
-  const students=roster.data?.items||[],total=roster.data?.total||0,rosterLoading=roster.isFetching;
-
-  async function act(path: string, payload: unknown, edit = false) {
-    setBusy(true); setError(''); setNotice('');
-    try { const result = await collegeApi.save<{ warnings?: string[] }>(path, payload, edit); setNotice(result.warnings?.length ? result.warnings.join(' ') : 'Changes saved. Student visibility follows the drive status and eligibility rules.'); refresh(); }
-    catch (e) { setError(collegeError(e)); } finally { setBusy(false); }
-  }
-  async function saveDrive(e: FormEvent<HTMLFormElement>) {
-    e.preventDefault(); const f = new FormData(e.currentTarget); setBusy(true); setFormError('');
-    const current = driveForm && driveForm !== 'new' ? driveForm : null;
-    const start = new Date(String(f.get('window_start'))), end = new Date(String(f.get('window_end')));
-    if (!(end > start)) { setFormError('The interview end must be later than the start.'); setBusy(false); return; }
-    const payload: Record<string, unknown> = {
-      agent_selection: selection.map(({track,agent_id})=>({track,agent_id})), question_source: questionSource, scripted_questions: questionSource==='personalized'?{}:scriptedQuestions,
-      company_name: String(f.get('company_name')).trim(), company_description: String(f.get('company_description')).trim(), role_title: String(f.get('role_title')).trim(), job_type: String(f.get('job_type')), location: String(f.get('location')).trim(), max_attempts: Number(f.get('max_attempts')),
-      window_start: start.toISOString(), window_end: end.toISOString(), min_cgpa: Number(f.get('min_cgpa')),
-      eligible_programs: drivePrograms, eligible_departments: driveDepartments, eligible_graduation_years: driveYears.map(Number), interview_duration_minutes: Number(f.get('duration')),
-    };
-    if (!drivePrograms.length || !driveDepartments.length || !driveYears.length) {setFormError('Select eligible programs, departments and graduation years.');setBusy(false);return;}
-    if (selection.length < 1 || selection.length > 4) { setFormError('Select between one and four interview agents.'); setBusy(false); return; }
-    const jd = String(f.get('jd_text')).trim();
-    if (!current || jd !== current.jd_raw_text?.trim()) payload.jd_text = jd;
-    try {
-      const result = await collegeApi.save<{ status?: string; warnings?: string[] }>(current ? `drives/${current.id}` : 'drives', payload, !!current);
-      setDriveForm(null); setNotice([`Drive saved${result.status ? ` (${result.status})` : ''}.`, ...(result.warnings || [])].join(' ')); refresh();
-    } catch (err) { setFormError(collegeError(err)); } finally { setBusy(false); }
-  }
-  async function editDrive(id: string) {
-    setBusy(true); setError('');
-    try { startDrive(await collegeApi.get<Drive>(`drives/${id}`)); setFormError(''); } catch (e) { setError(collegeError(e)); } finally { setBusy(false); }
-  }
-  async function saveStudent(e: FormEvent<HTMLFormElement>) {
-    e.preventDefault(); const f = new FormData(e.currentTarget); setBusy(true); setFormError('');
-    const current = studentForm && studentForm !== 'new' ? studentForm : null;
-    const payload = { full_name: f.get('full_name'), roll_number: f.get('roll_number'), email: f.get('email'), phone: f.get('phone'), program: studentProgram, department_code: f.get('department'), graduation_year: Number(f.get('year')), cgpa: Number(f.get('cgpa')), status: f.get('status') };
-    try {
-      const password = String(f.get('password') || '');
-      if (!current && (password.length < 12 || password.length > 128 || !/[A-Z]/.test(password) || !/[a-z]/.test(password) || !/[0-9]/.test(password) || !/[^a-zA-Z0-9]/.test(password))) throw new Error('Password must be 12–128 characters and include uppercase, lowercase, a number, and a symbol.');
-      if (!current && password !== f.get('confirm_password')) throw new Error('Passwords do not match.');
-      let photo: string | undefined;
-      if (!current) {
-        const file = f.get('photo');
-        if (!(file instanceof File) || !file.size || file.size > 2 * 1024 * 1024) throw new Error('Choose a student photo up to 2 MB.');
-        photo = await new Promise<string>((resolve, reject) => { const reader = new FileReader(); reader.onload = () => resolve(String(reader.result)); reader.onerror = () => reject(new Error('Could not read the student photo.')); reader.readAsDataURL(file); });
-      }
-      await collegeApi.save(current ? `students/${current.id}` : 'students', { ...payload, ...(photo ? { photo } : {}), ...(!current ? { password } : {}) }, !!current); setStudentForm(null); setNotice(current ? 'Student updated.' : 'Student added with a login password. Share the email and password securely with the student. Sign in at students.voicedots.io; camera verification is still required.'); refresh(); }
-    catch (err) { setFormError(err instanceof Error && !('isAxiosError' in err) ? err.message : collegeError(err)); } finally { setBusy(false); }
-  }
-  if (accessLoading) return <p role="status" className="p-8 text-slate-500">Loading placement workspace…</p>;
-  if (accessError) return <div role="alert" className={`${card} p-8`}><p>{accessError}</p><button className={`${button} mt-4`} onClick={retry}>Retry</button></div>;
-  if (!access?.enabled) return <section className={`${card} max-w-2xl p-8 text-slate-900 dark:text-white`}><GraduationCap className="mb-4 text-indigo-600" size={36} /><h1 className="text-2xl font-bold">Placement management</h1><p className="mt-3 text-sm leading-6 text-slate-500">Placement management is not enabled for your account. Contact VoiceDots to connect your workspace and grant management access.</p></section>;
-  const currentDrive = driveForm && driveForm !== 'new' ? driveForm : null;
-  const currentStudent = studentForm && studentForm !== 'new' ? studentForm : null;
-  return <div className="space-y-6 text-slate-900 dark:text-slate-100">
-    <header className="flex flex-wrap items-start justify-between gap-4"><div><p className="mb-2 text-xs font-semibold text-indigo-600">{displayName(access.college_name)}</p><h1 className="text-3xl font-bold tracking-tight">Placement management</h1><p className="mt-2 text-sm text-slate-500">Manage your students and bring their next opportunity into view.</p></div><a href="https://students.voicedots.io" target="_blank" rel="noreferrer" className={button}>Student portal <ArrowUpRight size={16} /></a></header>
-    <div className="grid gap-4 sm:grid-cols-3">{[[BriefcaseBusiness, 'Placement drives', drives.length], [GraduationCap, 'Active drives', drives.filter(d => d.status === 'active').length], [Users, query || rosterQuery ? 'Matching students' : 'Students', total]].map(([Icon, label, value]) => { const MetricIcon = Icon as typeof Users; return <div key={String(label)} className={`${card} flex items-center gap-4 p-5`}><MetricIcon size={24} className="text-indigo-500" /><div><p className="text-xs text-slate-500">{String(label)}</p><strong className="text-2xl">{String(value)}</strong></div></div>; })}</div>
-    <nav aria-label="Placement sections" className="flex flex-wrap gap-2 border-b border-slate-200 pb-3 dark:border-slate-800">{(['drives', 'students', 'analytics', 'academic', 'agents'] as const).map(t => <button key={t} onClick={() => setTab(t)} aria-pressed={tab === t} className={`${button} ${tab === t ? 'bg-indigo-600 text-white' : 'bg-white dark:bg-slate-900'}`}>{t === 'drives' ? 'Placements' : t === 'students' ? 'Student roster' : t === 'analytics' ? 'Analytics' : t === 'academic' ? 'Academic setup' : 'Interview Agents'}</button>)}</nav>
-    {error && <p role="alert" className="rounded-xl bg-rose-50 p-4 text-sm text-rose-800">{error}</p>}
-    {notice && <p role="status" className="rounded-xl bg-indigo-50 p-4 text-sm text-indigo-800">{notice}</p>}
-    <div className="flex flex-wrap items-center justify-between gap-3"><h2 className="text-xl font-bold">{tab === 'drives' ? 'Placement drives' : tab === 'students' ? 'Your students' : tab === 'analytics' ? 'Placement analytics' : tab === 'agents' ? 'Interview Agents' : 'Programs & departments'}</h2><div className="flex gap-2"><button className={button} disabled={loading || busy} onClick={refresh}><RefreshCw size={16} />Refresh</button>{(tab === 'drives' || tab === 'students') && <button className={primary} disabled={busy || loading} onClick={() => { setFormError(''); if (tab === 'drives') startDrive('new'); else { setStudentForm('new'); setStudentProgram(programs[0]?.code || ''); } }}><Plus size={16} />{tab === 'drives' ? 'Create drive' : 'Add student'}</button>}</div></div>
-    {(loading || rosterLoading) && <p role="status" className="py-4 text-slate-500">Updating workspace…</p>}
-    {tab === 'agents' ? <InterviewAgents/> : tab === 'drives' && managedDrive ? <DriveManagement key={managedDrive} driveId={managedDrive} edit={id=>void editDrive(id)} back={()=>setParams(p=>{p.delete('drive');p.delete('section');return p;})}/> : tab === 'drives' ? <>
-      <p className="text-sm text-slate-500">Only active drives appear to eligible students in your workspace. Creating a complete drive evaluates eligibility and may activate it automatically.</p>
-      {!drives.length ? <div className={`${card} p-12 text-center`}><BriefcaseBusiness className="mx-auto mb-4 text-indigo-500" /><h3 className="text-lg font-semibold">Create your first placement drive</h3><p className="mt-2 text-sm text-slate-500">Add a company, job description, interview schedule, and eligibility criteria.</p></div> : <div className="grid gap-4 xl:grid-cols-2">{drives.map(d => <article key={d.id} className={`${card} min-w-0 cursor-pointer p-5`} onClick={event=>{if (!(event.target as HTMLElement).closest("button,a")) openManagement(d.id);}}><div className="flex justify-between gap-4"><p className="break-words text-sm font-semibold text-indigo-600">{displayName(d.company_name)}</p><Badge>{d.status}</Badge></div><h3 className="mt-3 break-words text-xl font-bold"><button className="text-left hover:text-indigo-600" onClick={()=>openManagement(d.id)}>{displayName(d.role_title)}</button></h3><p className="mt-2 text-sm text-slate-500">{d.location || 'Location not set'}</p><p className="mt-4 text-xs text-slate-500">Interview opens: {formatDate(d.window_start_at)}</p><div className="mt-5 flex flex-wrap gap-2"><button className={button} disabled={busy} onClick={() => void editDrive(d.id)}>Edit drive</button><button className={button} disabled={busy} onClick={() => openManagement(d.id)}>Manage drive</button>{d.status !== 'active' ? <button className={primary} disabled={busy} onClick={() => void act(`drives/${d.id}`, { status: 'active' }, true)}>Activate</button> : <button className={button} disabled={busy} onClick={() => void act(`drives/${d.id}`, { status: 'closed' }, true)}>Close drive</button>}</div></article>)}</div>}
-    </> : tab === 'students' ? <>
-      <form className="flex max-w-lg gap-2" onSubmit={e => { e.preventDefault(); setOffset(0); setQuery(String(new FormData(e.currentTarget).get('search')).trim()); }}><input className={input} name="search" aria-label="Search students" placeholder="Search name, email or roll number" value={query} onChange={e=>{setQuery(e.target.value);setOffset(0);}} /><button className={button}>Search</button></form>
-      <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
-      <Field label="Filter by program"><select className={input} value={filters.program||''} onChange={e=>changeFilter('program',e.target.value)}><option value="">All programs</option>{programs.map(p=><option key={p.code} value={p.code}>{displayName(p.display_name)} ({p.code})</option>)}</select></Field>
-      <Field label="Filter by department"><select className={input} value={filters.department||''} onChange={e=>changeFilter('department',e.target.value)}><option value="">All departments</option>{Array.from(new Map(programs.filter(p=>!filters.program||p.code===filters.program).flatMap(p=>p.departments.map(d=>[d.code,d] as const))).values()).map(d=><option key={d.code} value={d.code}>{displayName(d.display_name)} ({d.code})</option>)}</select></Field>
-      <Field label="Filter by batch"><select className={input} value={filters.batch_label||''} onChange={e=>changeFilter('batch_label',e.target.value)}><option value="">All batches</option>{options.batches.map(b=><option key={b}>{b}</option>)}</select></Field>
-      <Field label="Filter by graduation year"><select className={input} value={filters.graduation_year||''} onChange={e=>changeFilter('graduation_year',e.target.value)}><option value="">All years</option>{options.graduation_years.map(y=><option key={y}>{y}</option>)}</select></Field>
-      <Field label="Filter by status"><select className={input} value={filters.status||''} onChange={e=>changeFilter('status',e.target.value)}><option value="">All statuses</option>{options.statuses.map(x=><option key={x} value={x}>{displayName(x)}</option>)}</select></Field>
-      <Field label="Minimum cgpa"><input className={input} type="number" min={0} max={10} step="0.1" value={filters.min_cgpa||''} onChange={e=>changeFilter('min_cgpa',e.target.value)}/></Field>
-      <Field label="Maximum cgpa"><input className={input} type="number" min={0} max={10} step="0.1" value={filters.max_cgpa||''} onChange={e=>changeFilter('max_cgpa',e.target.value)}/></Field>
-      <Field label="Resume availability"><select className={input} value={filters.has_resume||''} onChange={e=>changeFilter('has_resume',e.target.value)}><option value="">All students</option><option value="true">Resume uploaded</option><option value="false">No readable resume</option></select></Field>
-      <button className={button} onClick={()=>{setFilters({});setOffset(0);setQuery('');}}>Clear filters</button></div>
-      <StudentImport onComplete={refresh}/>
-      {roster.error&&<p role="alert" className="text-rose-600">{collegeError(roster.error)} <button onClick={()=>void roster.refetch()}>Retry</button></p>}
-      <StudentRosterTable students={students} total={total} offset={offset} busy={rosterLoading} onPage={setOffset} sorting={[{id:filters.sort||'roll_number',desc:filters.order==='desc'}]} onSort={value=>{setOffset(0);setFilters(f=>({...f,sort:value[0]?.id||'roll_number',order:value[0]?.desc?'desc':'asc'}));}} onEdit={student=>{setStudentForm(student);setStudentProgram(student.program);setFormError('');}}/>
-    </> : tab === 'analytics' ? <PlacementAnalytics data={analytics}/> : <div className="space-y-5"><p className="text-sm text-slate-500">Configure programs and their departments before adding students. Drive eligibility options come from this catalog.</p><div className="grid gap-4 sm:grid-cols-2">{programs.map(p => <article key={p.code} className={`${card} p-5`}><h3 className="font-bold">{displayName(p.display_name)} <span className="text-sm font-normal text-slate-500">({p.code})</span></h3><p className="mt-2 text-sm text-slate-500">{p.duration_years} years</p><div className="mt-3 flex flex-wrap gap-2">{p.departments.map(d => <Badge key={d.code}>{displayName(d.display_name)} ({d.code})</Badge>)}</div></article>)}</div>
-      <div className="grid gap-5 lg:grid-cols-2"><form className={`${card} space-y-4 p-5`} onSubmit={e => { e.preventDefault(); const f = new FormData(e.currentTarget); void act('academic-catalog/programs', { code: f.get('code'), display_name: f.get('name'), duration_years: Number(f.get('duration')) }); }}><h3 className="font-bold">Add or update program</h3><Field label="Program code"><input className={input} name="code" placeholder="B.Tech" required maxLength={40} /></Field><Field label="Display name"><input className={input} name="name" required maxLength={120} /></Field><Field label="Duration in years"><input className={input} name="duration" type="number" min={1} max={8} required defaultValue={4} /></Field><button className={primary} disabled={busy}>Save program</button></form>
-      <form className={`${card} space-y-4 p-5`} onSubmit={e => { e.preventDefault(); const f = new FormData(e.currentTarget); void act('academic-catalog/departments', { program_code: f.get('program'), code: f.get('code'), display_name: f.get('name') }); }}><h3 className="font-bold">Add or update department</h3><Field label="Program"><select className={input} name="program" required>{programs.map(p => <option key={p.code}>{p.code}</option>)}</select></Field><Field label="Department code"><input className={input} name="code" placeholder="CSE" required maxLength={40} /></Field><Field label="Display name"><input className={input} name="name" placeholder="Computer Science" required maxLength={120} /></Field><button className={primary} disabled={busy || !programs.length}>Save department</button></form></div>
-    </div>}
-    {driveForm && <Modal title={currentDrive ? 'Edit placement drive' : 'Create placement drive'} busy={busy || previewBusy} close={() => setDriveForm(null)}><form ref={setDriveFormElement} onSubmit={saveDrive} className="grid gap-4 sm:grid-cols-2">
-      {formError && <p role="alert" className="text-sm text-rose-600 sm:col-span-2">{formError}</p>}
-      <Field label="Company"><input className={input} name="company_name" required maxLength={200} defaultValue={currentDrive?.company_name} /></Field><Field label="Role"><input className={input} name="role_title" required maxLength={200} defaultValue={currentDrive?.role_title} /></Field>
-      <Field label="Company details" wide><textarea className={input} name="company_description" rows={4} maxLength={5000} defaultValue={currentDrive?.company_description} placeholder="Describe the company, its work, culture, products, and what students should know before applying." /></Field>
-      <Field label="Job type"><select className={input} name="job_type" defaultValue={currentDrive?.job_type || 'full_time'}><option value="full_time">Full time</option><option value="internship">Internship</option><option value="internship_ppo">Internship + PPO</option></select></Field><Field label="Location"><input className={input} name="location" required defaultValue={currentDrive?.location} /></Field>
-      <Field label="Job description" wide><textarea className={input} name="jd_text" required rows={5} maxLength={50000} defaultValue={currentDrive?.jd_raw_text} /></Field>
-      <Field label="Interview start (your local time)"><input className={input} name="window_start" type="datetime-local" required defaultValue={localDate(currentDrive?.window_start_at)} /></Field><Field label="Interview end (your local time)"><input className={input} name="window_end" type="datetime-local" required defaultValue={localDate(currentDrive?.window_end_at)} /></Field>
-      <Field label="Minimum CGPA"><input className={input} name="min_cgpa" type="number" min={0} max={10} step="0.01" required defaultValue={currentDrive?.criteria_min_cgpa ?? 0} /></Field><Field label="Interview duration"><select className={input} name="duration" defaultValue={currentDrive?.interview_duration_minutes || 30}>{[15, 30, 45].map(m => <option key={m} value={m}>{m} minutes</option>)}</select></Field>
-      <Field label="Attempts per student"><input className={input} name="max_attempts" type="number" min={1} max={10} required defaultValue={currentDrive?.max_attempts || 1} /></Field>
-      <DriveInterviewSetup selection={selection} setSelection={setSelection} source={questionSource} setSource={setQuestionSource} questions={scriptedQuestions} setQuestions={setScriptedQuestions} form={driveFormElement} busy={busy} onGenerating={setPreviewBusy}/>
-      <PlacementChoices label="Eligible programs" name="programs" options={programs.map(p=>({value:p.code,label:`${displayName(p.display_name)} (${p.code})`}))} values={drivePrograms} onChange={v=>{setDrivePrograms(v);setDriveDepartments(old=>old.filter(code=>programs.filter(p=>v.includes(p.code)).some(p=>p.departments.some(d=>d.code===code))));}}/>
-      <PlacementChoices label="Eligible departments" name="departments" options={Array.from(new Map(programs.filter(p=>drivePrograms.includes(p.code)).flatMap(p=>p.departments.map(d=>[d.code,{value:d.code,label:`${displayName(d.display_name)} (${d.code})`}] as const))).values())} values={driveDepartments} onChange={setDriveDepartments}/>
-      <PlacementChoices label="Graduation years" name="years" options={Array.from(new Set([...options.graduation_years,...(currentDrive?.criteria_graduation_years||[])])).sort().map(y=>({value:String(y),label:String(y)}))} values={driveYears} onChange={setDriveYears}/>
-
-      <p className="text-xs leading-5 text-slate-500 sm:col-span-2">A complete drive may become active immediately after eligibility is evaluated. Only qualifying students from your workspace will see it.</p><button className={`${primary} sm:col-span-2`} disabled={busy || previewBusy}>{busy ? 'Saving and evaluating…' : currentDrive ? 'Save drive' : 'Create & evaluate drive'}</button>
-    </form></Modal>}
-    {studentForm && <Modal title={currentStudent ? 'Edit student' : 'Add student'} busy={busy} close={() => setStudentForm(null)}><form onSubmit={saveStudent} className="grid gap-4 sm:grid-cols-2">
-      {formError && <p role="alert" className="text-sm text-rose-600 sm:col-span-2">{formError}</p>}
-      {currentStudent && <PhotoEditor key={currentStudent.id} inline kind="students" person={currentStudent} done={refresh} close={() => {}} />}
-      {!currentStudent && <Field label="Student reference photo"><input className={input} name="photo" type="file" accept="image/jpeg,image/png" required /><p className="mt-1 text-xs text-slate-500">A clear photo containing only this student. Up to 2 MB.</p></Field>}
-      <Field label="Full name"><input className={input} name="full_name" required defaultValue={currentStudent?.full_name} /></Field><Field label="Roll number"><input className={input} name="roll_number" required readOnly={!!currentStudent} defaultValue={currentStudent?.roll_number} /></Field><Field label="Email"><input className={input} name="email" type="email" required defaultValue={currentStudent?.email} /></Field><Field label="Phone"><input className={input} name="phone" type="tel" required defaultValue={currentStudent?.phone} /></Field>
-      <Field label="Program"><select className={input} value={studentProgram} onChange={e => setStudentProgram(e.target.value)} required>{programs.map(p => <option key={p.code}>{p.code}</option>)}</select></Field><Field label="Department"><select key={studentProgram} className={input} name="department" required defaultValue={currentStudent?.department_code}>{programs.find(p => p.code === studentProgram)?.departments.map(d => <option key={d.code} value={d.code}>{displayName(d.display_name)} ({d.code})</option>)}</select></Field>
-      <Field label="Graduation year"><input className={input} name="year" type="number" min={2000} max={2100} required defaultValue={currentStudent?.graduation_year || new Date().getFullYear() + 1} /></Field><Field label="CGPA"><input className={input} name="cgpa" type="number" min={0} max={10} step="0.01" required defaultValue={currentStudent?.cgpa} /></Field><Field label="Status"><select className={input} name="status" defaultValue={currentStudent?.status || 'active'}><option value="active">Active</option><option value="inactive">Inactive</option><option value="placed">Placed</option></select></Field>
-      {!currentStudent && <><Field label="Password"><input className={input} name="password" type="password" autoComplete="new-password" minLength={12} maxLength={128} required /><p className="mt-1 text-xs text-slate-500">12–128 characters with uppercase, lowercase, a number, and a symbol. Share securely with the student.</p></Field><Field label="Confirm password"><input className={input} name="confirm_password" type="password" autoComplete="new-password" minLength={12} maxLength={128} required /></Field></>}
-      <button className={`${primary} sm:col-span-2`} disabled={busy || !programs.length}>{busy ? 'Saving…' : 'Save student'}</button>
-    </form></Modal>}
-  </div>;
+function PlacementLanding({drives,allDrives,analytics,overview,loading,query,setQuery,status,setStatus,type,setType,sort,setSort,refresh,create,manage,edit}:{drives:Drive[];allDrives:Drive[];analytics:Analytics|null;overview:Landing;loading:boolean;query:string;setQuery:(v:string)=>void;status:string;setStatus:(v:string)=>void;type:string;setType:(v:string)=>void;sort:string;setSort:(v:string)=>void;refresh:()=>void;create:()=>void;manage:(id:string)=>void;edit:(d:Drive)=>void}){
+ return <><div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4"><Kpi icon={<BriefcaseBusiness/>} label="Active drives" value={overview.active_drives??allDrives.filter(d=>d.status==='active').length} note="Currently accepting interviews"/><Kpi icon={<CalendarClock/>} label="Upcoming drives" value={overview.upcoming_drives??allDrives.filter(d=>d.status==='scheduled').length} note="Fully configured and scheduled"/><Kpi icon={<Users/>} label="Eligible candidates" value={overview.eligible_candidates??allDrives.filter(d=>['active','scheduled'].includes(d.status)).reduce((n,d)=>n+(d.latest_snapshot_eligible_count||0),0)} note="Drive-candidate matches across open drives"/><Kpi icon={<CheckCircle2/>} label="Interviews completed" value={overview.interviews_completed??analytics?.summary?.completed_attempts??0} note={overview.completion_rate==null?'Completed placement interviews':`${overview.completion_rate}% completion rate`}/></div><div className="flex flex-wrap items-center justify-between gap-3"><div><h2 className="text-xl font-bold">Placement drives</h2><p className="text-sm text-slate-500">Active, upcoming, draft and completed opportunities.</p></div><div className="flex gap-2"><button className={button} disabled={loading} onClick={refresh}><RefreshCw size={16}/>Refresh</button><button className={primary} onClick={create}>+ Create drive</button></div></div><div className={`${card} grid gap-3 md:grid-cols-5`}><label className="relative md:col-span-2"><Search className="absolute left-3 top-3 text-slate-400" size={17}/><input aria-label="Search company or role" className={`${input} pl-10`} placeholder="Search company or role" value={query} onChange={e=>setQuery(e.target.value)}/></label><select aria-label="Drive status" className={input} value={status} onChange={e=>setStatus(e.target.value)}><option value="">All statuses</option>{['draft','scheduled','active','closed'].map(s=><option key={s} value={s}>{displayName(s)}</option>)}</select><select aria-label="Drive type" className={input} value={type} onChange={e=>setType(e.target.value)}><option value="">All drive types</option><option value="official_placement">Official Placement</option><option value="college_practice">College Practice</option></select><select aria-label="Sort drives" className={input} value={sort} onChange={e=>setSort(e.target.value)}><option value="recent">Recently created</option><option value="starting">Starting soon</option><option value="ending">Ending soon</option><option value="company">Company A–Z</option></select></div>{loading?<p role="status">Loading placement drives…</p>:drives.length?<div className="grid gap-4 xl:grid-cols-2">{drives.map(d=><DriveCard key={d.id} drive={d} manage={()=>manage(d.id)} edit={()=>edit(d)}/>)}</div>:<p className={card}>No placement drives match these filters.</p>}</>
 }
+function Kpi({icon,label,value,note}:{icon:React.ReactNode;label:string;value:number;note:string}){return <article className={card}><div className="flex items-center gap-2 text-slate-500">{icon}<span className="text-xs font-semibold uppercase tracking-wide">{label}</span></div><strong className="mt-3 block text-3xl">{value}</strong><p className="mt-2 text-xs text-slate-500">{note}</p></article>}
+function DriveCard({drive,manage,edit}:{drive:Drive;manage:()=>void;edit:()=>void}){const assigned=drive.assignment_count||0,completed=drive.completed_count||0,progress=assigned?Math.round(completed/assigned*100):0;return <article className={card}><div className="flex items-start justify-between gap-3"><div><p className="text-xs font-semibold uppercase tracking-wide text-indigo-600">{displayName(drive.drive_type||'official_placement')}</p><h3 className="mt-2 text-lg font-bold">{drive.company_name}</h3><p className="text-sm text-slate-600">{drive.role_title}</p></div><span className="rounded-full bg-slate-100 px-3 py-1 text-xs font-semibold">{displayName(drive.status)}</span></div><div className="mt-4 grid grid-cols-2 gap-3 text-sm"><p><span className="text-slate-500">Job type</span><br/>{displayName(drive.job_type||'full_time')}</p><p><span className="text-slate-500">Location</span><br/>{drive.location||'Not supplied'}</p><p><span className="text-slate-500">Starts</span><br/>{date(drive.window_start_at)}</p><p><span className="text-slate-500">Ends</span><br/>{date(drive.window_end_at)}</p></div><div className="mt-5"><div className="flex justify-between text-xs"><span>{assigned} assigned · {completed} completed</span><span>{progress}%</span></div><div className="mt-2 h-2 overflow-hidden rounded-full bg-slate-100"><div className="h-full bg-indigo-600" style={{width:`${progress}%`}}/></div></div><div className="mt-5 flex gap-2"><button className={primary} onClick={manage}>Manage drive</button>{['draft','scheduled','active'].includes(drive.status)&&<button className={button} onClick={edit}>Edit drive</button>}</div></article>}

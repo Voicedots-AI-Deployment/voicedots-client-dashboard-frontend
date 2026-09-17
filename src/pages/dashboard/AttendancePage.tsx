@@ -1,7 +1,8 @@
 import { useEffect, useRef, useState } from 'react';
 import { Camera, Check, Mic, Plus, RefreshCw, Upload, Users, X } from 'lucide-react';
-import { collegeApi, collegeError } from '../../api/collegeApi';
+import { collegeApi, collegeError, type Program } from '../../api/collegeApi';
 import { useCollegeAccess } from '../../hooks/useCollegeAccess';
+import { AcademicSetup, StudentRoster } from './InstitutionData';
 
 type Student = { id: string; full_name: string; roll_number: string; has_photo: boolean; department_code: string };
 type Staff = { id: string; full_name: string; email: string; employee_code: string; active: boolean; has_photo: boolean; class_ids: string[] };
@@ -81,7 +82,8 @@ export function PhotoEditor({ kind, person, done, close, inline = false }: { kin
 export default function AttendancePage() {
   const { access, loading: accessLoading, error: accessError } = useCollegeAccess();
   const [setup, setSetup] = useState<Setup>({ staff: [], students: [], classes: [] });
-  const [tab, setTab] = useState<'attendance' | 'staff' | 'photos' | 'classes'>('attendance');
+  const [tab, setTab] = useState<'attendance' | 'students' | 'academic' | 'classes' | 'staff'>('attendance');
+  const [programs,setPrograms]=useState<Program[]>([]);
   const [error, setError] = useState('');
   const [notice, setNotice] = useState('');
   const [busy, setBusy] = useState(false);
@@ -96,9 +98,8 @@ export default function AttendancePage() {
   const [staffEdit, setStaffEdit] = useState<Staff | 'new' | null>(null);
   const [classIds, setClassIds] = useState<string[]>([]);
   const [studentIds, setStudentIds] = useState<string[]>([]);
-  const [search, setSearch] = useState('');
   const refresh = async () => {
-    const data = await collegeApi.get<Setup>('attendance/setup'); setSetup(data); setClassId(id => id || data.classes[0]?.id || '');
+    const [data,catalog] = await Promise.all([collegeApi.get<Setup>('attendance/setup'),collegeApi.get<{programs:Program[]}>('academic-catalog')]); setSetup(data); setPrograms(catalog.programs); setClassId(id => id || data.classes[0]?.id || '');
   };
   useEffect(() => { if (access?.enabled) refresh().catch(e => setError(collegeError(e))); }, [access?.enabled]);
   const query = `attendance/record?class_id=${encodeURIComponent(classId)}&attendance_date=${day}&period=${period}`;
@@ -142,8 +143,8 @@ export default function AttendancePage() {
   const counts = (status: Mark) => Object.values(marks).filter(m => m === status).length;
   const selectedStaff = staffEdit && staffEdit !== 'new' ? staffEdit : null;
   return <div className="space-y-6 text-slate-900 dark:text-white">
-    <header><p className="text-sm font-medium text-indigo-600">{access.college_name}</p><h1 className="mt-2 text-3xl font-bold">Attendance</h1><p className="mt-2 text-sm text-slate-500">Manage class attendance, staff access and verification photos.</p></header>
-    <nav className="flex flex-wrap gap-2" aria-label="Attendance sections">{(['attendance', 'staff', 'photos', 'classes'] as const).map(t => <button key={t} className={tab === t ? primary : button} onClick={() => { setTab(t); setError(''); setNotice(''); }} aria-pressed={tab === t}>{({ attendance: 'Attendance register', staff: 'Staff & access', photos: 'Student photos', classes: 'Classes' })[t]}</button>)}</nav>
+    <header><p className="text-sm font-medium text-indigo-600">{access.college_name}</p><h1 className="mt-2 text-3xl font-bold">Attendance & staff</h1><p className="mt-2 text-sm text-slate-500">Manage attendance and the institution records shared with placements.</p></header>
+    <nav className="flex flex-wrap gap-2 border-b border-slate-200 pb-3 dark:border-slate-800" aria-label="Attendance sections">{(['attendance','students','academic','classes','staff'] as const).map(t => <button key={t} className={tab === t ? primary : button} onClick={() => { setTab(t); setError(''); setNotice(''); }} aria-pressed={tab === t}>{({ attendance:'Attendance register',students:'Student roster',academic:'Academic setup',classes:'Classes',staff:'Staff & access' })[t]}</button>)}</nav>
     {error && <p role="alert" className="rounded-xl bg-red-50 p-4 text-sm text-red-700">{error}</p>}
     {notice && <p role="status" className="rounded-xl bg-emerald-50 p-4 text-sm text-emerald-700">{notice}</p>}
     {tab === 'attendance' && <>
@@ -156,12 +157,17 @@ export default function AttendancePage() {
         <p className="mt-4 text-xs text-slate-500">{record.record ? `Last saved by ${record.record.updated_by_name} · ${new Date(record.record.updated_at).toLocaleString()}` : 'Attendance has not been saved for this class and period.'}</p>
       </section>}
     </>}
+    {tab === 'students' && (
+      <StudentRoster programs={programs} onChanged={()=>void refresh()}/>
+    )}
+    {tab === 'academic' && (
+      <AcademicSetup programs={programs} refresh={()=>void refresh()}/>
+    )}
     {tab === 'staff' && <>
       <div className={`${card} flex flex-wrap items-center justify-between gap-4`}><div><h2 className="font-semibold">Staff webcam sign-in</h2><p className="mt-2 max-w-2xl text-sm text-slate-500">Add the staff name, email, assigned classes and photo here. Staff then open “Staff attendance” in the website AI widget, verify their face, and speak the absent names.</p></div><button className={primary} onClick={() => { setStaffEdit('new'); setClassIds([]); }}><Plus size={16} />Add staff</button></div>
       {staffEdit && <form key={selectedStaff?.id || 'new'} className={`${card} space-y-4`} onSubmit={e => { e.preventDefault(); void saveStaff(e.currentTarget); }}><h2 className="font-semibold">{selectedStaff ? 'Edit staff' : 'Add staff'}</h2><div className="grid gap-4 sm:grid-cols-3"><label className="text-sm">Full name<input name="full_name" required maxLength={150} defaultValue={selectedStaff?.full_name} className={input} /></label><label className="text-sm">Email for sign-in<input name="email" type="email" required defaultValue={selectedStaff?.email} className={input} /></label><label className="text-sm">Staff code<input name="employee_code" maxLength={80} defaultValue={selectedStaff?.employee_code} className={input} /></label></div><label className="flex items-center gap-2 text-sm"><input name="active" type="checkbox" defaultChecked={selectedStaff?.active ?? true} />Active staff access</label><fieldset><legend className="mb-2 text-sm font-medium">Assigned classes</legend><div className="flex flex-wrap gap-4">{setup.classes.map(c => <label key={c.id} className="flex items-center gap-2 text-sm"><input type="checkbox" checked={classIds.includes(c.id)} onChange={e => setClassIds(ids => e.target.checked ? [...ids, c.id] : ids.filter(id => id !== c.id))} />{c.name}</label>)}</div></fieldset><div className="flex gap-2"><button className={primary} disabled={busy}>Save staff</button><button type="button" className={button} disabled={busy} onClick={() => setStaffEdit(null)}>Cancel</button></div></form>}
       <div className="grid gap-4 sm:grid-cols-2">{setup.staff.map(s => <article key={s.id} className={card}><div className="flex items-start gap-3"><Users className="text-indigo-500" size={22} /><div><h2 className="font-semibold">{s.full_name}</h2><p className="text-sm text-slate-500">{s.email}</p></div></div><p className="mt-3 text-sm">{!s.active ? 'Access disabled' : s.has_photo ? 'Photo enrolled' : 'Photo required'} · {s.class_ids.length} assigned classes</p><div className="mt-4 flex flex-wrap gap-2"><button className={button} onClick={() => { setStaffEdit(s); setClassIds(s.class_ids); }}>Edit access</button><button className={button} onClick={() => setPhotoPerson({ kind: 'staff', person: s })}><Camera size={16} />{s.has_photo ? 'View / replace photo' : 'Add photo'}</button></div></article>)}</div>
     </>}
-    {tab === 'photos' && <section className={card}><h2 className="text-lg font-semibold">Student verification photos</h2><p className="mt-2 text-sm text-slate-500">Upload a reference photo or capture a frame from the webcam. Photos are private to your college.</p><input aria-label="Search student photos" className={`${input} my-4 max-w-md`} placeholder="Search name or roll number" value={search} onChange={e => setSearch(e.target.value)} /><div className="divide-y divide-slate-100 dark:divide-slate-800">{setup.students.filter(s => `${s.full_name} ${s.roll_number}`.toLowerCase().includes(search.toLowerCase())).map(s => <div key={s.id} className="flex flex-wrap items-center justify-between gap-3 py-4"><div><p className="font-medium">{s.full_name}</p><p className="mt-1 text-sm text-slate-500">{s.roll_number} · {s.has_photo ? 'Photo enrolled' : 'No photo'}</p></div><button className={button} onClick={() => setPhotoPerson({ kind: 'students', person: s })}><Camera size={16} />{s.has_photo ? 'View / replace photo' : 'Add photo'}</button></div>)}</div></section>}
     {tab === 'classes' && <form className={`${card} space-y-4`} onSubmit={e => { e.preventDefault(); void saveClass(e.currentTarget); }}><h2 className="text-lg font-semibold">Create a class from your roster</h2><div className="grid gap-4 sm:grid-cols-2"><label className="text-sm">Class / section name<input name="name" required maxLength={150} className={input} placeholder="e.g. CSE · 2023–2027 · Section A" /></label><label className="text-sm">Subject<input name="subject" maxLength={150} className={input} placeholder="e.g. Total Quality Management" /></label></div><fieldset><legend className="mb-3 text-sm font-medium">Students ({studentIds.length} selected)</legend><label className="mb-3 flex items-center gap-2 text-sm"><input type="checkbox" checked={studentIds.length === setup.students.length && studentIds.length > 0} onChange={e => setStudentIds(e.target.checked ? setup.students.map(s => s.id) : [])} />Select all existing students</label><div className="max-h-72 space-y-3 overflow-y-auto">{setup.students.map(s => <label key={s.id} className="flex items-center gap-2 text-sm"><input type="checkbox" checked={studentIds.includes(s.id)} onChange={e => setStudentIds(ids => e.target.checked ? [...ids, s.id] : ids.filter(id => id !== s.id))} />{s.full_name} · {s.roll_number}</label>)}</div></fieldset><button className={primary} disabled={busy || !studentIds.length}><Plus size={16} />Create class</button></form>}
     <p className="flex items-center gap-2 text-xs text-slate-500"><Mic size={14} />Widget attendance and this register use the same saved records.</p>
     {photoPerson && <PhotoEditor {...photoPerson} close={() => setPhotoPerson(null)} done={() => { void refresh(); setNotice('Verification photo saved.'); }} />}

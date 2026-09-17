@@ -45,3 +45,8 @@ body {
 .dark .custom-scrollbar::-webkit-scrollbar-thumb {
   background-color: #404040;
 }
+
+.drive-tab-candidates table input[type="checkbox"],
+.drive-tab-ats table input[type="checkbox"] {
+  display: none;
+}
