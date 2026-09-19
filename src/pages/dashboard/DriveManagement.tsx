@@ -1367,6 +1367,9 @@ export default function DriveManagement({
       return;
     }
     setSelected(candidate);
+    if (kind === "attempts") {
+      setAttempts(Math.max(2, Number(candidate.attempt_number || 1) + 1));
+    }
     setDetail(null);
     setBusy(true);
     setError("");
@@ -2236,10 +2239,15 @@ export default function DriveManagement({
                           <input
                             className={field}
                             type="number"
-                            min={1}
+                            min={Number(selected.attempt_number || 1) + 1}
                             value={attempts}
                             onChange={(e) =>
-                              setAttempts(Math.max(1, Number(e.target.value)))
+                              setAttempts(
+                                Math.max(
+                                  Number(selected.attempt_number || 1) + 1,
+                                  Number(e.target.value),
+                                ),
+                              )
                             }
                           />
                         </label>
