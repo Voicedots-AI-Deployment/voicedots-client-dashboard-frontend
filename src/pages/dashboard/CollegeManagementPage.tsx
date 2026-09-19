@@ -459,6 +459,7 @@ function DriveCard({
   drive,
   manage,
   edit,
+  removed,
 }: {
   drive: Drive;
   manage: () => void;
