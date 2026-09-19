@@ -421,6 +421,7 @@ function PlacementLanding({
               drive={d}
               manage={() => manage(d.id)}
               edit={() => edit(d.id)}
+              removed={refresh}
             />
           ))}
         </div>
@@ -462,6 +463,7 @@ function DriveCard({
   drive: Drive;
   manage: () => void;
   edit: () => void;
+  removed: () => void;
 }) {
   const assigned = drive.assignment_count || 0,
     completed = drive.completed_count || 0,
@@ -524,6 +526,13 @@ function DriveCard({
           <button className={button} onClick={edit}>
             Edit drive
           </button>
+        )}
+        {["draft", "closed", "cancelled"].includes(drive.status) && (
+          <button className="text-rose-700" onClick={async () => {
+            if (!window.confirm(`Remove ${drive.company_name} · ${drive.role_title}?`)) return;
+            try { await collegeApi.remove(`drives/${drive.id}`); removed(); }
+            catch (error) { window.alert(collegeError(error)); }
+          }}>Delete drive</button>
         )}
       </div>
     </article>
