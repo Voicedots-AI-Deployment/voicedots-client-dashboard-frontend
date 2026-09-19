@@ -305,6 +305,9 @@ function Bar({
 }
 function SkillView({ data }: { data: Data }) {
   const skills = (data.skills || []) as Data[];
+  const topRisks = (data.top_risks || []) as Data[];
+  const insufficient = (data.insufficient_data_skills || []) as Data[];
+  const historical = (data.unmatched_historical_skills || []) as Data[];
   return (
     <div className="space-y-5">
       <div className="grid gap-4 sm:grid-cols-3">
@@ -319,6 +322,28 @@ function SkillView({ data }: { data: Data }) {
           }
         />
       </div>
+      {topRisks.length > 0 && (
+        <article className={panel}>
+          <h3 className="font-bold">Risk radar</h3>
+          <p className="mt-1 text-sm text-slate-500">
+            Skills with enough released interview evidence to create a real
+            placement risk for this drive.
+          </p>
+          <div className="mt-4 grid gap-3 md:grid-cols-2">
+            {topRisks.map((risk, index) => (
+              <div key={String(risk.skill || index)} className="rounded-xl border border-rose-200 bg-rose-50 p-4 dark:border-rose-900 dark:bg-rose-950/20">
+                <div className="flex items-center justify-between gap-3">
+                  <strong>{String(risk.skill || "Skill")}</strong>
+                  <span className="text-xs font-bold uppercase text-rose-700 dark:text-rose-300">{String(risk.risk || "risk")}</span>
+                </div>
+                <p className="mt-2 text-sm text-slate-600 dark:text-slate-300">
+                  {String(risk.gap_pct ?? 0)}% limited evidence · {String(risk.coverage_pct ?? 0)}% coverage
+                </p>
+              </div>
+            ))}
+          </div>
+        </article>
+      )}
       <article className={panel}>
         <div className="mb-5">
           <h3 className="font-bold">Skill intelligence</h3>
@@ -368,6 +393,19 @@ function SkillView({ data }: { data: Data }) {
           )}
         </div>
       </article>
+      {(insufficient.length > 0 || historical.length > 0) && (
+        <article className={panel}>
+          <h3 className="font-bold">Evidence boundaries</h3>
+          <p className="mt-1 text-sm text-slate-500">
+            These skills are kept separate from placement risk because the
+            available interviews did not provide enough valid evidence.
+          </p>
+          <div className="mt-4 flex flex-wrap gap-2">
+            {insufficient.map((item, index) => <span key={`insufficient-${index}`} className="rounded-full bg-slate-100 px-3 py-1 text-xs dark:bg-slate-800">{String(item.skill)} · insufficient evidence</span>)}
+            {historical.map((item, index) => <span key={`historical-${index}`} className="rounded-full bg-amber-100 px-3 py-1 text-xs text-amber-800 dark:bg-amber-950/30 dark:text-amber-200">{String(item.skill)} · historical JD only</span>)}
+          </div>
+        </article>
+      )}
     </div>
   );
 }
