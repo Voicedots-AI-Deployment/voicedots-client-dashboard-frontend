@@ -401,7 +401,7 @@ function SkillView({ data }: { data: Data }) {
             available interviews did not provide enough valid evidence.
           </p>
           <div className="mt-4 flex flex-wrap gap-2">
-            {insufficient.map((item, index) => <span key={`insufficient-${index}`} className="rounded-full bg-slate-100 px-3 py-1 text-xs dark:bg-slate-800">{String(item.skill)} · insufficient evidence</span>)}
+            {insufficient.map((item, index) => <span key={`insufficient-${index}`} className="rounded-full bg-slate-100 px-3 py-1 text-xs dark:bg-slate-800">{String(item.skill)} · {Number(item.assessed_count || 0)} of {Number(item.total_count || data.total_released || 0)} candidates assessed · insufficient evidence</span>)}
             {historical.map((item, index) => <span key={`historical-${index}`} className="rounded-full bg-amber-100 px-3 py-1 text-xs text-amber-800 dark:bg-amber-950/30 dark:text-amber-200">{String(item.skill)} · historical JD only</span>)}
           </div>
         </article>
