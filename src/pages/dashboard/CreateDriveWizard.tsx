@@ -83,7 +83,14 @@ export default function CreateDriveWizard({ programs, drive, onCancel, onSaved }
   function add(value:string) {
     if (!value || selection.length >= 4) return;
     const custom=library?.agents.find(agent=>agent.id===value), track=custom?.track||value;
-    if (selection.some(item=>item.track===track)) return;
+    const existing=selection.findIndex(item=>item.track===track);
+    if (existing >= 0) {
+      // Every track starts with its default profile. Choosing a custom agent
+      // for that track must replace the default instead of being discarded.
+      if (!custom || selection[existing].agent_id) return;
+      setSelection(current=>current.map((item,index)=>index===existing?{...item,agent_id:custom.id!}:item));
+      return;
+    }
     setSelection(current=>[...current,{track,agent_id:custom?.id||null}]);
   }
   async function generate(track:string) {
