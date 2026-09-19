@@ -1951,6 +1951,23 @@ export default function DriveManagement({
                 </button>
               ))}
               <button
+                className={`${btn} border-emerald-300 text-emerald-700`}
+                disabled={busy || !checked.length}
+                onClick={() => void act("candidates/release-bulk", { student_ids: checked })}
+              >
+                Release selected {checked.length}
+              </button>
+              <button
+                className={btn}
+                disabled={busy || !checked.length || !schedule}
+                onClick={() => void act("candidates/release-bulk/schedule", {
+                  student_ids: checked,
+                  scheduled_for: new Date(schedule).toISOString(),
+                })}
+              >
+                Schedule selected release
+              </button>
+              <button
                 className={btn}
                 disabled={busy || !checked.length}
                 onClick={() => setChecked([])}
