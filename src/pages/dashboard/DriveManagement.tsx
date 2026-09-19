@@ -725,20 +725,26 @@ function DriveSettings({
     setEditing(null);
   }
   function addAgent(value: string) {
-    const custom = library?.agents.find((agent) => agent.id === value),
-      track = custom?.track || value;
-    if (
-      !track ||
-      selection.length >= 4 ||
-      selection.some((item) => item.track === track)
-    )
+    const customId = value.startsWith("custom:") ? value.slice(7) : "";
+    const defaultTrack = value.startsWith("default:") ? value.slice(8) : "";
+    const custom = customId
+      ? library?.agents.find((agent) => agent.id === customId)
+      : undefined;
+    const track = custom?.track || defaultTrack || value;
+    if (!track || selection.length > 4) return;
+    const existingIndex = selection.findIndex((item) => item.track === track);
+    if (existingIndex >= 0) {
+      // A default profile for this track may already be in the drive. A
+      // custom profile selected from the editor replaces that default in the
+      // same round instead of being silently ignored.
+      if (!custom || selection[existingIndex].agent_id) return;
+      setSelection(current => current.map((item, index) =>
+        index === existingIndex ? { ...item, agent_id: custom.id! } : item,
+      ));
       return;
-    const next = [...selection, { track, agent_id: custom?.id || null }];
-    setSelection(next);
-    setRounds((current) => [
-      ...current,
-      { track, question_source: "personalized", questions: [] },
-    ]);
+    }
+    setSelection(current => [...current, { track, agent_id: custom?.id || null }]);
+    setRounds((current) => [...current, { track, question_source: "personalized", questions: [] }]);
   }
   async function generateQuestions(track: string) {
     setGenerating(track);
@@ -973,14 +979,20 @@ function DriveSettings({
                         : !item.agent_id && item.track === agent.track,
                     ),
                 )
-                .map((agent) => (
+                .map((agent) => {
+                  const custom = Boolean(agent.id);
+                  const optionValue = custom
+                    ? `custom:${agent.id}`
+                    : `default:${agent.track}`;
+                  return (
                   <option
-                    key={agent.id || agent.track}
-                    value={agent.id || agent.track}
+                    key={optionValue}
+                    value={optionValue}
                   >
-                    {agent.name} — {agent.role}
+                    {agent.name} — {agent.role}{custom ? " (custom)" : ""}
                   </option>
-                ))}
+                  );
+                })}
           </select>
         </label>
       </div>
