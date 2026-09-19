@@ -519,6 +519,7 @@ function DriveSettings({
     ),
     [warning, setWarning] = useState(""),
     [generating, setGenerating] = useState("");
+  const [catalogPrograms, setCatalogPrograms] = useState<Program[]>([]);
   const [form, setForm] = useState<Data>({
     drive_type: drive.drive_type || "official_placement",
     company_name: drive.company_name,
@@ -545,10 +546,22 @@ function DriveSettings({
   });
   useEffect(() => {
     collegeApi
+      .get<{ programs: Program[] }>("academic-catalog")
+      .then((value) => setCatalogPrograms(value.programs || []))
+      .catch(() => setCatalogPrograms([]));
+    collegeApi
       .get<AgentLibrary>("agents")
       .then(setLibrary)
       .catch(() => setLibrary(null));
   }, []);
+  const selectedPrograms = String(form.eligible_programs || "")
+    .split(",").map((value) => value.trim()).filter(Boolean);
+  const departments = catalogPrograms
+    .filter((program) => selectedPrograms.includes(program.code))
+    .flatMap((program) => program.departments)
+    .filter((department, index, all) => all.findIndex((item) => item.code === department.code) === index);
+  const updateEligibilityCodes = (key: "eligible_programs" | "eligible_departments", values: string[]) =>
+    setForm((value) => ({ ...value, [key]: values.join(", ") }));
   const sections = [
     [
       "Drive and company",
@@ -869,9 +882,21 @@ function DriveSettings({
       </>
     ) : title === "Eligibility" ? (
       <>
-        {input("min_cgpa", "Minimum CGPA", "number")}
-        {input("eligible_programs", "Program codes, comma separated")}
-        {input("eligible_departments", "Department codes, comma separated")}
+      {input("min_cgpa", "Minimum CGPA", "number")}
+        <label className="block text-sm">
+          Programs
+          <select className={`${field} mt-1 min-h-24`} multiple value={selectedPrograms} onChange={(event) => updateEligibilityCodes("eligible_programs", Array.from(event.target.selectedOptions, (option) => option.value))}>
+            {catalogPrograms.map((program) => <option key={program.code} value={program.code}>{displayName(program.display_name)} ({program.code})</option>)}
+          </select>
+          <span className="mt-1 block text-xs text-slate-500">Hold Ctrl/Cmd to select multiple.</span>
+        </label>
+        <label className="block text-sm">
+          Departments
+          <select className={`${field} mt-1 min-h-24`} multiple value={String(form.eligible_departments || "").split(",").map((value) => value.trim()).filter(Boolean)} onChange={(event) => updateEligibilityCodes("eligible_departments", Array.from(event.target.selectedOptions, (option) => option.value))}>
+            {departments.map((department) => <option key={department.code} value={department.code}>{displayName(department.display_name)} ({department.code})</option>)}
+          </select>
+          {!selectedPrograms.length && <span className="mt-1 block text-xs text-slate-500">Select a program first.</span>}
+        </label>
         {input(
           "eligible_graduation_years",
           "Graduation years, comma separated",
@@ -1253,7 +1278,7 @@ export default function DriveManagement({
     }
     if (tab === "results") {
       query.set("result_view", resultView);
-      const rules=resultRules.filter(rule=>['is_available','is_not_available'].includes(rule.operator)||(rule.operator==='is_any_of'&&rule.values?.length)||rule.value!==''||(rule.operator==='between'&&rule.valueEnd));
+      const rules=resultRules.filter(rule=>(rule.operator==='is_any_of'&&rule.values?.length)||rule.value!==''&&(rule.operator!=='between'||Boolean(rule.valueEnd)));
       if(rules.length) query.set("filters",JSON.stringify(rules.map(({field,operator,value,valueEnd,values})=>({field,operator,value,value_end:valueEnd,values}))));
       query.set("match_mode",resultMatchMode);
       if(excludeReviewRequired) query.set("exclude_review_required","true");
@@ -1321,7 +1346,7 @@ export default function DriveManagement({
     setError("");
     try {
       const query=new URLSearchParams({limit:String(Math.min(total,500)),offset:"0",q:search,result_view:resultView,match_mode:resultMatchMode});
-      const rules=resultRules.filter(rule=>['is_available','is_not_available'].includes(rule.operator)||(rule.operator==='is_any_of'&&rule.values?.length)||rule.value!==''||(rule.operator==='between'&&rule.valueEnd)).map(({field,operator,value,valueEnd,values})=>({field,operator,value,value_end:valueEnd,values}));
+      const rules=resultRules.filter(rule=>(rule.operator==='is_any_of'&&rule.values?.length)||rule.value!==''&&(rule.operator!=='between'||Boolean(rule.valueEnd))).map(({field,operator,value,valueEnd,values})=>({field,operator,value,value_end:valueEnd,values}));
       if(rules.length)query.set("filters",JSON.stringify(rules));
       if(excludeReviewRequired)query.set("exclude_review_required","true");
       const result=await collegeApi.get<Data>(`drives/${driveId}/dashboard/ranking?${query.toString()}`);
