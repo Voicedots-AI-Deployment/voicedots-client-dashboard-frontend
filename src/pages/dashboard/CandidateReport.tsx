@@ -71,8 +71,14 @@ function List({ items, empty }: { items: unknown; empty: string }) {
                     item.focus ||
                     item.requirement ||
                     item.role ||
-                    item.dimension,
-                  `Item ${index + 1}`,
+                    item.dimension ||
+                    item.strength ||
+                    item.skill ||
+                    item.name ||
+                    item.title ||
+                    item.text ||
+                    item.content,
+                  "Evidence recorded",
                 )}
               </strong>
               {item.current_band != null && (
