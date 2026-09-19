@@ -1202,6 +1202,17 @@ export default function DriveManagement({
       offset: String(offset),
       q: search,
     });
+    if (tab === "candidates" || tab === "results") {
+      if (departmentFilter) query.set("department", departmentFilter);
+      if (statusFilter && ["released", "held_for_review", "incomplete"].includes(statusFilter)) {
+        query.set("evaluation_status", statusFilter);
+      }
+    }
+    if (tab === "ats") {
+      if (atsEligibility === "eligible") query.set("eligible_only", "true");
+      if (atsMinimum) query.set("min_ats_fit", atsMinimum);
+      if (coverageMinimum) query.set("min_mandatory_coverage_pct", coverageMinimum);
+    }
     if (tab === "results") {
       query.set("result_view", resultView);
       const rules=resultRules.filter(rule=>['is_available','is_not_available'].includes(rule.operator)||(rule.operator==='is_any_of'&&rule.values?.length)||rule.value!==''||(rule.operator==='between'&&rule.valueEnd));
@@ -1239,6 +1250,11 @@ export default function DriveManagement({
     resultRules,
     resultMatchMode,
     excludeReviewRequired,
+    departmentFilter,
+    statusFilter,
+    atsEligibility,
+    atsMinimum,
+    coverageMinimum,
   ]);
   async function act(path: string, body: unknown = {}, put = true) {
     setBusy(true);
@@ -1420,7 +1436,7 @@ export default function DriveManagement({
         </h2>
         <p className="mt-2 text-sm text-slate-500">
           {drive?.status} · {drive?.interview_duration_minutes} minutes ·{" "}
-          {drive?.agent_selection?.length || 4} rounds
+          {drive?.agent_selection?.length ?? 0} rounds
         </p>
       </header>
       <nav
