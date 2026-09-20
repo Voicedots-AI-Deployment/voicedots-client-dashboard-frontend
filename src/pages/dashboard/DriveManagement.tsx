@@ -1500,7 +1500,7 @@ export default function DriveManagement({
             onRequest={setLifecycleRequest}
           />
         )}
-        {drive && ["draft", "closed", "cancelled"].includes(drive.status) && (
+        {drive && (
           <button
             className={`${btn} border-rose-200 text-rose-700 hover:bg-rose-50`}
             disabled={busy || loading}
