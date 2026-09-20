@@ -1287,22 +1287,24 @@ export default function DriveManagement({
     });
     if (tab === "candidates" || tab === "results") {
       if (departmentFilter) query.set("department", departmentFilter);
-      if (statusFilter && ["released", "held_for_review", "incomplete"].includes(statusFilter)) {
-        query.set("evaluation_status", statusFilter);
-      }
+      if (statusFilter) query.set("assignment_status", statusFilter);
+      if (completionFilter) query.set("completed", completionFilter === "completed" ? "true" : "false");
     }
     if (tab === "ats") {
       if (departmentFilter) query.set("department", departmentFilter);
       if (atsEligibility) query.set("eligible", atsEligibility === "eligible" ? "true" : "false");
       if (atsMinimum) query.set("min_ats_fit", atsMinimum);
+      query.set("sort_by", listSort === "status" ? "name" : listSort);
     }
     if (tab === "results") {
+      query.set("sort_by", resultSort);
       query.set("result_view", resultView);
       const rules=resultRules.filter(rule=>(rule.operator==='is_any_of'&&rule.values?.length)||rule.value!==''&&(rule.operator!=='between'||Boolean(rule.valueEnd)));
       if(rules.length) query.set("filters",JSON.stringify(rules.map(({field,operator,value,valueEnd,values})=>({field,operator,value,value_end:valueEnd,values}))));
       query.set("match_mode",resultMatchMode);
       if(excludeReviewRequired) query.set("exclude_review_required","true");
     }
+    if (tab === "candidates") query.set("sort_by", listSort === "ats_desc" || listSort === "ats_asc" ? "name" : listSort);
     Promise.all([
       collegeApi.get<Drive>(`drives/${driveId}`, c.signal),
       collegeApi.get<Data>(
@@ -1335,8 +1337,11 @@ export default function DriveManagement({
     excludeReviewRequired,
     departmentFilter,
     statusFilter,
+    completionFilter,
     atsEligibility,
     atsMinimum,
+    listSort,
+    resultSort,
   ]);
   async function act(path: string, body: unknown = {}, put = true) {
     setBusy(true);
@@ -1833,17 +1838,7 @@ export default function DriveManagement({
                     onChange={(e) => setStatusFilter(e.target.value)}
                   >
                     <option value="">All statuses</option>
-                    {[
-                      ...new Set(
-                        rawCandidates.map((c) =>
-                          String(
-                            c.assignment_status ||
-                              c.evaluation_status ||
-                              "pending",
-                          ),
-                        ),
-                      ),
-                    ].map((v) => (
+                    {["assigned", "invited", "in_progress", "completed", "expired", "failed", "abandoned"].map((v) => (
                       <option key={v} value={v}>
                         {displayName(v)}
                       </option>
