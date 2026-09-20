@@ -122,7 +122,7 @@ function resumeEvidenceLabel(value?: string) {
   return "None";
 }
 
-function ReadinessPolicy() {
+export function ReadinessPolicy() {
   const [interview, setInterview] = useState(70);
   const [resume, setResume] = useState(30);
   const [state, setState] = useState<"loading" | "idle" | "saving">("loading");
@@ -158,7 +158,7 @@ const DEFAULT_RESULTS_LABELS = {
   proctor_review_event_threshold: 1,
   skill_intelligence: {min_coverage_pct:40,min_assessed_candidates:5,allow_preferred_high_risk:false,risk_thresholds:{mandatory:{high:50,medium:25},core:{high:60,medium:30},preferred:{high:75,medium:50}},labels:{high:"High",medium:"Medium",low:"Low",insufficient_data:"Insufficient Data"}},
 };
-function InterviewResultsSettings() {
+export function InterviewResultsSettings() {
   const [settings, setSettings] = useState<typeof DEFAULT_RESULTS_LABELS>(DEFAULT_RESULTS_LABELS);
   const [state, setState] = useState<"loading"|"idle"|"saving">("loading");
   const [message, setMessage] = useState("");
@@ -1269,7 +1269,8 @@ export default function DriveManagement({
       }
     }
     if (tab === "ats") {
-      if (atsEligibility === "eligible") query.set("eligible_only", "true");
+      if (departmentFilter) query.set("department", departmentFilter);
+      if (atsEligibility) query.set("eligible", atsEligibility === "eligible" ? "true" : "false");
       if (atsMinimum) query.set("min_ats_fit", atsMinimum);
       if (coverageMinimum) query.set("min_mandatory_coverage_pct", coverageMinimum);
     }
@@ -1331,6 +1332,11 @@ export default function DriveManagement({
           ? `Request processed; ${outcome.skipped.length} candidates were skipped. Open their details to review eligibility or result status.`
           : "Changes saved.",
       );
+      if (path.endsWith("/reopen")) {
+        setSelected(null);
+        setDetail(null);
+        setNotice(`Interview reopened for attempt ${String(outcome.attempt_number || "next")}. The candidate can prepare and start again.`);
+      }
       setVersion((v) => v + 1);
     } catch (e) {
       setError(collegeError(e));
@@ -1404,17 +1410,7 @@ export default function DriveManagement({
       (!completionFilter ||
         (completionFilter === "completed"
           ? c.evaluation_status === "released"
-          : c.evaluation_status !== "released")) &&
-      (!atsEligibility ||
-        (atsEligibility === "eligible") === Boolean(c.eligible)) &&
-      (!atsMinimum || Number(c.ats_fit_score || 0) >= Number(atsMinimum)) &&
-      (!coverageMinimum ||
-        (() => {
-          const [a, b] = String(c.mandatory_coverage || "0/0")
-            .split("/")
-            .map(Number);
-          return b > 0 && (a / b) * 100 >= Number(coverageMinimum);
-        })()),
+          : c.evaluation_status !== "released")),
   );
   const candidates = tab === "results" ? [...filteredCandidates].sort((a, b) => {
     if (resultSort === "score_desc") return Number(b.overall_score ?? -1) - Number(a.overall_score ?? -1);
@@ -1540,14 +1536,13 @@ export default function DriveManagement({
             assigned = Number(metrics.total_assigned || 0),
             completed = Number(metrics.interview_completed || 0),
             live = Number(progress.in_progress || 0),
-            needsAttention = Number(progress.needs_review || 0),
             evaluated = Object.values(distribution).reduce<number>(
               (sum, value) => sum + Number(value || 0),
               0,
             );
           return (
             <div className="space-y-5">
-              <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-6">
+              <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-5">
                 <Metric label="Assigned Candidates" value={assigned} />
                 <Metric label="Interviews Completed" value={completed} />
                 <Metric
@@ -1569,14 +1564,8 @@ export default function DriveManagement({
                   value={live}
                   note="Candidates currently in an interview"
                 />
-                <Metric
-                  label="Needs attention"
-                  value={needsAttention}
-                  note="Evaluations held for review"
-                />
               </div>
-              <div className="grid gap-5 lg:grid-cols-2">
-                <article className={panel}>
+              <article className={panel}>
                   <h3 className="font-bold">Interview window</h3>
                   <p className="mt-1 text-sm text-slate-500">When candidates can attend this drive.</p>
                   {(() => {
@@ -1587,13 +1576,7 @@ export default function DriveManagement({
                     const tone = state === "Open now" ? "text-emerald-700 bg-emerald-50" : state === "Closed" ? "text-slate-600 bg-slate-100" : "text-indigo-700 bg-indigo-50";
                     return <div className="mt-5 flex flex-wrap items-center gap-4"><span className={`rounded-full px-3 py-1 text-sm font-semibold ${tone}`}>{state}</span><dl className="grid grid-cols-2 gap-x-8 gap-y-2 text-sm"><div><dt className="text-xs text-slate-500">Starts</dt><dd>{start ? new Date(start).toLocaleString() : "—"}</dd></div><div><dt className="text-xs text-slate-500">Ends</dt><dd>{end ? new Date(end).toLocaleString() : "—"}</dd></div></dl></div>;
                   })()}
-                </article>
-                <article className={panel}>
-                  <h3 className="font-bold">Candidate funnel</h3>
-                  <p className="mt-1 text-sm text-slate-500">Movement from assignment to completed interview.</p>
-                  <div className="mt-5 grid grid-cols-4 gap-2 text-center text-sm"><div><strong className="block text-2xl">{assigned}</strong><span className="text-xs text-slate-500">Assigned</span></div><div><strong className="block text-2xl">{Number(progress.in_progress || 0)}</strong><span className="text-xs text-slate-500">Started</span></div><div><strong className="block text-2xl">{completed}</strong><span className="text-xs text-slate-500">Completed</span></div><div><strong className="block text-2xl">{needsAttention}</strong><span className="text-xs text-slate-500">Review</span></div></div>
-                </article>
-              </div>
+              </article>
               <div className="grid gap-5 lg:grid-cols-2">
                 <article className={panel}>
                   <h3 className="font-bold">Interview Progress</h3>
@@ -1961,7 +1944,6 @@ export default function DriveManagement({
                           "PRI",
                           "Readiness",
                           "AI Recommendation",
-                          "AI Proctor",
                           "Officer Decision",
                           "Student Result",
                           "Action",
@@ -2044,9 +2026,6 @@ export default function DriveManagement({
                           </td>
                           <td className="p-3">
                             <StatusBadge value={c.recommendation || "Review Required"} />
-                          </td>
-                          <td className="p-3">
-                            <div className="space-y-1"><ScoreBadge score={c.proctoring_score} /><div><StatusBadge value={c.integrity_review_label || c.integrity_review_status || "not assessed"} /></div></div>
                           </td>
                           <td className="p-3">
                             <StatusBadge value={c.officer_decision || "pending"} />
@@ -2160,7 +2139,7 @@ export default function DriveManagement({
       {tab === "skills" && data && <SkillView data={data} />}{" "}
       {tab === "departments" && data && <DepartmentView data={data} />}{" "}
       {tab === "settings" && drive && (
-        <div className="space-y-5"><ReadinessPolicy /><InterviewResultsSettings /><DriveSettings
+        <div className="space-y-5"><DriveSettings
           drive={drive}
           busy={busy}
           initialSection={params.get("edit") || undefined}

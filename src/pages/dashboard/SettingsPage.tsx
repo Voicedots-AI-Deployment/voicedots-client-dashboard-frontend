@@ -5,6 +5,8 @@ import { UI } from "@/ui/colors";
 import usersApi from "@/api/usersApi";
 import { clsx, type ClassValue } from "clsx";
 import { twMerge } from "tailwind-merge";
+import { useCollegeAccess } from "@/hooks/useCollegeAccess";
+import { InterviewResultsSettings, ReadinessPolicy } from "./DriveManagement";
 
 function cn(...inputs: ClassValue[]) {
   return twMerge(clsx(inputs));
@@ -12,6 +14,7 @@ function cn(...inputs: ClassValue[]) {
 
 export default function SettingsPage() {
   const { user, refreshUser } = useAuth();
+  const { access } = useCollegeAccess();
 
   // Profile State
   const [name, setName] = useState(user?.name || "");
@@ -151,7 +154,7 @@ export default function SettingsPage() {
     : "U";
 
   return (
-    <div className="mx-auto w-full max-w-4xl space-y-12 py-2">
+    <div className="mx-auto w-full max-w-5xl space-y-12 py-2">
       
       {/* Header */}
       <div className="space-y-1">
@@ -159,9 +162,11 @@ export default function SettingsPage() {
           Account Settings
         </h1>
         <p className="text-base font-medium" style={{ color: UI.colors.text.secondary }}>
-          Manage your profile information and account security
+          Manage your account and institution-wide placement policies
         </p>
       </div>
+
+      {access?.enabled && <section className="space-y-5"><div><p className="text-xs font-semibold uppercase tracking-wider text-indigo-600">Placement management</p><h2 className="mt-1 text-2xl font-bold">College placement settings</h2><p className="mt-1 text-sm text-slate-500">These policies apply across placement drives for your institution.</p></div><ReadinessPolicy /><InterviewResultsSettings /></section>}
 
       <div className="space-y-8">
         
