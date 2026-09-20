@@ -18,7 +18,7 @@ import {
 } from "@/api/collegeApi";
 import { useCollegeAccess } from "@/hooks/useCollegeAccess";
 import CreateDriveWizard from "./CreateDriveWizard";
-import DriveManagement from "./DriveManagement";
+import DriveManagement, { InterviewResultsSettings, ReadinessPolicy } from "./DriveManagement";
 import InterviewAgents from "./InterviewAgents";
 import PlacementAnalytics, { type Analytics } from "./PlacementAnalytics";
 import { displayName } from "./placementDisplay";
@@ -51,7 +51,8 @@ export default function CollegeManagementPage() {
   const tab = (params.get("view") || "placements") as
       | "placements"
       | "analytics"
-      | "agents",
+      | "agents"
+      | "settings",
     driveId = params.get("drive"),
     creating = params.get("create") === "1";
   const [drives, setDrives] = useState<Drive[]>([]),
@@ -201,6 +202,7 @@ export default function CollegeManagementPage() {
             ["placements", "Placements"],
             ["analytics", "Analytics"],
             ["agents", "Interview Agents"],
+            ["settings", "Settings"],
           ] as const
         ).map(([key, label]) => (
           <button
@@ -229,6 +231,15 @@ export default function CollegeManagementPage() {
         <PlacementAnalytics data={analytics} />
       ) : tab === "agents" ? (
         <InterviewAgents />
+      ) : tab === "settings" ? (
+        <section className="space-y-5">
+          <header>
+            <h2 className="text-2xl font-bold">Placement settings</h2>
+            <p className="mt-1 text-sm text-slate-500">Institution-wide placement scoring, recommendation, proctoring and skill-risk policies.</p>
+          </header>
+          <ReadinessPolicy />
+          <InterviewResultsSettings />
+        </section>
       ) : (
         <PlacementLanding
           drives={filtered}

@@ -146,8 +146,8 @@ export function ReadinessPolicy() {
   return <section className={panel} aria-labelledby="readiness-policy-title">
     <div className="space-y-1"><h3 id="readiness-policy-title" className="font-bold">Placement readiness formula</h3><p className="text-sm text-slate-500">Choose how interview performance and resume quality contribute. The two values must total 100%.</p></div>
     <div className="mt-4 grid gap-4 sm:grid-cols-2">
-      <label className={field}>Interview performance (%)<input type="number" min="0" max="100" value={interview} disabled={state!=="idle"} onChange={event=>{const value=Number(event.target.value);setInterview(value);setResume(Math.max(0,100-value));}} /></label>
-      <label className={field}>Resume quality (%)<input type="number" min="0" max="100" value={resume} disabled={state!=="idle"} onChange={event=>{const value=Number(event.target.value);setResume(value);setInterview(Math.max(0,100-value));}} /></label>
+      <label className="text-sm font-medium">Interview performance (%)<input className={field} type="number" min="0" max="100" value={interview} disabled={state!=="idle"} onChange={event=>{const value=Number(event.target.value);setInterview(value);setResume(Math.max(0,100-value));}} /></label>
+      <label className="text-sm font-medium">Resume quality (%)<input className={field} type="number" min="0" max="100" value={resume} disabled={state!=="idle"} onChange={event=>{const value=Number(event.target.value);setResume(value);setInterview(Math.max(0,100-value));}} /></label>
     </div>
     <div className="mt-4 flex flex-wrap items-center gap-3"><button className={btn} disabled={state!=="idle"||interview+resume!==100} onClick={()=>void save()}>{state==="saving"?"Saving…":"Save formula"}</button><span className="text-sm text-slate-500" role="status">{state==="loading"?"Loading formula…":message}</span></div>
   </section>;
@@ -168,10 +168,10 @@ export function InterviewResultsSettings() {
   const setRiskThreshold = (priority: "mandatory"|"core"|"preferred", level: "high"|"medium", value: number) => setSettings(current => ({...current, skill_intelligence:{...current.skill_intelligence, risk_thresholds:{...current.skill_intelligence.risk_thresholds, [priority]:{...current.skill_intelligence.risk_thresholds[priority], [level]:value}}}}));
   return <section className={panel} aria-labelledby="interview-results-settings-title">
     <div><h3 id="interview-results-settings-title" className="font-bold">Interview Results and Skill Intelligence settings</h3><p className="mt-1 text-sm text-slate-500">Customize labels and evidence thresholds. Officer decisions and recorded interview scores remain unchanged.</p></div>
-    <h4 className="mt-5 font-semibold">AI recommendation labels</h4><div className="mt-3 grid gap-4 sm:grid-cols-2">{Object.entries(settings.recommendation_labels).map(([key,value])=><label className={field} key={key}>{key}<input value={value} disabled={state!=="idle"} onChange={e=>update("recommendation_labels",key,e.target.value)} /></label>)}</div>
-    <h4 className="mt-5 font-semibold">AI proctor defaults</h4><div className="mt-3 grid gap-4 sm:grid-cols-2">{Object.entries(settings.proctor_labels).map(([key,value])=><label className={field} key={key}>{displayName(key)}<input value={value} disabled={state!=="idle"} onChange={e=>update("proctor_labels",key,e.target.value)} /></label>)}<label className={field}>Review event threshold<input type="number" min="0" max="1000" value={settings.proctor_review_event_threshold} disabled={state!=="idle"} onChange={e=>setSettings(current=>({...current,proctor_review_event_threshold:Math.max(0,Number(e.target.value)||0)}))}/></label></div>
-    <h4 className="mt-5 font-semibold">Skill risk calculation</h4><div className="mt-3 grid gap-4 sm:grid-cols-2"><label className={field}>Minimum coverage (%)<input type="number" min="0" max="100" value={settings.skill_intelligence.min_coverage_pct} disabled={state!=="idle"} onChange={e=>setSettings(current=>({...current,skill_intelligence:{...current.skill_intelligence,min_coverage_pct:Number(e.target.value)||0}}))}/></label><label className={field}>Minimum assessed candidates<input type="number" min="0" value={settings.skill_intelligence.min_assessed_candidates} disabled={state!=="idle"} onChange={e=>setSettings(current=>({...current,skill_intelligence:{...current.skill_intelligence,min_assessed_candidates:Number(e.target.value)||0}}))}/></label>{(["mandatory","core","preferred"] as const).flatMap(priority=>(["high","medium"] as const).map(level=><label className={field} key={`${priority}-${level}`}>{displayName(priority)} {displayName(level)} risk from (%)<input type="number" min="0" max="100" value={settings.skill_intelligence.risk_thresholds[priority][level]} disabled={state!=="idle"} onChange={e=>setRiskThreshold(priority,level,Number(e.target.value)||0)}/></label>))}<label className="flex items-center gap-2 text-sm"><input type="checkbox" checked={settings.skill_intelligence.allow_preferred_high_risk} disabled={state!=="idle"} onChange={e=>setSettings(current=>({...current,skill_intelligence:{...current.skill_intelligence,allow_preferred_high_risk:e.target.checked}}))}/>Allow Preferred skills to become High risk</label></div>
-    <h4 className="mt-5 font-semibold">Skill risk labels</h4><div className="mt-3 grid gap-4 sm:grid-cols-2">{Object.entries(settings.skill_intelligence.labels).map(([key,value])=><label className={field} key={key}>{displayName(key)}<input value={value} disabled={state!=="idle"} onChange={e=>setSettings(current=>({...current,skill_intelligence:{...current.skill_intelligence,labels:{...current.skill_intelligence.labels,[key]:e.target.value}}}))}/></label>)}</div>
+    <h4 className="mt-5 font-semibold">AI recommendation labels</h4><div className="mt-3 grid gap-4 sm:grid-cols-2">{Object.entries(settings.recommendation_labels).map(([key,value])=><label className="text-sm font-medium" key={key}>{key}<input className={field} value={value} disabled={state!=="idle"} onChange={e=>update("recommendation_labels",key,e.target.value)} /></label>)}</div>
+    <h4 className="mt-5 font-semibold">AI proctor defaults</h4><div className="mt-3 grid gap-4 sm:grid-cols-2">{Object.entries(settings.proctor_labels).map(([key,value])=><label className="text-sm font-medium" key={key}>{displayName(key)}<input className={field} value={value} disabled={state!=="idle"} onChange={e=>update("proctor_labels",key,e.target.value)} /></label>)}<label className="text-sm font-medium">Review event threshold<input className={field} type="number" min="0" max="1000" value={settings.proctor_review_event_threshold} disabled={state!=="idle"} onChange={e=>setSettings(current=>({...current,proctor_review_event_threshold:Math.max(0,Number(e.target.value)||0)}))}/></label></div>
+    <h4 className="mt-5 font-semibold">Skill risk calculation</h4><div className="mt-3 grid gap-4 sm:grid-cols-2"><label className="text-sm font-medium">Minimum coverage (%)<input className={field} type="number" min="0" max="100" value={settings.skill_intelligence.min_coverage_pct} disabled={state!=="idle"} onChange={e=>setSettings(current=>({...current,skill_intelligence:{...current.skill_intelligence,min_coverage_pct:Number(e.target.value)||0}}))}/></label><label className="text-sm font-medium">Minimum assessed candidates<input className={field} type="number" min="0" value={settings.skill_intelligence.min_assessed_candidates} disabled={state!=="idle"} onChange={e=>setSettings(current=>({...current,skill_intelligence:{...current.skill_intelligence,min_assessed_candidates:Number(e.target.value)||0}}))}/></label>{(["mandatory","core","preferred"] as const).flatMap(priority=>(["high","medium"] as const).map(level=><label className="text-sm font-medium" key={`${priority}-${level}`}>{displayName(priority)} {displayName(level)} risk from (%)<input className={field} type="number" min="0" max="100" value={settings.skill_intelligence.risk_thresholds[priority][level]} disabled={state!=="idle"} onChange={e=>setRiskThreshold(priority,level,Number(e.target.value)||0)}/></label>))}<label className="flex items-center gap-2 text-sm"><input type="checkbox" checked={settings.skill_intelligence.allow_preferred_high_risk} disabled={state!=="idle"} onChange={e=>setSettings(current=>({...current,skill_intelligence:{...current.skill_intelligence,allow_preferred_high_risk:e.target.checked}}))}/>Allow Preferred skills to become High risk</label></div>
+    <h4 className="mt-5 font-semibold">Skill risk labels</h4><div className="mt-3 grid gap-4 sm:grid-cols-2">{Object.entries(settings.skill_intelligence.labels).map(([key,value])=><label className="text-sm font-medium" key={key}>{displayName(key)}<input className={field} value={value} disabled={state!=="idle"} onChange={e=>setSettings(current=>({...current,skill_intelligence:{...current.skill_intelligence,labels:{...current.skill_intelligence.labels,[key]:e.target.value}}}))}/></label>)}</div>
     <div className="mt-5 flex items-center gap-3"><button className={btn} disabled={state!=="idle"} onClick={()=>void save()}>{state==="saving"?"Saving…":"Save settings"}</button><span className="text-sm text-slate-500" role="status">{state==="loading"?"Loading settings…":message}</span></div>
   </section>;
 }
@@ -381,6 +381,8 @@ function SkillView({ data }: { data: Data }) {
 }
 function DepartmentView({ data }: { data: Data }) {
   const departments = (data.departments || []) as Data[];
+  const [sort, setSort] = useState("department");
+  const sortedDepartments = [...departments].sort((a, b) => sort === "score" ? Number(b.avg_score ?? -1) - Number(a.avg_score ?? -1) : sort === "sample" ? Number(b.student_count || 0) - Number(a.student_count || 0) : sort === "ready" ? Number(b.interview_ready_rate || 0) - Number(a.interview_ready_rate || 0) : String(a.department_code || "").localeCompare(String(b.department_code || "")));
   const leader = data.recommended_department as Data | undefined;
   const statusFor = (item: Data) => {
     const sample = Number(item.student_count || 0);
@@ -409,7 +411,7 @@ function DepartmentView({ data }: { data: Data }) {
         />
       </div>
       <article className={`${panel} overflow-x-auto`}>
-        <h3 className="mb-5 font-bold">Department comparison</h3>
+        <div className="mb-5 flex flex-wrap items-end justify-between gap-3"><h3 className="font-bold">Department comparison</h3><label className="text-sm">Sort by<select className={`${field} min-w-48`} value={sort} onChange={event=>setSort(event.target.value)}><option value="department">Department</option><option value="score">Average score</option><option value="sample">Sample size</option><option value="ready">Interview-ready rate</option></select></label></div>
         <table className="w-full text-left text-sm">
           <thead>
             <tr>
@@ -423,7 +425,7 @@ function DepartmentView({ data }: { data: Data }) {
             </tr>
           </thead>
           <tbody>
-            {departments.map((item, index) => {
+            {sortedDepartments.map((item, index) => {
               const count = Number(item.student_count || 0), status = statusFor(item);
               return (
                 <tr
@@ -1210,6 +1212,8 @@ export default function DriveManagement({
     [attempts, setAttempts] = useState(2);
   const [schedule, setSchedule] = useState("");
   const [resultSort, setResultSort] = useState("rank");
+  const [listSort, setListSort] = useState("name");
+  const [departmentOptions, setDepartmentOptions] = useState<string[]>([]);
   const [resultKpis, setResultKpis] = useState({ candidates: 0, completed: 0, incomplete: 0, needsReview: 0, decisionPending: 0, readyToRelease: 0 });
   const [lifecycleRequest, setLifecycleRequest] = useState<
     "closed" | "cancelled" | "removed" | null
@@ -1218,14 +1222,33 @@ export default function DriveManagement({
     [statusFilter, setStatusFilter] = useState(""),
     [completionFilter, setCompletionFilter] = useState(""),
     [atsEligibility, setAtsEligibility] = useState(""),
-    [atsMinimum, setAtsMinimum] = useState(""),
-    [coverageMinimum, setCoverageMinimum] = useState("");
+    [atsMinimum, setAtsMinimum] = useState("");
   const [resultView, setResultView] = useState("all"),
     [resultRules, setResultRules] = useState<ResultRule[]>([]),
     [resultMatchMode, setResultMatchMode] = useState<"all"|"any">("all"),
     [excludeReviewRequired, setExcludeReviewRequired] = useState(false),
     [bulkDecision, setBulkDecision] = useState<"shortlist"|"hold"|"reject"|null>(null);
   const [resultFilterOptions,setResultFilterOptions]=useState<ResultFilterOptions>({departmentPrograms:[],interviewRounds:[]});
+  useEffect(() => {
+    setOffset(0);
+    setSearch("");
+    setDepartmentFilter("");
+    setStatusFilter("");
+    setCompletionFilter("");
+    setAtsEligibility("");
+    setAtsMinimum("");
+    setListSort("name");
+  }, [tab]);
+  useEffect(() => {
+    if (!drive) return;
+    const controller = new AbortController();
+    collegeApi.get<{programs:Program[]}>("academic-catalog", controller.signal).then(catalog => {
+      const configured = new Set(drive.criteria_department_codes || []);
+      const all = catalog.programs.flatMap(program => program.departments.map(department => department.code));
+      setDepartmentOptions([...new Set(configured.size ? [...configured] : all)].sort());
+    }).catch(() => setDepartmentOptions([...(drive.criteria_department_codes || [])].sort()));
+    return () => controller.abort();
+  }, [drive]);
   useEffect(() => {
     if (tab !== "results") return;
     const controller = new AbortController();
@@ -1272,7 +1295,6 @@ export default function DriveManagement({
       if (departmentFilter) query.set("department", departmentFilter);
       if (atsEligibility) query.set("eligible", atsEligibility === "eligible" ? "true" : "false");
       if (atsMinimum) query.set("min_ats_fit", atsMinimum);
-      if (coverageMinimum) query.set("min_mandatory_coverage_pct", coverageMinimum);
     }
     if (tab === "results") {
       query.set("result_view", resultView);
@@ -1315,7 +1337,6 @@ export default function DriveManagement({
     statusFilter,
     atsEligibility,
     atsMinimum,
-    coverageMinimum,
   ]);
   async function act(path: string, body: unknown = {}, put = true) {
     setBusy(true);
@@ -1412,12 +1433,19 @@ export default function DriveManagement({
           ? c.evaluation_status === "released"
           : c.evaluation_status !== "released")),
   );
+  const sortedList = [...filteredCandidates].sort((a, b) => {
+    if (listSort === "department") return String(a.department_code || "").localeCompare(String(b.department_code || "")) || a.full_name.localeCompare(b.full_name);
+    if (listSort === "status") return String(a.assignment_status || a.evaluation_status || "").localeCompare(String(b.assignment_status || b.evaluation_status || ""));
+    if (listSort === "ats_desc") return Number(b.ats_fit_score ?? -1) - Number(a.ats_fit_score ?? -1);
+    if (listSort === "ats_asc") return Number(a.ats_fit_score ?? 101) - Number(b.ats_fit_score ?? 101);
+    return a.full_name.localeCompare(b.full_name);
+  });
   const candidates = tab === "results" ? [...filteredCandidates].sort((a, b) => {
     if (resultSort === "score_desc") return Number(b.overall_score ?? -1) - Number(a.overall_score ?? -1);
     if (resultSort === "pri_desc") return Number(b.ranking_score ?? -1) - Number(a.ranking_score ?? -1);
     if (resultSort === "name") return a.full_name.localeCompare(b.full_name);
     return Number(a.rank ?? Number.MAX_SAFE_INTEGER) - Number(b.rank ?? Number.MAX_SAFE_INTEGER);
-  }) : filteredCandidates;
+  }) : sortedList;
   const total = Number(
     data?.total_count ??
       (data?.pagination as Data)?.total ??
@@ -1767,7 +1795,7 @@ export default function DriveManagement({
         })()}
       {["candidates", "ats", "results"].includes(tab) && (
         <>
-          {tab !== "results" && <div className="grid gap-3 md:grid-cols-4">
+          {tab !== "results" && <div className="grid gap-3 md:grid-cols-5">
             <label className="text-sm">
               Search candidates
               <input
@@ -1788,11 +1816,7 @@ export default function DriveManagement({
                 onChange={(e) => setDepartmentFilter(e.target.value)}
               >
                 <option value="">All departments</option>
-                {[
-                  ...new Set(
-                    rawCandidates.map((c) => c.department_code).filter(Boolean),
-                  ),
-                ].map((v) => (
+                {departmentOptions.map((v) => (
                   <option key={v} value={v}>
                     {v}
                   </option>
@@ -1853,31 +1877,10 @@ export default function DriveManagement({
                     <option value="ineligible">Not eligible</option>
                   </select>
                 </label>
-                <label className="text-sm">
-                  Minimum ATS / mandatory %
-                  <div className="flex gap-2">
-                    <input
-                      className={field}
-                      type="number"
-                      min="0"
-                      max="100"
-                      placeholder="ATS"
-                      value={atsMinimum}
-                      onChange={(e) => setAtsMinimum(e.target.value)}
-                    />
-                    <input
-                      className={field}
-                      type="number"
-                      min="0"
-                      max="100"
-                      placeholder="Mandatory"
-                      value={coverageMinimum}
-                      onChange={(e) => setCoverageMinimum(e.target.value)}
-                    />
-                  </div>
-                </label>
+                <label className="text-sm">Minimum ATS<input className={field} type="number" min="0" max="100" placeholder="0–100" value={atsMinimum} onChange={(e) => setAtsMinimum(e.target.value)} /></label>
               </>
             ) : null}
+            <label className="text-sm">Sort by<select className={field} value={listSort} onChange={event=>setListSort(event.target.value)}><option value="name">Candidate name</option><option value="department">Department</option><option value="status">Interview status</option>{tab === "ats" && <><option value="ats_desc">ATS: high to low</option><option value="ats_asc">ATS: low to high</option></>}</select></label>
           </div>}
           {tab === "results" && (
             <div className="space-y-3">
@@ -1888,7 +1891,7 @@ export default function DriveManagement({
               </div>
               <div className="flex flex-wrap items-end gap-3 rounded-2xl border border-slate-200 bg-white p-3 dark:border-slate-700 dark:bg-slate-900">
                 <label className="min-w-60 flex-1 text-xs font-medium text-slate-500">Search candidates<input className={`${field} mt-1`} value={search} onChange={event=>{setOffset(0);setSearch(event.target.value)}} placeholder="Name, email or roll number" /></label>
-                <label className="min-w-44 text-xs font-medium text-slate-500">Department<select className={`${field} mt-1`} value={departmentFilter} onChange={event=>{setOffset(0);setDepartmentFilter(event.target.value)}}><option value="">All departments</option>{[...new Set(rawCandidates.map(candidate=>candidate.department_code).filter(Boolean))].map(value=><option key={value} value={value}>{value}</option>)}</select></label>
+                <label className="min-w-44 text-xs font-medium text-slate-500">Department<select className={`${field} mt-1`} value={departmentFilter} onChange={event=>{setOffset(0);setDepartmentFilter(event.target.value)}}><option value="">All departments</option>{departmentOptions.map(value=><option key={value} value={value}>{value}</option>)}</select></label>
                 <ResultCohortBuilder rules={resultRules} setRules={rules=>{setOffset(0);setResultRules(rules)}} matchMode={resultMatchMode} setMatchMode={value=>{setOffset(0);setResultMatchMode(value)}} total={total} excludeReview={excludeReviewRequired} setExcludeReview={value=>{setOffset(0);setExcludeReviewRequired(value)}} options={resultFilterOptions} onReset={()=>{setResultRules([]);setExcludeReviewRequired(false);setResultMatchMode("all");setResultView("all");setOffset(0)}}/>
                 <label className="min-w-44 text-xs font-medium text-slate-500">Sort by<select className={`${field} mt-1`} value={resultSort} onChange={event=>setResultSort(event.target.value)}><option value="rank">Rank</option><option value="score_desc">Interview score</option><option value="pri_desc">PRI</option><option value="name">Candidate name</option></select></label>
               </div>
@@ -2096,6 +2099,7 @@ export default function DriveManagement({
                             onClick={() => {
                               setSelected(c);
                               setDetail(c);
+                              setAttempts(Math.max(Number(c.max_attempts || drive?.max_attempts || 1), Number(c.attempt_number || 1)));
                             }}
                           >
                             View details
@@ -2218,44 +2222,27 @@ export default function DriveManagement({
                       View attempt history
                     </button>
                   </div>
-                  {drive &&
-                    ["scheduled", "active"].includes(drive.status) &&
-                    ["completed", "released", "expired", "failed"].includes(
-                      String(
-                        selected.evaluation_status ||
-                          selected.assignment_status,
-                      ),
-                    ) && (
+                  {drive && ["scheduled", "active"].includes(drive.status) && String(selected.assignment_status) !== "in_progress" && (
                       <>
                         <label className="block max-w-xs text-sm">
-                          Allowed attempts after reopening
+                          Allowed attempts
                           <input
                             className={field}
                             type="number"
-                            min={Number(selected.attempt_number || 1) + 1}
+                            min={Number(selected.attempt_number || 1)}
+                            max={20}
                             value={attempts}
                             onChange={(e) =>
                               setAttempts(
                                 Math.max(
-                                  Number(selected.attempt_number || 1) + 1,
+                                  Number(selected.attempt_number || 1),
                                   Number(e.target.value),
                                 ),
                               )
                             }
                           />
                         </label>
-                        <button
-                          className={btn}
-                          disabled={busy}
-                          onClick={() =>
-                            void act(
-                              `candidates/${selected.student_id}/reopen`,
-                              { max_attempts_override: attempts },
-                            )
-                          }
-                        >
-                          Reopen interview
-                        </button>
+                        {["completed", "released", "expired", "failed"].includes(String(selected.evaluation_status || selected.assignment_status)) ? <button className={btn} disabled={busy || attempts <= Number(selected.attempt_number || 1)} onClick={() => void act(`candidates/${selected.student_id}/reopen`, { max_attempts_override: attempts })}>Save and reopen interview</button> : <button className={btn} disabled={busy} onClick={() => void act(`candidates/${selected.student_id}/attempt-limit`, { max_attempts: attempts })}>Save allowed attempts</button>}
                       </>
                     )}
                 </>
