@@ -28,6 +28,7 @@ const show = (value: unknown, fallback = "Not available") =>
     : String(value);
 const stamp = (value: unknown) =>
   value ? new Date(String(value)).toLocaleString() : "Not available";
+const decisionLabel = (value: unknown) => value === "shortlist" ? "Shortlisted" : value === "reject" ? "Rejected" : displayName(show(value, "undecided"));
 
 function Metric({
   label,
@@ -429,9 +430,7 @@ export default function CandidateReport({
               Officer decision · final
             </p>
             <strong className="mt-2 block text-2xl">
-              {displayName(
-                show((decisionData?.decision as Data)?.decision, "undecided"),
-              )}
+              {decisionLabel((decisionData?.decision as Data)?.decision)}
             </strong>
             <p className="mt-2 text-sm text-slate-500">
               Human placement workflow authority remains separate from the AI
@@ -524,37 +523,12 @@ export default function CandidateReport({
               {displayName(show(jobFit.status, "insufficient evidence"))}
             </span>
           </div>
-          <div className="mt-5 space-y-3">
-            {requirements.length ? (
-              requirements.map((item, index) => (
-                <details className="rounded-xl border p-4" key={index}>
-                  <summary className="cursor-pointer">
-                    <strong>{show(item.requirement || item.skill)}</strong>
-                    <span className="ml-3 text-sm text-slate-500">
-                      {displayName(
-                        show(
-                          item.priority ||
-                            (item.critical ? "mandatory" : "core"),
-                        ),
-                      )}{" "}
-                      ·{" "}
-                      {displayName(
-                        show(
-                          item.evidence_strength || item.status,
-                          "Not Assessed",
-                        ),
-                      )}
-                    </span>
-                  </summary>
-                  <p className="mt-3 text-sm">
-                    {show(
-                      item.evidence || item.evidence_summary || item.reason,
-                      "No interview evidence was recorded.",
-                    )}
-                  </p>
-                </details>
-              ))
-            ) : (
+          <div className="mt-5 space-y-5">
+            {requirements.length ? (["mandatory", "core", "preferred"] as const).map(category => {
+              const items = requirements.filter(item => String(item.priority || (item.critical ? "mandatory" : "core")).toLowerCase() === category);
+              if (!items.length) return null;
+              return <section key={category}><h5 className="mb-2 text-xs font-semibold uppercase tracking-wide text-slate-500">{displayName(category)}</h5><div className="overflow-x-auto rounded-xl border border-slate-200 dark:border-slate-700"><table className="w-full text-left text-sm"><thead className="bg-slate-50 dark:bg-slate-800"><tr><th className="p-3">Skill / requirement</th><th className="p-3">Category</th><th className="p-3">Evidence strength</th><th className="p-3">Evidence</th></tr></thead><tbody>{items.map((item,index) => { const strength = displayName(show(item.evidence_strength || item.status, "No Evidence")); const normalized = strength.toLowerCase(); const tone = /strong|full|good/.test(normalized) ? "bg-emerald-100 text-emerald-800" : /moderate|limited|partial/.test(normalized) ? "bg-amber-100 text-amber-800" : /no evidence|weak/.test(normalized) ? "bg-rose-100 text-rose-800" : "bg-slate-100 text-slate-700"; return <tr className="border-t dark:border-slate-700" key={index}><td className="p-3 font-semibold">{show(item.requirement || item.skill)}</td><td className="p-3">{displayName(category)}</td><td className="p-3"><span className={`rounded-full px-2.5 py-1 text-xs font-semibold ${tone}`}>{strength}</span></td><td className="max-w-md p-3 text-slate-600 dark:text-slate-300">{show(item.evidence || item.evidence_summary || item.reason, "No interview evidence recorded.")}</td></tr>; })}</tbody></table></div></section>;
+            }) : (
               <p className="text-sm text-slate-500">
                 No frozen requirement evidence is available.
               </p>
@@ -844,9 +818,9 @@ export default function CandidateReport({
                 value={decision}
                 onChange={(event) => setDecision(event.target.value)}
               >
-                <option value="shortlist">Shortlist</option>
+                <option value="shortlist">Shortlisted</option>
                 <option value="hold">Hold</option>
-                <option value="reject">Reject</option>
+                <option value="reject">Rejected</option>
               </select>
             </label>
             <label className="mt-4 block text-sm">
@@ -920,7 +894,7 @@ export default function CandidateReport({
               history.map((item, index) => (
                 <div className="rounded-xl border p-3 text-sm" key={index}>
                   <div className="flex justify-between gap-3">
-                    <strong>{displayName(show(item.decision))}</strong>
+                    <strong>{decisionLabel(item.decision)}</strong>
                     <span>{stamp(item.decided_at || item.created_at)}</span>
                   </div>
                   <p className="mt-2">{show(item.note, "No officer note.")}</p>

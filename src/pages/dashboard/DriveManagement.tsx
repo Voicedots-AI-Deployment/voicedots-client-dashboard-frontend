@@ -47,6 +47,8 @@ type Candidate = Data & {
   ranking_score?: number;
   readiness?: string;
   recommendation?: string;
+  proctoring_score?: number;
+  integrity_review_label?: string;
   rank?: number;
   officer_decision?: string;
   evaluation_status?: string;
@@ -106,6 +108,11 @@ function ScoreBadge({ score }: { score?: number | null }) {
       ? "bg-amber-100 text-amber-800 dark:bg-amber-950/40 dark:text-amber-200"
       : "bg-rose-100 text-rose-800 dark:bg-rose-950/40 dark:text-rose-200";
   return <span className={`inline-flex rounded-full px-3 py-1 text-sm font-bold ${tone}`}>{score}/100</span>;
+}
+function StatusBadge({ value }: { value?: string | null }) {
+  const label = value === "shortlist" ? "Shortlisted" : value === "reject" ? "Rejected" : displayName(value || "not assessed"), normalized = label.toLowerCase();
+  const tone = /shortlist|ready|released|strong hire|no review required/.test(normalized) ? "bg-emerald-100 text-emerald-800" : /reject|not ready|serious|review required/.test(normalized) ? "bg-rose-100 text-rose-800" : /hold|pending|needs review|consider/.test(normalized) ? "bg-amber-100 text-amber-800" : "bg-slate-100 text-slate-700";
+  return <span className={`inline-flex rounded-full px-2.5 py-1 text-xs font-semibold ${tone}`}>{label}</span>;
 }
 
 function resumeEvidenceLabel(value?: string) {
@@ -1202,6 +1209,8 @@ export default function DriveManagement({
   const [checked, setChecked] = useState<string[]>([]),
     [attempts, setAttempts] = useState(2);
   const [schedule, setSchedule] = useState("");
+  const [resultSort, setResultSort] = useState("rank");
+  const [resultKpis, setResultKpis] = useState({ candidates: 0, completed: 0, incomplete: 0, needsReview: 0, decisionPending: 0, readyToRelease: 0 });
   const [lifecycleRequest, setLifecycleRequest] = useState<
     "closed" | "cancelled" | "removed" | null
   >(null);
@@ -1217,6 +1226,16 @@ export default function DriveManagement({
     [excludeReviewRequired, setExcludeReviewRequired] = useState(false),
     [bulkDecision, setBulkDecision] = useState<"shortlist"|"hold"|"reject"|null>(null);
   const [resultFilterOptions,setResultFilterOptions]=useState<ResultFilterOptions>({departmentPrograms:[],interviewRounds:[]});
+  useEffect(() => {
+    if (tab !== "results") return;
+    const controller = new AbortController();
+    const count = async (query: string) => Number(((await collegeApi.get<Data>(`drives/${driveId}/dashboard/ranking?limit=1&offset=0&${query}`, controller.signal)).pagination as Data)?.total || 0);
+    Promise.all([
+      count("result_view=all"), collegeApi.get<Data>(`drives/${driveId}/dashboard/overview?limit=1&offset=0&q=`, controller.signal), count("result_view=incomplete"), count("result_view=needs_review"), count("result_view=decision_pending"),
+      count(`result_view=all&filters=${encodeURIComponent(JSON.stringify([{field:"student_result",operator:"equals",value:"hidden"},{field:"officer_decision",operator:"not_equals",value:"undecided"}]))}&match_mode=all`),
+    ]).then(([candidates, overview, incomplete, needsReview, decisionPending, readyToRelease]) => setResultKpis({ candidates: Number(candidates), completed: Number(((overview as Data).interview_progress as Data)?.completed || 0), incomplete: Number(incomplete), needsReview: Number(needsReview), decisionPending: Number(decisionPending), readyToRelease: Number(readyToRelease) })).catch(() => {});
+    return () => controller.abort();
+  }, [tab, driveId, version]);
   useEffect(()=>{
     if(tab!=="results")return;
     const controller=new AbortController();
@@ -1319,18 +1338,6 @@ export default function DriveManagement({
       setBusy(false);
     }
   }
-  async function selectAllResultMatches() {
-    setBusy(true);
-    setError("");
-    try {
-      const query=new URLSearchParams({limit:String(Math.min(total,500)),offset:"0",q:search,result_view:resultView,match_mode:resultMatchMode});
-      const rules=resultRules.filter(rule=>(rule.operator==='is_any_of'&&rule.values?.length)||rule.value!==''&&(rule.operator!=='between'||Boolean(rule.valueEnd))).map(({field,operator,value,valueEnd,values})=>({field,operator,value,value_end:valueEnd,values}));
-      if(rules.length)query.set("filters",JSON.stringify(rules));
-      if(excludeReviewRequired)query.set("exclude_review_required","true");
-      const result=await collegeApi.get<Data>(`drives/${driveId}/dashboard/ranking?${query.toString()}`);
-      setChecked(((result.candidates||[]) as Candidate[]).map(candidate=>candidate.student_id));
-    } catch(e){setError(collegeError(e))} finally {setBusy(false)}
-  }
   async function changeLifecycle(status: "closed" | "cancelled") {
     setBusy(true);
     setError("");
@@ -1388,7 +1395,7 @@ export default function DriveManagement({
     }
   }
   const rawCandidates = (data?.candidates || []) as Candidate[];
-  const candidates = rawCandidates.filter(
+  const filteredCandidates = rawCandidates.filter(
     (c) =>
       (!departmentFilter || c.department_code === departmentFilter) &&
       (!statusFilter ||
@@ -1409,6 +1416,12 @@ export default function DriveManagement({
           return b > 0 && (a / b) * 100 >= Number(coverageMinimum);
         })()),
   );
+  const candidates = tab === "results" ? [...filteredCandidates].sort((a, b) => {
+    if (resultSort === "score_desc") return Number(b.overall_score ?? -1) - Number(a.overall_score ?? -1);
+    if (resultSort === "pri_desc") return Number(b.ranking_score ?? -1) - Number(a.ranking_score ?? -1);
+    if (resultSort === "name") return a.full_name.localeCompare(b.full_name);
+    return Number(a.rank ?? Number.MAX_SAFE_INTEGER) - Number(b.rank ?? Number.MAX_SAFE_INTEGER);
+  }) : filteredCandidates;
   const total = Number(
     data?.total_count ??
       (data?.pagination as Data)?.total ??
@@ -1771,7 +1784,7 @@ export default function DriveManagement({
         })()}
       {["candidates", "ats", "results"].includes(tab) && (
         <>
-          <div className="grid gap-3 md:grid-cols-4">
+          {tab !== "results" && <div className="grid gap-3 md:grid-cols-4">
             <label className="text-sm">
               Search candidates
               <input
@@ -1882,72 +1895,28 @@ export default function DriveManagement({
                 </label>
               </>
             ) : null}
-          </div>
+          </div>}
           {tab === "results" && (
-            <div className="space-y-4">
-              <div className="flex flex-wrap gap-2" role="group" aria-label="Result status views">
+            <div className="space-y-3">
+              <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-6">
                 {[
-                  ["all", "All Results"],
-                  ["ranked", "Ranked"],
-                  ["needs_review", "Needs Review"],
-                  ["incomplete", "Incomplete"],
-                  ["decision_pending", "Officer Decision Pending"],
-                ].map(([value,label])=><button key={value} className={`${btn} ${resultView===value?"bg-indigo-600 text-white":""}`} aria-pressed={resultView===value} onClick={()=>{setOffset(0);setResultView(value)}}>{label}</button>)}
+                  ["Candidates", resultKpis.candidates, "bg-indigo-50 text-indigo-700"], ["Completed", resultKpis.completed, "bg-emerald-50 text-emerald-700"], ["Incomplete", resultKpis.incomplete, "bg-slate-100 text-slate-700"], ["Needs review", resultKpis.needsReview, "bg-amber-50 text-amber-800"], ["Decision pending", resultKpis.decisionPending, "bg-amber-50 text-amber-800"], ["Ready to release", resultKpis.readyToRelease, "bg-emerald-50 text-emerald-700"],
+                ].map(([label,value,tone])=><article className={`rounded-xl border border-slate-200 px-4 py-3 dark:border-slate-700 ${tone}`} key={String(label)}><p className="text-xs font-semibold uppercase tracking-wide">{label}</p><strong className="mt-1 block text-2xl">{value}</strong></article>)}
               </div>
-              <ResultCohortBuilder rules={resultRules} setRules={rules=>{setOffset(0);setResultRules(rules)}} matchMode={resultMatchMode} setMatchMode={value=>{setOffset(0);setResultMatchMode(value)}} total={total} excludeReview={excludeReviewRequired} setExcludeReview={value=>{setOffset(0);setExcludeReviewRequired(value)}} options={resultFilterOptions} onReset={()=>{setResultRules([]);setExcludeReviewRequired(false);setResultMatchMode("all");setResultView("all");setOffset(0)}}/>
+              <div className="flex flex-wrap items-end gap-3 rounded-2xl border border-slate-200 bg-white p-3 dark:border-slate-700 dark:bg-slate-900">
+                <label className="min-w-60 flex-1 text-xs font-medium text-slate-500">Search candidates<input className={`${field} mt-1`} value={search} onChange={event=>{setOffset(0);setSearch(event.target.value)}} placeholder="Name, email or roll number" /></label>
+                <label className="min-w-44 text-xs font-medium text-slate-500">Department<select className={`${field} mt-1`} value={departmentFilter} onChange={event=>{setOffset(0);setDepartmentFilter(event.target.value)}}><option value="">All departments</option>{[...new Set(rawCandidates.map(candidate=>candidate.department_code).filter(Boolean))].map(value=><option key={value} value={value}>{value}</option>)}</select></label>
+                <ResultCohortBuilder rules={resultRules} setRules={rules=>{setOffset(0);setResultRules(rules)}} matchMode={resultMatchMode} setMatchMode={value=>{setOffset(0);setResultMatchMode(value)}} total={total} excludeReview={excludeReviewRequired} setExcludeReview={value=>{setOffset(0);setExcludeReviewRequired(value)}} options={resultFilterOptions} onReset={()=>{setResultRules([]);setExcludeReviewRequired(false);setResultMatchMode("all");setResultView("all");setOffset(0)}}/>
+                <label className="min-w-44 text-xs font-medium text-slate-500">Sort by<select className={`${field} mt-1`} value={resultSort} onChange={event=>setResultSort(event.target.value)}><option value="rank">Rank</option><option value="score_desc">Interview score</option><option value="pri_desc">PRI</option><option value="name">Candidate name</option></select></label>
+              </div>
             </div>
           )}
           {tab === "results" && (
-            <div className="flex flex-wrap gap-3">
-              <button
-                className={btn}
-                disabled={busy}
-                onClick={() => void act("candidates/release-all")}
-              >
-                Release all ready results
-              </button>
-              <label className="text-sm">
-                Release time
-                <input
-                  className={field}
-                  type="datetime-local"
-                  value={schedule}
-                  onChange={(e) => setSchedule(e.target.value)}
-                />
-              </label>
-              <button
-                className={btn}
-                disabled={busy || !schedule}
-                onClick={() =>
-                  void act("candidates/release-all/schedule", {
-                    scheduled_for: new Date(schedule).toISOString(),
-                  })
-                }
-              >
-                Schedule ready results
-              </button>
-            </div>
+            <section className="flex flex-wrap items-end gap-3 rounded-2xl border border-slate-200 bg-white p-4 dark:border-slate-700 dark:bg-slate-900"><div className="mr-auto"><h3 className="font-semibold">Result release</h3><p className="text-xs text-slate-500">Schedule publication for candidates with a recorded officer decision.</p></div><label className="text-xs font-medium text-slate-500">Release results date<input className={`${field} mt-1`} type="date" value={schedule.split("T")[0]||""} onChange={event=>setSchedule(`${event.target.value}T${schedule.split("T")[1]||"09:00"}`)} /></label><label className="text-xs font-medium text-slate-500">Release results time<input className={`${field} mt-1`} type="time" value={schedule.split("T")[1]||""} onChange={event=>setSchedule(`${schedule.split("T")[0]||new Date().toISOString().slice(0,10)}T${event.target.value}`)} /></label><button className={`${btn} bg-indigo-600 text-white`} disabled={busy||!schedule.includes("T")||!schedule.split("T")[1]} onClick={()=>void act("candidates/release-all/schedule",{scheduled_for:new Date(schedule).toISOString()})}>Save schedule</button></section>
           )}
-          {tab === "results" && !!candidates.length && (
+          {tab === "results" && checked.length > 0 && (
             <div className="sticky bottom-4 z-20 flex flex-wrap items-center gap-3 rounded-2xl border bg-white p-4 shadow-lg dark:border-slate-800 dark:bg-slate-900">
-              <label className="text-sm">
-                <input
-                  type="checkbox"
-                  checked={candidates.every((c) =>
-                    checked.includes(c.student_id),
-                  )}
-                  onChange={(e) =>
-                    setChecked(
-                      e.target.checked
-                        ? candidates.map((c) => c.student_id)
-                        : [],
-                    )
-                  }
-                />{" "}
-                Select visible candidates
-              </label>
-              <strong className="text-sm">{total} matched · {checked.length} selected</strong>
-              <button className={btn} disabled={busy||total===0||total>500} title={total>500?"Refine the cohort to 500 candidates or fewer before selecting all.":undefined} onClick={()=>void selectAllResultMatches()}>Select all {total} matches</button>
+              <strong className="mr-auto text-sm">{checked.length} candidate{checked.length === 1 ? "" : "s"} selected</strong>
               {(["shortlist", "hold", "reject"] as const).map((value) => (
                 <button
                   key={value}
@@ -1959,28 +1928,11 @@ export default function DriveManagement({
                 </button>
               ))}
               <button
-                className={`${btn} border-emerald-300 text-emerald-700`}
-                disabled={busy || !checked.length}
-                onClick={() => void act("candidates/release-bulk", { student_ids: checked })}
-              >
-                Release selected {checked.length}
-              </button>
-              <button
-                className={btn}
-                disabled={busy || !checked.length || !schedule}
-                onClick={() => void act("candidates/release-bulk/schedule", {
-                  student_ids: checked,
-                  scheduled_for: new Date(schedule).toISOString(),
-                })}
-              >
-                Schedule selected release
-              </button>
-              <button
-                className={btn}
-                disabled={busy || !checked.length}
+                aria-label="Clear selection"
+                className="rounded-lg p-2 text-slate-500 hover:bg-slate-100"
                 onClick={() => setChecked([])}
               >
-                Clear Selection
+                ×
               </button>
             </div>
           )}
@@ -2009,6 +1961,7 @@ export default function DriveManagement({
                           "PRI",
                           "Readiness",
                           "AI Recommendation",
+                          "AI Proctor",
                           "Officer Decision",
                           "Student Result",
                           "Action",
@@ -2087,18 +2040,19 @@ export default function DriveManagement({
                               : `${c.ranking_score}/100`}
                           </td>
                           <td className="p-3">
-                            {displayName(
-                              c.readiness || c.evaluation_status || "pending",
-                            )}
+                            <StatusBadge value={c.readiness || c.evaluation_status || "pending"} />
                           </td>
                           <td className="p-3">
-                            {c.recommendation || "Review Required"}
+                            <StatusBadge value={c.recommendation || "Review Required"} />
                           </td>
                           <td className="p-3">
-                            {displayName(c.officer_decision || "undecided")}
+                            <div className="space-y-1"><ScoreBadge score={c.proctoring_score} /><div><StatusBadge value={c.integrity_review_label || c.integrity_review_status || "not assessed"} /></div></div>
                           </td>
                           <td className="p-3">
-                            {displayName(c.publication?.state || "hidden")}
+                            <StatusBadge value={c.officer_decision || "pending"} />
+                          </td>
+                          <td className="p-3">
+                            <StatusBadge value={c.publication?.state || "hidden"} />
                           </td>
                         </>
                       ) : tab === "ats" ? (
