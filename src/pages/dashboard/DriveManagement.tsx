@@ -30,6 +30,13 @@ type Candidate = Data & {
   cgpa?: number;
   graduation_year?: number;
   eligible?: boolean;
+  eligibility_note?: string;
+  integrity_review_status?: string;
+  started_at?: string;
+  last_activity_at?: string;
+  last_activity_label?: string;
+  current_round?: string;
+  current_agent?: string;
   ats_fit_score?: number;
   mandatory_coverage?: string;
   core_coverage?: string;
@@ -47,7 +54,6 @@ type Candidate = Data & {
   preparation_status?: string;
   attempt_number?: number;
   max_attempts?: number;
-  started_at?: string;
   assigned_at?: string;
   publication?: { state?: string };
 };
@@ -70,42 +76,6 @@ const paths: Record<Tab, string> = {
   departments: "dashboard/departments",
   settings: "dashboard/overview",
 };
-function Details({ data }: { data: unknown }) {
-  if (data === null || data === undefined)
-    return <span className="text-slate-500">Not available</span>;
-  if (typeof data === "boolean") return <span>{data ? "Yes" : "No"}</span>;
-  if (typeof data !== "object")
-    return (
-      <span className="whitespace-pre-wrap break-words">{String(data)}</span>
-    );
-  if (Array.isArray(data))
-    return data.length ? (
-      <div className="space-y-3">
-        {data.map((v, i) => (
-          <div key={i} className="border-l-2 pl-3">
-            <Details data={v} />
-          </div>
-        ))}
-      </div>
-    ) : (
-      <span className="text-slate-500">None yet</span>
-    );
-  const entries = Object.entries(data).filter(
-    ([k]) => !/(^id$|_id$|_json$|^agent_profiles$|^policy_version$)/.test(k),
-  );
-  return (
-    <dl className="space-y-3 text-sm">
-      {entries.map(([key, value]) => (
-        <div key={key}>
-          <dt className="font-medium text-slate-500">{displayName(key)}</dt>
-          <dd className="mt-1">
-            <Details data={value} />
-          </dd>
-        </div>
-      ))}
-    </dl>
-  );
-}
 function Metric({
   label,
   value,
@@ -126,6 +96,77 @@ function Metric({
       {note && <p className="mt-2 text-xs text-slate-500">{note}</p>}
     </article>
   );
+}
+
+function ScoreBadge({ score }: { score?: number | null }) {
+  if (score == null) return <span className="text-slate-500">Not assessed</span>;
+  const tone = score >= 75
+    ? "bg-emerald-100 text-emerald-800 dark:bg-emerald-950/40 dark:text-emerald-200"
+    : score >= 50
+      ? "bg-amber-100 text-amber-800 dark:bg-amber-950/40 dark:text-amber-200"
+      : "bg-rose-100 text-rose-800 dark:bg-rose-950/40 dark:text-rose-200";
+  return <span className={`inline-flex rounded-full px-3 py-1 text-sm font-bold ${tone}`}>{score}/100</span>;
+}
+
+function resumeEvidenceLabel(value?: string) {
+  const normalized = String(value || "none").toLowerCase().replace(/[_-]+/g, " ");
+  if (normalized === "strong" || normalized === "sufficient") return "Strong";
+  if (normalized === "limited") return "Limited";
+  return "None";
+}
+
+function ReadinessPolicy() {
+  const [interview, setInterview] = useState(70);
+  const [resume, setResume] = useState(30);
+  const [state, setState] = useState<"loading" | "idle" | "saving">("loading");
+  const [message, setMessage] = useState("");
+  useEffect(() => {
+    const controller = new AbortController();
+    collegeApi.get<{interview_readiness:number;resume_readiness:number}>("readiness-policy", controller.signal)
+      .then(policy => { setInterview(policy.interview_readiness); setResume(policy.resume_readiness); })
+      .catch(error => { if (!controller.signal.aborted) setMessage(collegeError(error)); })
+      .finally(() => { if (!controller.signal.aborted) setState("idle"); });
+    return () => controller.abort();
+  }, []);
+  async function save() {
+    setState("saving"); setMessage("");
+    try {
+      await collegeApi.save("readiness-policy", {interview_readiness:interview,resume_readiness:resume}, true);
+      setMessage("Readiness formula saved for every student in this institution.");
+    } catch (error) { setMessage(collegeError(error)); }
+    finally { setState("idle"); }
+  }
+  return <section className={panel} aria-labelledby="readiness-policy-title">
+    <div className="space-y-1"><h3 id="readiness-policy-title" className="font-bold">Placement readiness formula</h3><p className="text-sm text-slate-500">Choose how interview performance and resume quality contribute. The two values must total 100%.</p></div>
+    <div className="mt-4 grid gap-4 sm:grid-cols-2">
+      <label className={field}>Interview performance (%)<input type="number" min="0" max="100" value={interview} disabled={state!=="idle"} onChange={event=>{const value=Number(event.target.value);setInterview(value);setResume(Math.max(0,100-value));}} /></label>
+      <label className={field}>Resume quality (%)<input type="number" min="0" max="100" value={resume} disabled={state!=="idle"} onChange={event=>{const value=Number(event.target.value);setResume(value);setInterview(Math.max(0,100-value));}} /></label>
+    </div>
+    <div className="mt-4 flex flex-wrap items-center gap-3"><button className={btn} disabled={state!=="idle"||interview+resume!==100} onClick={()=>void save()}>{state==="saving"?"Saving…":"Save formula"}</button><span className="text-sm text-slate-500" role="status">{state==="loading"?"Loading formula…":message}</span></div>
+  </section>;
+}
+const DEFAULT_RESULTS_LABELS = {
+  recommendation_labels: {"Strong Hire":"Strong Hire", Hire:"Hire", Consider:"Consider", Reject:"Reject", "Review Required":"Review Required"},
+  proctor_labels: {no_review_required:"No Review Required", review_required:"Review Required", not_available:"Not Available"},
+  proctor_review_event_threshold: 1,
+  skill_intelligence: {min_coverage_pct:40,min_assessed_candidates:5,allow_preferred_high_risk:false,risk_thresholds:{mandatory:{high:50,medium:25},core:{high:60,medium:30},preferred:{high:75,medium:50}},labels:{high:"High",medium:"Medium",low:"Low",insufficient_data:"Insufficient Data"}},
+};
+function InterviewResultsSettings() {
+  const [settings, setSettings] = useState<typeof DEFAULT_RESULTS_LABELS>(DEFAULT_RESULTS_LABELS);
+  const [state, setState] = useState<"loading"|"idle"|"saving">("loading");
+  const [message, setMessage] = useState("");
+  useEffect(() => { const c = new AbortController(); collegeApi.get<typeof DEFAULT_RESULTS_LABELS>("interview-results-settings", c.signal).then(value => setSettings({...DEFAULT_RESULTS_LABELS, ...value, recommendation_labels:{...DEFAULT_RESULTS_LABELS.recommendation_labels,...value.recommendation_labels}, proctor_labels:{...DEFAULT_RESULTS_LABELS.proctor_labels,...value.proctor_labels}, skill_intelligence:{...DEFAULT_RESULTS_LABELS.skill_intelligence,...value.skill_intelligence, risk_thresholds:{...DEFAULT_RESULTS_LABELS.skill_intelligence.risk_thresholds,...value.skill_intelligence?.risk_thresholds}, labels:{...DEFAULT_RESULTS_LABELS.skill_intelligence.labels,...value.skill_intelligence?.labels}}})).catch(e => { if (!c.signal.aborted) setMessage(collegeError(e)); }).finally(() => { if (!c.signal.aborted) setState("idle"); }); return () => c.abort(); }, []);
+  const update = (group: "recommendation_labels"|"proctor_labels", key: string, value: string) => setSettings(current => ({...current, [group]: {...current[group], [key]: value}}));
+  async function save() { setState("saving"); setMessage(""); try { await collegeApi.save("interview-results-settings", settings, true); setMessage("Interview Results settings saved."); } catch (e) { setMessage(collegeError(e)); } finally { setState("idle"); } }
+  const setRiskThreshold = (priority: "mandatory"|"core"|"preferred", level: "high"|"medium", value: number) => setSettings(current => ({...current, skill_intelligence:{...current.skill_intelligence, risk_thresholds:{...current.skill_intelligence.risk_thresholds, [priority]:{...current.skill_intelligence.risk_thresholds[priority], [level]:value}}}}));
+  return <section className={panel} aria-labelledby="interview-results-settings-title">
+    <div><h3 id="interview-results-settings-title" className="font-bold">Interview Results and Skill Intelligence settings</h3><p className="mt-1 text-sm text-slate-500">Customize labels and evidence thresholds. Officer decisions and recorded interview scores remain unchanged.</p></div>
+    <h4 className="mt-5 font-semibold">AI recommendation labels</h4><div className="mt-3 grid gap-4 sm:grid-cols-2">{Object.entries(settings.recommendation_labels).map(([key,value])=><label className={field} key={key}>{key}<input value={value} disabled={state!=="idle"} onChange={e=>update("recommendation_labels",key,e.target.value)} /></label>)}</div>
+    <h4 className="mt-5 font-semibold">AI proctor defaults</h4><div className="mt-3 grid gap-4 sm:grid-cols-2">{Object.entries(settings.proctor_labels).map(([key,value])=><label className={field} key={key}>{displayName(key)}<input value={value} disabled={state!=="idle"} onChange={e=>update("proctor_labels",key,e.target.value)} /></label>)}<label className={field}>Review event threshold<input type="number" min="0" max="1000" value={settings.proctor_review_event_threshold} disabled={state!=="idle"} onChange={e=>setSettings(current=>({...current,proctor_review_event_threshold:Math.max(0,Number(e.target.value)||0)}))}/></label></div>
+    <h4 className="mt-5 font-semibold">Skill risk calculation</h4><div className="mt-3 grid gap-4 sm:grid-cols-2"><label className={field}>Minimum coverage (%)<input type="number" min="0" max="100" value={settings.skill_intelligence.min_coverage_pct} disabled={state!=="idle"} onChange={e=>setSettings(current=>({...current,skill_intelligence:{...current.skill_intelligence,min_coverage_pct:Number(e.target.value)||0}}))}/></label><label className={field}>Minimum assessed candidates<input type="number" min="0" value={settings.skill_intelligence.min_assessed_candidates} disabled={state!=="idle"} onChange={e=>setSettings(current=>({...current,skill_intelligence:{...current.skill_intelligence,min_assessed_candidates:Number(e.target.value)||0}}))}/></label>{(["mandatory","core","preferred"] as const).flatMap(priority=>(["high","medium"] as const).map(level=><label className={field} key={`${priority}-${level}`}>{displayName(priority)} {displayName(level)} risk from (%)<input type="number" min="0" max="100" value={settings.skill_intelligence.risk_thresholds[priority][level]} disabled={state!=="idle"} onChange={e=>setRiskThreshold(priority,level,Number(e.target.value)||0)}/></label>))}<label className="flex items-center gap-2 text-sm"><input type="checkbox" checked={settings.skill_intelligence.allow_preferred_high_risk} disabled={state!=="idle"} onChange={e=>setSettings(current=>({...current,skill_intelligence:{...current.skill_intelligence,allow_preferred_high_risk:e.target.checked}}))}/>Allow Preferred skills to become High risk</label></div>
+    <h4 className="mt-5 font-semibold">Skill risk labels</h4><div className="mt-3 grid gap-4 sm:grid-cols-2">{Object.entries(settings.skill_intelligence.labels).map(([key,value])=><label className={field} key={key}>{displayName(key)}<input value={value} disabled={state!=="idle"} onChange={e=>setSettings(current=>({...current,skill_intelligence:{...current.skill_intelligence,labels:{...current.skill_intelligence.labels,[key]:e.target.value}}}))}/></label>)}</div>
+    <div className="mt-5 flex items-center gap-3"><button className={btn} disabled={state!=="idle"} onClick={()=>void save()}>{state==="saving"?"Saving…":"Save settings"}</button><span className="text-sm text-slate-500" role="status">{state==="loading"?"Loading settings…":message}</span></div>
+  </section>;
 }
 function CandidateDetails({
   candidate,
@@ -162,9 +203,7 @@ function CandidateDetails({
           <>
             <div>
               <dt className="text-slate-500">ATS Fit</dt>
-              <dd className="font-semibold">
-                {candidate.ats_fit_score ?? "Not assessed"}
-              </dd>
+              <dd className="mt-1"><ScoreBadge score={candidate.ats_fit_score} /></dd>
             </div>
             <div>
               <dt className="text-slate-500">Mandatory / Core / Preferred</dt>
@@ -177,7 +216,7 @@ function CandidateDetails({
             <div>
               <dt className="text-slate-500">Resume evidence</dt>
               <dd className="font-semibold">
-                {displayName(candidate.resume_evidence || "not assessed")}
+                {resumeEvidenceLabel(candidate.resume_evidence)}
               </dd>
             </div>
           </>
@@ -194,6 +233,11 @@ function CandidateDetails({
               </dd>
             </div>
             <div>
+              <dt className="text-slate-500">Eligibility</dt>
+              <dd className={`font-semibold ${candidate.eligible === false ? "text-rose-600" : "text-emerald-700"}`}>{candidate.eligible === false ? "Not eligible" : "Eligible"}</dd>
+              {candidate.eligibility_note && <p className="mt-1 text-xs text-slate-500">{candidate.eligibility_note}</p>}
+            </div>
+            <div>
               <dt className="text-slate-500">Attempts</dt>
               <dd className="font-semibold">
                 {candidate.attempt_number || 0} /{" "}
@@ -208,38 +252,49 @@ function CandidateDetails({
                   : "Not available"}
               </dd>
             </div>
+            <div>
+              <dt className="text-slate-500">Last activity</dt>
+              <dd className="font-semibold">{candidate.last_activity_label || "Not started"}{(candidate.last_activity_at || candidate.started_at) ? <span className="mt-1 block text-xs font-normal text-slate-500">{new Date(candidate.last_activity_at || candidate.started_at!).toLocaleString()}</span> : null}</dd>
+            </div>
+            {candidate.assignment_status === "in_progress" && <div>
+              <dt className="text-slate-500">Live interview</dt>
+              <dd className="font-semibold text-emerald-700">● {candidate.current_round || "In progress"}{candidate.current_agent ? ` · ${candidate.current_agent}` : ""}</dd>
+            </div>}
+            {(candidate.integrity_review_status === "review_required" || candidate.evaluation_status === "held_for_review" || candidate.assignment_status === "abandoned" || candidate.evaluation_status === "incomplete") && <div>
+              <dt className="text-slate-500">Needs attention</dt>
+              <dd className="font-semibold text-amber-700">{candidate.integrity_review_status === "review_required" ? "Integrity review required" : candidate.assignment_status === "abandoned" ? "Candidate abandoned" : candidate.evaluation_status === "incomplete" ? "Evaluation incomplete" : "Evaluation review required"}</dd>
+            </div>}
           </>
         )}
       </dl>
       {mode === "ats" && skills.length > 0 && (
         <div>
-          <h4 className="mb-2 font-semibold">
-            JD requirement and resume evidence
-          </h4>
-          <div className="space-y-2">
-            {skills.map((skill, index) => (
-              <article
-                className="rounded-xl border border-slate-200 p-3 text-sm dark:border-slate-800"
-                key={String(skill.skill || index)}
-              >
-                <div className="flex justify-between gap-3">
-                  <strong>{String(skill.skill || "Requirement")}</strong>
-                  <span>
-                    {displayName(
-                      String(skill.match_status || "not found in resume"),
-                    )}
-                  </span>
+          <h4 className="mb-1 font-semibold">JD requirement and resume evidence</h4>
+          <p className="mb-3 text-xs text-slate-500">Skills extracted from the job description and matched with the candidate&apos;s resume.</p>
+          <div className="space-y-3">
+            {([{
+              label: "Full evidence",
+              items: skills.filter(skill => ["FULL_MATCH", "RELATED_EVIDENCE"].includes(String(skill.match_status || "").toUpperCase())),
+              tone: "border-emerald-100 bg-emerald-50/70 dark:border-emerald-900/50 dark:bg-emerald-950/20",
+              chip: "bg-emerald-100 text-emerald-800 dark:bg-emerald-900/50 dark:text-emerald-200",
+            }, {
+              label: "No evidence",
+              items: skills.filter(skill => !["FULL_MATCH", "RELATED_EVIDENCE"].includes(String(skill.match_status || "").toUpperCase())),
+              tone: "border-rose-100 bg-rose-50/60 dark:border-rose-900/50 dark:bg-rose-950/20",
+              chip: "bg-rose-100 text-rose-800 dark:bg-rose-900/40 dark:text-rose-200",
+            }]).filter(group => group.items.length > 0).map(group => (
+              <section className={`rounded-xl border p-3 ${group.tone}`} key={group.label}>
+                <div className="mb-2 flex items-center gap-2 text-sm font-semibold">
+                  <span className="text-base" aria-hidden="true">{group.label === "Full evidence" ? "✓" : "△"}</span>
+                  <span>{group.label} ({group.items.length})</span>
                 </div>
-                <p className="mt-1 text-slate-500">
-                  {String(
-                    skill.evidence_text ||
-                      skill.reason ||
-                      "No supporting resume text was identified. This does not prove the candidate lacks the skill.",
-                  )}
-                </p>
-              </article>
+                <div className="flex flex-wrap gap-2">
+                  {group.items.map((skill, index) => <span className={`rounded-full px-3 py-1.5 text-xs font-medium ${group.chip}`} key={String(skill.skill || index)}>{String(skill.skill || "Requirement")}</span>)}
+                </div>
+              </section>
             ))}
           </div>
+          <p className="mt-3 rounded-lg bg-slate-50 px-3 py-2 text-xs text-slate-500 dark:bg-slate-800/60">Resume evidence is based on the quality and coverage of extracted skills, experience, and achievements, not resume length.</p>
         </div>
       )}
       {history.length > 0 && (
@@ -305,118 +360,28 @@ function Bar({
 }
 function SkillView({ data }: { data: Data }) {
   const skills = (data.skills || []) as Data[];
-  const topRisks = (data.top_risks || []) as Data[];
-  const insufficient = (data.insufficient_data_skills || []) as Data[];
   const historical = (data.unmatched_historical_skills || []) as Data[];
-  return (
-    <div className="space-y-5">
-      <div className="grid gap-4 sm:grid-cols-3">
-        <Metric label="Released interviews" value={data.total_released ?? 0} />
-        <Metric label="Skills tracked" value={skills.length} />
-        <Metric
-          label="Evidence coverage"
-          value={
-            skills.length
-              ? `${Math.round(skills.reduce((sum, s) => sum + Number(s.coverage_pct || 0), 0) / skills.length)}%`
-              : "—"
-          }
-        />
-      </div>
-      {topRisks.length > 0 && (
-        <article className={panel}>
-          <h3 className="font-bold">Risk radar</h3>
-          <p className="mt-1 text-sm text-slate-500">
-            Skills with enough released interview evidence to create a real
-            placement risk for this drive.
-          </p>
-          <div className="mt-4 grid gap-3 md:grid-cols-2">
-            {topRisks.map((risk, index) => (
-              <div key={String(risk.skill || index)} className="rounded-xl border border-rose-200 bg-rose-50 p-4 dark:border-rose-900 dark:bg-rose-950/20">
-                <div className="flex items-center justify-between gap-3">
-                  <strong>{String(risk.skill || "Skill")}</strong>
-                  <span className="text-xs font-bold uppercase text-rose-700 dark:text-rose-300">{String(risk.risk || "risk")}</span>
-                </div>
-                <p className="mt-2 text-sm text-slate-600 dark:text-slate-300">
-                  {String(risk.gap_pct ?? 0)}% limited evidence · {String(risk.coverage_pct ?? 0)}% coverage
-                </p>
-              </div>
-            ))}
-          </div>
-        </article>
-      )}
-      <article className={panel}>
-        <div className="mb-5">
-          <h3 className="font-bold">Skill intelligence</h3>
-          <p className="text-sm text-slate-500">
-            Candidate answers are classified separately from skills that were
-            not tested.
-          </p>
-        </div>
-        <div className="space-y-5">
-          {skills.map((skill, index) => {
-            const assessed = Number(skill.assessed_count || 0),
-              good = Number(skill.good_count || 0),
-              limited = Number(skill.limited_answer_count || 0),
-              unclear = Number(skill.no_clear_answer_count || 0),
-              notTested = Number(
-                skill.not_tested_count ||
-                  Math.max(0, Number(data.total_released || 0) - assessed),
-              );
-            return (
-              <details
-                key={String(skill.skill || index)}
-                className="rounded-xl border border-slate-200 p-4 dark:border-slate-800"
-              >
-                <summary className="cursor-pointer font-semibold">
-                  {String(skill.skill)}{" "}
-                  <span className="ml-2 text-xs font-normal text-slate-500">
-                    {displayName(String(skill.priority || ""))} priority
-                  </span>
-                </summary>
-                <div className="mt-4 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
-                  <Metric label="Good" value={good} />
-                  <Metric label="Limited" value={limited} />
-                  <Metric label="No clear answer" value={unclear} />
-                  <Metric label="Not tested" value={notTested} />
-                </div>
-                <p className="mt-3 text-sm text-slate-500">
-                  Open a candidate report from Interview results to review the
-                  underlying question and answer evidence.
-                </p>
-              </details>
-            );
-          })}
-          {!skills.length && (
-            <p className="text-slate-500">
-              Skill evidence will appear after released interviews.
-            </p>
-          )}
-        </div>
-      </article>
-      {(insufficient.length > 0 || historical.length > 0) && (
-        <article className={panel}>
-          <h3 className="font-bold">Evidence boundaries</h3>
-          <p className="mt-1 text-sm text-slate-500">
-            These skills are kept separate from placement risk because the
-            available interviews did not provide enough valid evidence.
-          </p>
-          <div className="mt-4 flex flex-wrap gap-2">
-            {insufficient.map((item, index) => <span key={`insufficient-${index}`} className="rounded-full bg-slate-100 px-3 py-1 text-xs dark:bg-slate-800">{String(item.skill)} · {Number(item.assessed_count || 0)} of {Number(item.total_count || data.total_released || 0)} candidates assessed · insufficient evidence</span>)}
-            {historical.map((item, index) => <span key={`historical-${index}`} className="rounded-full bg-amber-100 px-3 py-1 text-xs text-amber-800 dark:bg-amber-950/30 dark:text-amber-200">{String(item.skill)} · historical JD only</span>)}
-          </div>
-        </article>
-      )}
-    </div>
-  );
+  const [query, setQuery] = useState(""), [priority, setPriority] = useState(""), [evidence, setEvidence] = useState(""), [risk, setRisk] = useState(""), [selected, setSelected] = useState<Data | null>(null);
+  const rows = skills.filter(skill => (!query || String(skill.skill || "").toLowerCase().includes(query.toLowerCase())) && (!priority || skill.priority === priority) && (!risk || String(skill.risk || "") === risk) && (!evidence || (evidence === "tested" ? Number(skill.assessed_count || 0) > 0 : evidence === "not_tested" ? Number(skill.not_tested_count || 0) > 0 : evidence === "good" ? Number(skill.good_count || 0) > 0 : Number(skill.limited_answer_count || 0) + Number(skill.no_clear_answer_count || 0) > 0)));
+  const coverage = skills.length ? Math.round(skills.reduce((sum, s) => sum + Number(s.coverage_pct || 0), 0) / skills.length) : 0;
+  return <div className="space-y-4">
+    <div className="grid gap-3 sm:grid-cols-3"><Metric label="Skills tracked" value={skills.length} /><Metric label="Released interviews" value={data.total_released ?? 0} /><Metric label="Evidence coverage" value={skills.length ? `${coverage}%` : "—"} /></div>
+    <div className={`${panel} flex flex-wrap items-end gap-3`}><label className="text-sm">Search skill<input className={field} value={query} onChange={e=>setQuery(e.target.value)} placeholder="Search skills" /></label><label className="text-sm">JD priority<select className={field} value={priority} onChange={e=>setPriority(e.target.value)}><option value="">All priorities</option><option value="mandatory">Mandatory</option><option value="core">Core</option><option value="preferred">Preferred</option></select></label><label className="text-sm">Evidence status<select className={field} value={evidence} onChange={e=>setEvidence(e.target.value)}><option value="">All evidence</option><option value="good">Good</option><option value="limited">Limited / unclear</option><option value="tested">Tested</option><option value="not_tested">Not tested</option></select></label><label className="text-sm">Risk<select className={field} value={risk} onChange={e=>setRisk(e.target.value)}><option value="">All risk</option><option value="high">High</option><option value="medium">Medium</option><option value="low">Low</option><option value="insufficient_data">Insufficient data</option></select></label></div>
+    <div className={`${panel} overflow-x-auto`}><table className="w-full text-left text-sm"><thead><tr>{["Skill","JD priority","Good","Limited","No clear answer","Not tested","Coverage","Evidence gap","Risk"].map(h=><th className="p-3" key={h}>{h}</th>)}</tr></thead><tbody>{["mandatory","core","preferred"].flatMap(group=>rows.filter(s=>s.priority===group)).map((skill,index)=><tr className="border-t" key={String(skill.skill||index)}><td className="p-3"><button className="font-semibold text-indigo-700 hover:underline" onClick={()=>setSelected(skill)}>{String(skill.skill)}</button></td><td className="p-3">{displayName(String(skill.priority||"unknown"))}</td><td className="p-3"><span className="rounded-full bg-emerald-50 px-2 py-1 text-emerald-800">{skill.good_count ?? 0}</span></td><td className="p-3"><span className="rounded-full bg-amber-50 px-2 py-1 text-amber-800">{skill.limited_answer_count ?? 0}</span></td><td className="p-3"><span className="rounded-full bg-rose-50 px-2 py-1 text-rose-800">{skill.no_clear_answer_count ?? 0}</span></td><td className="p-3"><span className="rounded-full bg-slate-100 px-2 py-1 text-slate-700">{skill.not_tested_count ?? 0}</span></td><td className="p-3">{skill.coverage_pct ?? 0}%</td><td className="p-3">{skill.gap_pct ?? 0}%</td><td className="p-3"><span className={`rounded-full px-2 py-1 ${skill.risk === "high" ? "bg-rose-100 text-rose-800" : skill.risk === "medium" ? "bg-amber-100 text-amber-800" : skill.risk === "low" ? "bg-emerald-100 text-emerald-800" : "bg-slate-100 text-slate-700"}`}>{displayName(String(skill.risk_label || skill.risk || "Not assessed"))}</span></td></tr>)}{!rows.length&&<tr><td className="p-5 text-slate-500" colSpan={9}>No skills match these filters.</td></tr>}</tbody></table></div>
+    {historical.length>0&&<section className={panel}><h3 className="font-bold">Historical unmatched skills</h3><p className="mt-1 text-sm text-slate-500">These appeared in an older JD version and are excluded from current risk ranking.</p><div className="mt-3 flex flex-wrap gap-2">{historical.map((item,index)=><span className="rounded-full bg-slate-100 px-3 py-1.5 text-sm" key={String(item.skill||index)}>{String(item.skill)}</span>)}</div></section>}
+    {selected&&<div className="fixed inset-0 z-50 bg-slate-950/40" onMouseDown={e=>{if(e.target===e.currentTarget)setSelected(null)}}><aside className="ml-auto h-full w-full max-w-md overflow-y-auto bg-white p-6 shadow-2xl dark:bg-slate-950"><div className="flex justify-between"><h3 className="text-xl font-bold">{String(selected.skill)}</h3><button className={btn} onClick={()=>setSelected(null)}>Close</button></div><dl className="mt-5 grid grid-cols-2 gap-4 text-sm"><div><dt className="text-slate-500">Priority</dt><dd>{displayName(String(selected.priority||"unknown"))}</dd></div><div><dt className="text-slate-500">Risk</dt><dd>{displayName(String(selected.risk_label||selected.risk||"Not assessed"))}</dd></div><div><dt className="text-slate-500">Coverage</dt><dd>{String(selected.coverage_pct||0)}%</dd></div><div><dt className="text-slate-500">Evidence gap</dt><dd>{String(selected.gap_pct||0)}%</dd></div></dl><p className="mt-6 text-sm text-slate-500">Candidate-level question and answer evidence is available in Interview Results reports.</p></aside></div>}
+  </div>;
 }
 function DepartmentView({ data }: { data: Data }) {
   const departments = (data.departments || []) as Data[];
-  const eligible = departments.filter(
-      (item) => Number(item.student_count || 0) >= 3,
-    ),
-    leader = eligible.sort(
-      (a, b) => Number(b.avg_score || 0) - Number(a.avg_score || 0),
-    )[0];
+  const leader = data.recommended_department as Data | undefined;
+  const statusFor = (item: Data) => {
+    const sample = Number(item.student_count || 0);
+    if (sample < 3) return { label: "Insufficient sample", tone: "bg-slate-100 text-slate-700" };
+    if (leader?.department_code === item.department_code) return { label: "Leading cohort", tone: "bg-emerald-100 text-emerald-800" };
+    if (Number(item.interview_ready_rate || 0) >= 50) return { label: "Sufficient sample", tone: "bg-blue-100 text-blue-800" };
+    return { label: "Needs attention", tone: "bg-amber-100 text-amber-800" };
+  };
   return (
     <div className="space-y-5">
       <div className="grid gap-4 sm:grid-cols-3">
@@ -433,7 +398,7 @@ function DepartmentView({ data }: { data: Data }) {
           value={
             leader ? String(leader.department_code) : "Insufficient sample"
           }
-          note="At least three completed candidates required"
+          note="At least 3 released and scored candidates required"
         />
       </div>
       <article className={`${panel} overflow-x-auto`}>
@@ -445,12 +410,14 @@ function DepartmentView({ data }: { data: Data }) {
               <th className="p-3">Sample</th>
               <th className="p-3">Average score</th>
               <th className="p-3">Interview ready</th>
+              <th className="p-3">Ready %</th>
+              <th className="p-3">Needs training</th>
               <th className="p-3">Comparison status</th>
             </tr>
           </thead>
           <tbody>
             {departments.map((item, index) => {
-              const count = Number(item.student_count || 0);
+              const count = Number(item.student_count || 0), status = statusFor(item);
               return (
                 <tr
                   className="border-t"
@@ -467,12 +434,10 @@ function DepartmentView({ data }: { data: Data }) {
                     {String(item.interview_ready_count || 0)}
                   </td>
                   <td className="p-3">
-                    {count < 3
-                      ? "Below minimum sample"
-                      : leader === item
-                        ? "Leading cohort"
-                        : "Comparable"}
+                    {item.interview_ready_rate == null ? "—" : `${item.interview_ready_rate}%`}
                   </td>
+                  <td className="p-3">{String(item.need_training_count || 0)}</td>
+                  <td className="p-3"><span className={`rounded-full px-2.5 py-1 text-xs font-semibold ${status.tone}`}>{status.label}</span></td>
                 </tr>
               );
             })}
@@ -483,6 +448,7 @@ function DepartmentView({ data }: { data: Data }) {
             Department analytics will appear after released, scored interviews.
           </p>
         )}
+        <p className="p-3 text-sm text-slate-500">Only released and scored interviews are included. At least 3 candidates are required for a reliable department comparison.</p>
       </article>
     </div>
   );
@@ -1499,11 +1465,11 @@ export default function DriveManagement({
         )}
         {drive && ["draft", "closed", "cancelled"].includes(drive.status) && (
           <button
-            className={`${btn} text-rose-700`}
+            className={`${btn} border-rose-200 text-rose-700 hover:bg-rose-50`}
             disabled={busy || loading}
             onClick={() => setLifecycleRequest("removed")}
           >
-            Remove drive
+            Delete drive
           </button>
         )}
       </div>
@@ -1560,13 +1526,15 @@ export default function DriveManagement({
             progress = (metrics.interview_progress || {}) as Data,
             assigned = Number(metrics.total_assigned || 0),
             completed = Number(metrics.interview_completed || 0),
+            live = Number(progress.in_progress || 0),
+            needsAttention = Number(progress.needs_review || 0),
             evaluated = Object.values(distribution).reduce<number>(
               (sum, value) => sum + Number(value || 0),
               0,
             );
           return (
             <div className="space-y-5">
-              <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
+              <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-6">
                 <Metric label="Assigned Candidates" value={assigned} />
                 <Metric label="Interviews Completed" value={completed} />
                 <Metric
@@ -1583,6 +1551,35 @@ export default function DriveManagement({
                   }
                   note="Released, scored evaluations"
                 />
+                <Metric
+                  label="● Live interviews"
+                  value={live}
+                  note="Candidates currently in an interview"
+                />
+                <Metric
+                  label="Needs attention"
+                  value={needsAttention}
+                  note="Evaluations held for review"
+                />
+              </div>
+              <div className="grid gap-5 lg:grid-cols-2">
+                <article className={panel}>
+                  <h3 className="font-bold">Interview window</h3>
+                  <p className="mt-1 text-sm text-slate-500">When candidates can attend this drive.</p>
+                  {(() => {
+                    const start = drive?.window_start_at ? new Date(drive.window_start_at).getTime() : NaN;
+                    const end = drive?.window_end_at ? new Date(drive.window_end_at).getTime() : NaN;
+                    const now = Date.now();
+                    const state = Number.isFinite(start) && now < start ? "Opens soon" : Number.isFinite(end) && now < end ? "Open now" : Number.isFinite(end) ? "Closed" : "Not scheduled";
+                    const tone = state === "Open now" ? "text-emerald-700 bg-emerald-50" : state === "Closed" ? "text-slate-600 bg-slate-100" : "text-indigo-700 bg-indigo-50";
+                    return <div className="mt-5 flex flex-wrap items-center gap-4"><span className={`rounded-full px-3 py-1 text-sm font-semibold ${tone}`}>{state}</span><dl className="grid grid-cols-2 gap-x-8 gap-y-2 text-sm"><div><dt className="text-xs text-slate-500">Starts</dt><dd>{start ? new Date(start).toLocaleString() : "—"}</dd></div><div><dt className="text-xs text-slate-500">Ends</dt><dd>{end ? new Date(end).toLocaleString() : "—"}</dd></div></dl></div>;
+                  })()}
+                </article>
+                <article className={panel}>
+                  <h3 className="font-bold">Candidate funnel</h3>
+                  <p className="mt-1 text-sm text-slate-500">Movement from assignment to completed interview.</p>
+                  <div className="mt-5 grid grid-cols-4 gap-2 text-center text-sm"><div><strong className="block text-2xl">{assigned}</strong><span className="text-xs text-slate-500">Assigned</span></div><div><strong className="block text-2xl">{Number(progress.in_progress || 0)}</strong><span className="text-xs text-slate-500">Started</span></div><div><strong className="block text-2xl">{completed}</strong><span className="text-xs text-slate-500">Completed</span></div><div><strong className="block text-2xl">{needsAttention}</strong><span className="text-xs text-slate-500">Review</span></div></div>
+                </article>
               </div>
               <div className="grid gap-5 lg:grid-cols-2">
                 <article className={panel}>
@@ -1750,12 +1747,23 @@ export default function DriveManagement({
                       </dd>
                     </div>
                   </dl>
-                  <details className="mt-5 rounded-xl border p-4">
-                    <summary className="cursor-pointer font-semibold">
-                      View round details
-                    </summary>
-                    <Details data={drive?.agent_selection || []} />
-                  </details>
+                  <div className="mt-5">
+                    <h4 className="text-sm font-semibold">Interview rounds</h4>
+                    <div className="mt-3 grid gap-3 sm:grid-cols-2">
+                      {(drive?.agent_selection || []).map((round, index) => {
+                        const config = drive?.round_configuration?.find(item => item.track === round.track);
+                        const role = round.profile?.role || displayName(round.track);
+                        const source = config?.question_source || "personalized";
+                        return <article key={`${round.track}-${index}`} className="rounded-xl border border-slate-200 bg-slate-50/70 p-4 dark:border-slate-700 dark:bg-slate-800/40">
+                          <div className="flex items-start justify-between gap-3">
+                            <div><p className="text-xs font-semibold uppercase tracking-wide text-indigo-600">Round {index + 1}</p><h5 className="mt-1 font-semibold">{role}</h5></div>
+                            <span className="rounded-full bg-white px-2.5 py-1 text-xs font-medium text-slate-600 dark:bg-slate-900 dark:text-slate-300">{displayName(source)}</span>
+                          </div>
+                          <p className="mt-3 text-xs text-slate-500">{config?.questions?.length ? `${config.questions.length} scripted question${config.questions.length === 1 ? "" : "s"}` : source === "personalized" ? "Resume and JD personalized" : "Questions configured"}</p>
+                        </article>;
+                      })}
+                    </div>
+                  </div>
                 </article>
               </div>
             </div>
@@ -2099,9 +2107,7 @@ export default function DriveManagement({
                             {c.department_code || "—"} / {c.program || "—"}
                           </td>
                           <td className="p-3">
-                            {c.ats_fit_score == null
-                              ? "—"
-                              : `${c.ats_fit_score}/100`}
+                            <ScoreBadge score={c.ats_fit_score} />
                           </td>
                           <td className="p-3">{c.mandatory_coverage || "—"}</td>
                           <td className="p-3">{c.core_coverage || "—"}</td>
@@ -2200,7 +2206,7 @@ export default function DriveManagement({
       {tab === "skills" && data && <SkillView data={data} />}{" "}
       {tab === "departments" && data && <DepartmentView data={data} />}{" "}
       {tab === "settings" && drive && (
-        <DriveSettings
+        <div className="space-y-5"><ReadinessPolicy /><InterviewResultsSettings /><DriveSettings
           drive={drive}
           busy={busy}
           initialSection={params.get("edit") || undefined}
@@ -2218,7 +2224,7 @@ export default function DriveManagement({
               setBusy(false);
             }
           }}
-        />
+        /></div>
       )}
       {selected && (
         <div

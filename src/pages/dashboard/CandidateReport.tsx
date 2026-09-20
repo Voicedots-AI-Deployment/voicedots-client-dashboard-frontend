@@ -160,7 +160,8 @@ export default function CandidateReport({
 }) {
   const [bundle, setBundle] = useState<Data | null>(null),
     [drive, setDrive] = useState<Drive | null>(null),
-    [decisionData, setDecisionData] = useState<Data | null>(null);
+    [decisionData, setDecisionData] = useState<Data | null>(null),
+    [resultSettings, setResultSettings] = useState<Data | null>(null);
   const [transcript, setTranscript] = useState<Data | null>(null),
     [integrity, setIntegrity] = useState<Data | null>(null);
   const [decision, setDecision] = useState("hold"),
@@ -176,16 +177,18 @@ export default function CandidateReport({
     setBusy(true);
     setError("");
     try {
-      const [reports, driveValue, decisionValue] = await Promise.all([
+      const [reports, driveValue, decisionValue, settingsValue] = await Promise.all([
         collegeApi.get<Data>(`students/${studentId}/reports`),
         collegeApi.get<Drive>(`drives/${driveId}`),
         collegeApi.get<Data>(
           `drives/${driveId}/candidates/${studentId}/decision`,
         ),
+        collegeApi.get<Data>("interview-results-settings"),
       ]);
       setBundle(reports);
       setDrive(driveValue);
       setDecisionData(decisionValue);
+      setResultSettings(settingsValue);
       const current = decisionValue.decision as Data | undefined;
       if (current?.decision) setDecision(String(current.decision));
     } catch (e) {
@@ -294,6 +297,7 @@ export default function CandidateReport({
     turns = (transcript?.turns || []) as Data[],
     events = (integrity?.events || []) as Data[],
     history = (decisionData?.history || []) as Data[];
+  const recommendationLabels = (resultSettings?.recommendation_labels || {}) as Data;
   const comparable = pri.comparable !== false && typeof pri.score === "number";
   return (
     <section className="space-y-6 pb-12 text-slate-900 dark:text-white">
@@ -416,7 +420,7 @@ export default function CandidateReport({
               AI recommendation · advisory
             </p>
             <strong className="mt-2 block text-2xl">
-              {show(hiring.label, "Review Required")}
+              {show(recommendationLabels[String(hiring.label || "Review Required")] || hiring.label, "Review Required")}
             </strong>
             <List items={hiring.reasons} empty="No reasons were recorded." />
           </article>

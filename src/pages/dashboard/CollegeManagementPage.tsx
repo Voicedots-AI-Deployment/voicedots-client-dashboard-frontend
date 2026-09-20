@@ -110,6 +110,15 @@ export default function CollegeManagementPage() {
         ),
     [drives, query, status, type, sort],
   );
+  async function toggleDriveLock(drive: Drive) {
+    const next = !drive.is_locked;
+    if (!window.confirm(`${next ? "Lock" : "Unlock"} ${drive.company_name} · ${drive.role_title}?`)) return;
+    try {
+      await collegeApi.save(`drives/${drive.id}/lock`, { is_locked: next });
+      setNotice(next ? "Drive locked." : "Drive unlocked.");
+      setVersion((v) => v + 1);
+    } catch (e) { setError(collegeError(e)); }
+  }
   if (accessLoading) return <p role="status">Loading placement management…</p>;
   if (accessError || !access?.enabled)
     return (
@@ -236,6 +245,7 @@ export default function CollegeManagementPage() {
           sort={sort}
           setSort={setSort}
           refresh={() => setVersion((v) => v + 1)}
+          toggleLock={toggleDriveLock}
           create={() =>
             setParams((p) => {
               p.set("create", "1");
@@ -278,6 +288,7 @@ function PlacementLanding({
   sort,
   setSort,
   refresh,
+  toggleLock,
   create,
   manage,
   edit,
@@ -296,6 +307,7 @@ function PlacementLanding({
   sort: string;
   setSort: (v: string) => void;
   refresh: () => void;
+  toggleLock: (drive: Drive) => void;
   create: () => void;
   manage: (id: string) => void;
   edit: (id: string) => void;
@@ -421,7 +433,7 @@ function PlacementLanding({
               drive={d}
               manage={() => manage(d.id)}
               edit={() => edit(d.id)}
-              removed={refresh}
+              toggleLock={() => void toggleLock(d)}
             />
           ))}
         </div>
@@ -459,82 +471,46 @@ function DriveCard({
   drive,
   manage,
   edit,
-  removed,
+  toggleLock,
 }: {
   drive: Drive;
   manage: () => void;
   edit: () => void;
-  removed: () => void;
+  toggleLock: () => void;
 }) {
   const assigned = drive.assignment_count || 0,
     completed = drive.completed_count || 0,
     progress = assigned ? Math.round((completed / assigned) * 100) : 0;
+  const readable = (value?: string) => displayName(value?.replace(/_/g, " "));
+  const statusLabel = drive.is_locked ? "Locked" : readable(drive.status);
   return (
-    <article className={card}>
-      <div className="flex items-start justify-between gap-3">
-        <div>
-          <p className="text-xs font-semibold uppercase tracking-wide text-indigo-600">
-            {displayName(drive.drive_type || "official_placement")}
+    <article className={`${card} transition-shadow hover:shadow-md`}>
+      <div className="flex items-start justify-between gap-4">
+        <div className="min-w-0">
+          <p className="text-xs font-semibold uppercase tracking-[0.14em] text-indigo-600">
+            {readable(drive.drive_type || "official_placement")}
           </p>
-          <h3 className="mt-2 text-lg font-bold">{drive.company_name}</h3>
-          <p className="text-sm text-slate-600">{drive.role_title}</p>
+          <h3 className="mt-2 truncate text-xl font-bold">{drive.company_name}</h3>
+          <p className="mt-1 text-sm text-slate-600">{drive.role_title}</p>
         </div>
-        <span className="rounded-full bg-slate-100 px-3 py-1 text-xs font-semibold">
-          {displayName(drive.status)}
+        <span className={`shrink-0 rounded-full px-3 py-1 text-xs font-semibold ${drive.is_locked ? "bg-slate-900 text-white" : "bg-emerald-50 text-emerald-700"}`}>
+          {statusLabel}
         </span>
       </div>
-      <div className="mt-4 grid grid-cols-2 gap-3 text-sm">
-        <p>
-          <span className="text-slate-500">Job type</span>
-          <br />
-          {displayName(drive.job_type || "full_time")}
-        </p>
-        <p>
-          <span className="text-slate-500">Location</span>
-          <br />
-          {drive.location || "Not supplied"}
-        </p>
-        <p>
-          <span className="text-slate-500">Starts</span>
-          <br />
-          {date(drive.window_start_at)}
-        </p>
-        <p>
-          <span className="text-slate-500">Ends</span>
-          <br />
-          {date(drive.window_end_at)}
-        </p>
+      <dl className="mt-5 grid grid-cols-2 gap-x-6 gap-y-4 text-sm">
+        <div><dt className="text-xs text-slate-500">Job type</dt><dd className="mt-1 font-medium">{readable(drive.job_type || "full_time")}</dd></div>
+        <div><dt className="text-xs text-slate-500">Location</dt><dd className="mt-1 font-medium">{drive.location || "Not supplied"}</dd></div>
+        <div><dt className="text-xs text-slate-500">Starts</dt><dd className="mt-1 font-medium">{date(drive.window_start_at)}</dd></div>
+        <div><dt className="text-xs text-slate-500">Ends</dt><dd className="mt-1 font-medium">{date(drive.window_end_at)}</dd></div>
+      </dl>
+      <div className="mt-5 border-t border-slate-100 pt-4">
+        <div className="flex items-center justify-between text-xs"><span>{assigned} assigned · {completed} completed</span><strong>{progress}%</strong></div>
+        <div className="mt-2 h-2 overflow-hidden rounded-full bg-slate-100"><div className="h-full rounded-full bg-indigo-600 transition-all" style={{ width: `${progress}%` }} /></div>
       </div>
-      <div className="mt-5">
-        <div className="flex justify-between text-xs">
-          <span>
-            {assigned} assigned · {completed} completed
-          </span>
-          <span>{progress}%</span>
-        </div>
-        <div className="mt-2 h-2 overflow-hidden rounded-full bg-slate-100">
-          <div
-            className="h-full bg-indigo-600"
-            style={{ width: `${progress}%` }}
-          />
-        </div>
-      </div>
-      <div className="mt-5 flex gap-2">
-        <button className={primary} onClick={manage}>
-          Manage drive
-        </button>
-        {["draft", "scheduled", "active"].includes(drive.status) && (
-          <button className={button} onClick={edit}>
-            Edit drive
-          </button>
-        )}
-        {["draft", "closed", "cancelled"].includes(drive.status) && (
-          <button className="text-rose-700" onClick={async () => {
-            if (!window.confirm(`Remove ${drive.company_name} · ${drive.role_title}?`)) return;
-            try { await collegeApi.remove(`drives/${drive.id}`); removed(); }
-            catch (error) { window.alert(collegeError(error)); }
-          }}>Delete drive</button>
-        )}
+      <div className="mt-5 flex flex-wrap gap-2">
+        <button className={primary} onClick={manage}>Manage drive</button>
+        <button className={button} onClick={edit}>Edit drive</button>
+        <button className={`${button} ${drive.is_locked ? "border-emerald-200 text-emerald-700 hover:bg-emerald-50" : "border-amber-200 text-amber-700 hover:bg-amber-50"}`} onClick={toggleLock}>{drive.is_locked ? "Unlock drive" : "Lock drive"}</button>
       </div>
     </article>
   );

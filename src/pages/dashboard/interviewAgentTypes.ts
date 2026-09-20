@@ -1,5 +1,5 @@
 export const tracks = ['hr', 'domain', 'industry', 'manager'] as const;
-export type Agent = { id?: string; track: string; name: string; role: string; intro_message: string; personality_prompt: string; tone: string; voice_id: string };
+export type Agent = { id?: string; track: string; name?: string; role: string; intro_message: string; personality_prompt: string; tone: string; voice_id?: string };
 export type AgentLibrary = { agents: Agent[]; tracks: { track: string; default_profile: Agent }[] };
 export type Selection = { track: string; agent_id: string | null; profile?: Agent };
 export const defaultSelection = tracks.map(track => ({ track, agent_id: null }));
@@ -10,5 +10,6 @@ export function agentOptions(library: AgentLibrary | null) {
   return [...(library?.tracks?.map(t => ({ ...t.default_profile, track: t.track })) || []), ...(library?.agents || [])];
 }
 export function selectionName(item: Selection, library: AgentLibrary | null) {
-  return item.profile?.name || agentOptions(library).find(a => item.agent_id ? a.id === item.agent_id : !a.id && a.track === item.track)?.name || item.track;
+  const agent = item.profile || agentOptions(library).find(a => item.agent_id ? a.id === item.agent_id : !a.id && a.track === item.track);
+  return agent?.role || item.track;
 }

@@ -239,6 +239,33 @@ test('manage drive opens the selected overview and results without evaluating el
   expect(eligibilityWrites).toBe(0);
 });
 
+test('drive UI shows scan-friendly ATS and skills and saves readiness weights', async ({page}) => {
+  await setup(page);
+  await page.route('**/v3/college/drives/drive-1', route => route.fulfill({json:{id:'drive-1',company_name:'Example Company',role_title:'Engineer',status:'active'}}));
+  await page.route('**/v3/college/drives/drive-1/dashboard/**', route => {
+    const path=new URL(route.request().url()).pathname;
+    if(path.endsWith('/ats-fit')) return route.fulfill({json:{candidates:[{student_id:'s1',full_name:'Anu',roll_number:'R1',ats_fit_score:82}],pagination:{total:1}}});
+    if(path.endsWith('/skill-gap')) return route.fulfill({json:{skills:[{skill:'Python',priority:'mandatory',good_count:3,limited_count:1,no_clear_answer_count:0}],total_released:4}});
+    return route.fulfill({json:{metrics:{total_assigned:4}}});
+  });
+  let formula:Record<string,number>|undefined;
+  await page.route('**/v3/college/readiness-policy', route => {
+    if(route.request().method()==='PUT'){formula=route.request().postDataJSON();return route.fulfill({json:formula});}
+    return route.fulfill({json:{interview_readiness:70,resume_readiness:30}});
+  });
+  await page.getByRole('button',{name:'Manage drive',exact:true}).click();
+  await page.getByRole('button',{name:'ATS fit',exact:true}).click();
+  await expect(page.getByText('82/100',{exact:true})).toBeVisible();
+  await page.getByRole('button',{name:'Skill intelligence',exact:true}).click();
+  await expect(page.getByLabel('Python evidence summary')).toContainText('Good · 3');
+  await page.getByRole('button',{name:'Drive settings',exact:true}).click();
+  await page.getByLabel('Interview performance (%)').fill('80');
+  await expect(page.getByLabel('Resume quality (%)')).toHaveValue('20');
+  await page.getByRole('button',{name:'Save formula'}).click();
+  await expect(page.getByText('Readiness formula saved for every student in this institution.')).toBeVisible();
+  expect(formula).toEqual({interview_readiness:80,resume_readiness:20});
+});
+
 test('AI preview uses drive role and JD and saves staff edits', async ({ page }) => {
   await setup(page);
   await driveFields(page);
