@@ -36,6 +36,7 @@ type Landing = {
   active_drives?: number;
   upcoming_drives?: number;
   eligible_candidates?: number;
+  eligible_drive_matches?: number;
   interviews_completed?: number;
   completion_rate?: number;
 };
@@ -348,12 +349,9 @@ function PlacementLanding({
           icon={<Users />}
           label="Eligible candidates"
           value={
-            overview.eligible_candidates ??
-            allDrives
-              .filter((d) => ["active", "scheduled"].includes(d.status))
-              .reduce((n, d) => n + (d.latest_snapshot_eligible_count || 0), 0)
+            overview.eligible_candidates ?? 0
           }
-          note="Drive-candidate matches across open drives"
+          note={overview.eligible_drive_matches == null ? "Unique students across active and scheduled drives" : `${overview.eligible_drive_matches} total drive matches`}
         />
         <Kpi
           icon={<CheckCircle2 />}
