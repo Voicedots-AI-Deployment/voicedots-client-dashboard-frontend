@@ -249,8 +249,7 @@ function CandidateDetails({
             <div>
               <dt className="text-slate-500">Attempts</dt>
               <dd className="font-semibold">
-                {candidate.attempt_number || 0} /{" "}
-                {candidate.max_attempts || "—"}
+                {candidate.assignment_status === "in_progress" ? "In progress · " : ""}Attempt {candidate.attempt_number || 1} of {candidate.max_attempts || "—"}
               </dd>
             </div>
             <div>
@@ -2066,8 +2065,7 @@ export default function DriveManagement({
                             )}
                           </td>
                           <td className="p-3">
-                            {c.attempt_number || 0} /{" "}
-                            {c.max_attempts || drive?.max_attempts || 1}
+                            {c.assignment_status === "in_progress" ? "In progress · " : ""}Attempt {c.attempt_number || 1} of {c.max_attempts || drive?.max_attempts || 1}
                           </td>
                           <td className="p-3">
                             {c.publication?.state === "released"
