@@ -117,6 +117,20 @@ function StatusBadge({ value }: { value?: string | null }) {
 
 function settingLabel(value: string) { return displayName(value.replace(/_/g, " ")); }
 
+function attemptValue(value: unknown, fallback: number): number {
+  const parsed = Number(value);
+  return Number.isFinite(parsed) && parsed >= 1 ? Math.floor(parsed) : fallback;
+}
+
+function attemptLabel(candidate: Candidate, driveMaxAttempts?: unknown): string {
+  const current = attemptValue(candidate.attempt_number, 1);
+  const maximum = attemptValue(candidate.max_attempts ?? driveMaxAttempts, 1);
+  if (candidate.assignment_status === "in_progress") {
+    return `${Math.max(0, current - 1)} completed · Attempt ${current} in progress`;
+  }
+  return `Attempt ${current} of ${maximum}`;
+}
+
 function resumeEvidenceLabel(value?: string) {
   const normalized = String(value || "none").toLowerCase().replace(/[_-]+/g, " ");
   if (normalized === "strong" || normalized === "sufficient") return "Strong";
@@ -249,7 +263,7 @@ function CandidateDetails({
             <div>
               <dt className="text-slate-500">Attempts</dt>
               <dd className="font-semibold">
-                {candidate.assignment_status === "in_progress" ? `${Math.max(0, Number(candidate.attempt_number || 1) - 1)} completed · Attempt ${candidate.attempt_number || 1} in progress` : `Attempt ${candidate.attempt_number || 1} of ${candidate.max_attempts || "—"}`}
+                {attemptLabel(candidate)}
               </dd>
             </div>
             <div>
@@ -315,7 +329,7 @@ function CandidateDetails({
                 key={String(row.id || index)}
               >
                 <strong>
-                  Attempt {String(row.attempt_number || index + 1)} ·{" "}
+                          Attempt {attemptValue(row.attempt_number, index + 1)} ·{" "}
                   {displayName(String(row.status || "unknown"))}
                 </strong>
                 <p className="text-slate-500">
@@ -1678,7 +1692,10 @@ export default function DriveManagement({
               </div>
               <div className="grid gap-5 lg:grid-cols-2">
                 <article className={panel}>
-                  <h3 className="font-bold">Opportunity Summary</h3>
+                  <div className="flex flex-wrap items-center justify-between gap-3">
+                    <h3 className="font-bold">Opportunity Summary</h3>
+                    {drive && <LifecycleActions drive={drive} busy={busy || loading} onRequest={setLifecycleRequest} />}
+                  </div>
                   <dl className="mt-4 grid gap-3 text-sm sm:grid-cols-2">
                     <div>
                       <dt className="text-slate-500">Company / Role</dt>
@@ -2065,7 +2082,7 @@ export default function DriveManagement({
                             )}
                           </td>
                           <td className="p-3">
-                            {c.assignment_status === "in_progress" ? `${Math.max(0, Number(c.attempt_number || 1) - 1)} completed · Attempt ${c.attempt_number || 1} in progress` : `Attempt ${c.attempt_number || 1} of ${c.max_attempts || drive?.max_attempts || 1}`}
+                            {attemptLabel(c, drive?.max_attempts)}
                           </td>
                           <td className="p-3">
                             {c.publication?.state === "released"
