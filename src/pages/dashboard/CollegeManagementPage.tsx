@@ -71,6 +71,8 @@ export default function CollegeManagementPage() {
   useEffect(() => {
     if (!access?.enabled) return;
     const c = new AbortController();
+    setLoading(true);
+    setError("");
     Promise.all([
       collegeApi.get<Drive[]>("drives", c.signal),
       collegeApi.get<{ programs: Program[] }>("academic-catalog", c.signal),
@@ -86,7 +88,7 @@ export default function CollegeManagementPage() {
       .catch((e) => !c.signal.aborted && setError(collegeError(e)))
       .finally(() => !c.signal.aborted && setLoading(false));
     return () => c.abort();
-  }, [access?.enabled, version]);
+  }, [access?.enabled, version, driveId]);
   const filtered = useMemo(
     () =>
       drives
@@ -492,6 +494,7 @@ function DriveCard({
     progress = assigned ? Math.round((completed / assigned) * 100) : 0;
   const readable = (value?: string) => displayName(value?.replace(/_/g, " "));
   const statusLabel = drive.is_locked ? "Locked" : readable(drive.status);
+  const statusTone = drive.is_locked ? "bg-slate-900 text-white" : drive.status === "active" ? "bg-emerald-50 text-emerald-700" : drive.status === "scheduled" ? "bg-blue-50 text-blue-700" : drive.status === "closed" ? "bg-slate-100 text-slate-700" : "bg-amber-50 text-amber-800";
   return (
     <article className={`${card} transition-shadow hover:shadow-md`}>
       <div className="flex items-start justify-between gap-4">
@@ -502,7 +505,7 @@ function DriveCard({
           <h3 className="mt-2 truncate text-xl font-bold">{drive.company_name}</h3>
           <p className="mt-1 text-sm text-slate-600">{drive.role_title}</p>
         </div>
-        <span className={`shrink-0 rounded-full px-3 py-1 text-xs font-semibold ${drive.is_locked ? "bg-slate-900 text-white" : "bg-emerald-50 text-emerald-700"}`}>
+        <span className={`shrink-0 rounded-full px-3 py-1 text-xs font-semibold ${statusTone}`}>
           {statusLabel}
         </span>
       </div>
