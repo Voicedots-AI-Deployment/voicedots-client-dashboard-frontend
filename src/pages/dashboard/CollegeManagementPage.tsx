@@ -32,6 +32,15 @@ const button =
 const primary = `${button} border-indigo-600 bg-indigo-600 text-white`;
 const date = (value?: string) =>
   value ? new Date(value).toLocaleString() : "Not scheduled";
+const effectiveStatus = (drive: Drive) => {
+  if (drive.status === "cancelled" || drive.status === "draft") return drive.status;
+  const now = Date.now();
+  const start = drive.window_start_at ? Date.parse(drive.window_start_at) : NaN;
+  const end = drive.window_end_at ? Date.parse(drive.window_end_at) : NaN;
+  if (Number.isFinite(end) && now >= end) return "closed";
+  if (Number.isFinite(start) && now >= start) return "active";
+  return "scheduled";
+};
 type Landing = {
   active_drives?: number;
   upcoming_drives?: number;
@@ -334,7 +343,7 @@ function PlacementLanding({
           label="Active drives"
           value={
             overview.active_drives ??
-            allDrives.filter((d) => d.status === "active").length
+            allDrives.filter((d) => effectiveStatus(d) === "active").length
           }
           note="Currently accepting interviews"
         />
@@ -343,7 +352,7 @@ function PlacementLanding({
           label="Upcoming drives"
           value={
             overview.upcoming_drives ??
-            allDrives.filter((d) => d.status === "scheduled").length
+            allDrives.filter((d) => effectiveStatus(d) === "scheduled").length
           }
           note="Fully configured and scheduled"
         />
@@ -493,8 +502,9 @@ function DriveCard({
     completed = drive.completed_count || 0,
     progress = assigned ? Math.round((completed / assigned) * 100) : 0;
   const readable = (value?: string) => displayName(value?.replace(/_/g, " "));
-  const statusLabel = drive.is_locked ? "Locked" : readable(drive.status);
-  const statusTone = drive.is_locked ? "bg-slate-900 text-white" : drive.status === "active" ? "bg-emerald-50 text-emerald-700" : drive.status === "scheduled" ? "bg-blue-50 text-blue-700" : drive.status === "closed" ? "bg-slate-100 text-slate-700" : "bg-amber-50 text-amber-800";
+  const currentStatus = effectiveStatus(drive);
+  const statusLabel = drive.is_locked ? "Locked" : readable(currentStatus);
+  const statusTone = drive.is_locked ? "bg-slate-900 text-white" : currentStatus === "active" ? "bg-emerald-50 text-emerald-700" : currentStatus === "scheduled" ? "bg-blue-50 text-blue-700" : currentStatus === "closed" ? "bg-slate-100 text-slate-700" : "bg-amber-50 text-amber-800";
   return (
     <article className={`${card} transition-shadow hover:shadow-md`}>
       <div className="flex items-start justify-between gap-4">
