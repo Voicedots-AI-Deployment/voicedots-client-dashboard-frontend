@@ -189,7 +189,7 @@ export function HomePage() {
     });
 
     const result: KpiTimeseriesPoint[] = [];
-    let curr = new Date(from + "T00:00:00");
+    const curr = new Date(from + "T00:00:00");
     const end = new Date(to + "T00:00:00");
 
     while (curr <= end) {
@@ -392,4 +392,3 @@ export function HomePage() {
     </motion.div>
   );
 }
-
