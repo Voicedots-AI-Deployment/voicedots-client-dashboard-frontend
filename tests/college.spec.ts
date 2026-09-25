@@ -222,11 +222,11 @@ test('save draft persists partial fields and remains resumable', async ({page})=
   await setup(page);
   let draftPayload:Record<string,unknown>={},draftSaved=false;
   await page.route('**/v3/college/drive-drafts',route=>{
-    if(route.request().method()==='GET')return route.fulfill({json:draftSaved?[{id:'draft-1',step:0,payload:draftPayload.payload,updated_at:'2026-09-23T10:00:00Z'}]:[]});
+    if(route.request().method()==='GET')return route.fulfill({json:draftSaved?[{id:'draft-1',client_draft_key:(draftPayload.payload as {creationKey?:string}).creationKey,step:0,payload:draftPayload.payload,updated_at:'2026-09-23T10:00:00Z'}]:[]});
     if(route.request().method()!=='POST')return route.fallback();
     draftPayload=route.request().postDataJSON();
     draftSaved=true;
-    return route.fulfill({json:{id:'draft-1',client_draft_key:'draft-key-1234567890',step:0,payload:draftPayload.payload,updated_at:'2026-09-23T10:00:00Z'}});
+    return route.fulfill({json:{id:'draft-1',client_draft_key:(draftPayload.payload as {creationKey?:string}).creationKey,step:0,payload:draftPayload.payload,updated_at:'2026-09-23T10:00:00Z'}});
   });
   await page.route('**/v3/college/drive-drafts/draft-1',route=>route.fulfill({json:{id:'draft-1',client_draft_key:'draft-key-1234567890',step:0,payload:draftPayload.payload,updated_at:'2026-09-23T10:00:00Z'}}));
   await page.getByRole('button',{name:'Create drive',exact:true}).click();
@@ -235,8 +235,45 @@ test('save draft persists partial fields and remains resumable', async ({page})=
   await expect(page.getByText('Draft saved.',{exact:true})).toBeVisible();
   expect((draftPayload.payload as {form?:{company_name?:string}}).form?.company_name).toBe('Northstar Technologies');
   await page.getByRole('button',{name:'Back to placement drives'}).click();
-  await page.getByRole('button',{name:'Continue',exact:true}).click();
+  await page.getByRole('heading',{name:'Northstar Technologies'}).locator('xpath=ancestor::article[1]').getByRole('button',{name:'Continue',exact:true}).click();
   await expect(page.getByLabel('Company name')).toHaveValue('Northstar Technologies');
+});
+
+test('stale cloud draft ID is recovered through idempotent create and appears in the draft list',async({page})=>{
+  await setup(page);
+  const key='stable-drive-draft-key-12345';
+  const local={id:'stale-draft-id',saved_at:'2026-09-25T10:00:00Z',payload:{form:{company_name:'Recovered Employer'},selection:[],rounds:[],programIds:[],departments:[],years:[],step:0,creationKey:key}};
+  await page.evaluate(value=>localStorage.setItem('voicedots:placement-drive-draft:v2',JSON.stringify(value)),local);
+  let created:{id:string;client_draft_key:string;step:number;payload:unknown;updated_at:string}|null=null;
+  await page.route('**/v3/college/drive-drafts',route=>{
+    if(route.request().method()==='GET')return route.fulfill({json:created?[created]:[]});
+    if(route.request().method()==='POST'){
+      const body=route.request().postDataJSON();
+      expect(body.client_draft_key).toBe(key);
+      created={id:'recovered-cloud-id',client_draft_key:key,step:body.step,payload:body.payload,updated_at:'2026-09-25T10:01:00Z'};
+      return route.fulfill({status:201,json:created});
+    }
+    return route.fallback();
+  });
+  await page.route('**/v3/college/drive-drafts/stale-draft-id',route=>route.request().method()==='PUT'?route.fulfill({status:404,json:{detail:'Drive draft not found.'}}):route.fallback());
+  await page.route('**/v3/college/drive-drafts/recovered-cloud-id',route=>route.fulfill({json:created}));
+  await page.getByRole('button',{name:'Create drive',exact:true}).click();
+  await expect.poll(()=>created!==null,{timeout:10000}).toBe(true);
+  await page.getByRole('button',{name:'Back to placement drives'}).click();
+  await expect(page.getByText('Cloud draft · Step 1 of 6')).toBeVisible();
+  await expect(page.getByRole('heading',{name:'Recovered Employer'})).toBeVisible();
+  await page.getByRole('button',{name:'Continue',exact:true}).click();
+  await expect(page.getByLabel('Company name')).toHaveValue('Recovered Employer');
+});
+
+test('device-only drive draft stays visible and can be resumed when cloud list is empty',async({page})=>{
+  await setup(page);
+  await page.evaluate(()=>localStorage.setItem('voicedots:placement-drive-draft:v2',JSON.stringify({id:'stale-cloud-id',saved_at:'2026-09-25T10:00:00Z',payload:{form:{company_name:'Offline Employer'},selection:[],rounds:[],programIds:[],departments:[],years:[],step:1,creationKey:'local-device-draft-key-12345'}})));
+  await page.reload();
+  await expect(page.getByText('Saved on this device · Step 2 of 6')).toBeVisible();
+  await page.getByRole('button',{name:'Continue',exact:true}).click();
+  await page.getByRole('button',{name:'1. Drive & company'}).click();
+  await expect(page.getByLabel('Company name')).toHaveValue('Offline Employer');
 });
 
 test('backend errors preserve the form instead of claiming a successful creation', async ({ page }) => {

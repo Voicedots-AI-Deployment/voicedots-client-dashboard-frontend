@@ -65,7 +65,7 @@ type Landing = {
   live_interviews?: number;
   completion_rate?: number;
 };
-type DriveDraftSummary = { id:string; step:number; payload:{form?:{company_name?:string;role_title?:string}}; updated_at:string };
+type DriveDraftSummary = { id:string; client_draft_key?:string; localOnly?:boolean; step:number; payload:{form?:{company_name?:string;role_title?:string}}; updated_at:string };
 type ApiObject = Record<string, unknown>;
 const isApiObject = (value: unknown): value is ApiObject =>
   typeof value === "object" && value !== null && !Array.isArray(value);
@@ -86,6 +86,7 @@ const normalizeDrafts = (value: unknown): DriveDraftSummary[] =>
         const form = isApiObject(payload.form) ? payload.form : {};
         return [{
           id: item.id,
+          client_draft_key: typeof item.client_draft_key === "string" ? item.client_draft_key : undefined,
           step: typeof item.step === "number" && Number.isFinite(item.step) ? item.step : 0,
           payload: {
             form: {
@@ -97,6 +98,31 @@ const normalizeDrafts = (value: unknown): DriveDraftSummary[] =>
         }];
       })
     : [];
+const localDraftSummary = (): DriveDraftSummary | null => {
+  try {
+    const saved = JSON.parse(localStorage.getItem("voicedots:placement-drive-draft:v2") || "null");
+    if (!isApiObject(saved) || !isApiObject(saved.payload)) return null;
+    const payload = saved.payload;
+    const form = isApiObject(payload.form) ? payload.form : {};
+    return {
+      id: "local-device",
+      client_draft_key: typeof payload.creationKey === "string" ? payload.creationKey : undefined,
+      localOnly: true,
+      step: typeof payload.step === "number" && Number.isFinite(payload.step) ? payload.step : 0,
+      payload: { form: {
+        company_name: typeof form.company_name === "string" ? form.company_name : undefined,
+        role_title: typeof form.role_title === "string" ? form.role_title : undefined,
+      } },
+      updated_at: typeof saved.saved_at === "string" ? saved.saved_at : "",
+    };
+  } catch { return null; }
+};
+const combineDrafts = (remote: unknown): DriveDraftSummary[] => {
+  const drafts = normalizeDrafts(remote);
+  const local = localDraftSummary();
+  if (!local || drafts.some(item => local.client_draft_key && item.client_draft_key === local.client_draft_key)) return drafts;
+  return [...drafts, local];
+};
 
 export default function CollegeManagementPage() {
   const {
@@ -169,10 +195,10 @@ export default function CollegeManagementPage() {
     });
     setDraftsError("");
     collegeApi.get<unknown>("drive-drafts", c.signal)
-      .then((value) => { if (!c.signal.aborted) setDrafts(normalizeDrafts(value)); })
+      .then((value) => { if (!c.signal.aborted) setDrafts(combineDrafts(value)); })
       .catch((reason) => {
         if (c.signal.aborted) return;
-        setDrafts([]);
+        setDrafts(combineDrafts([]));
         setDraftsError(`Failed to load drive drafts: ${collegeError(reason)}. Existing placement drives remain available.`);
       });
     void requests;
@@ -372,8 +398,8 @@ export default function CollegeManagementPage() {
               return p;
             })
           }
-          resumeDraft={(id) => setParams((p) => { p.set("create", "1"); p.set("draft", id); return p; })}
-          deleteDraft={async (id) => { try { await collegeApi.remove(`drive-drafts/${id}`); setDrafts(current=>current.filter(item=>item.id!==id)); } catch (e) { setError(collegeError(e)); } }}
+          resumeDraft={(id) => setParams((p) => { p.set("create", "1"); if(id==="local-device")p.delete("draft");else p.set("draft", id); return p; })}
+          deleteDraft={async (id) => { if(id==="local-device"){localStorage.removeItem("voicedots:placement-drive-draft:v2");setDrafts(current=>current.filter(item=>item.id!==id));return;} try { await collegeApi.remove(`drive-drafts/${id}`); setDrafts(current=>current.filter(item=>item.id!==id)); } catch (e) { setError(collegeError(e)); } }}
           manage={(id) =>
             setParams((p) => {
               p.set("drive", id);
@@ -486,7 +512,8 @@ function PlacementLanding({
           note="Students actively connected now"
         />
       </div>
-      {draftsError ? <p role="status" className={`${card} text-sm text-amber-800 dark:text-amber-200`}>{draftsError}</p> : drafts.length>0&&<section className={`${card} space-y-4`}><div><h2 className="text-lg font-bold">Saved drive drafts</h2><p className="mt-1 text-sm text-slate-500">Continue setup where you left off. Draft details are visible only to your institution.</p></div><div className="grid gap-3 md:grid-cols-2 xl:grid-cols-3">{drafts.map(draft=><article className="flex items-center justify-between gap-3 rounded-xl border border-violet-200 bg-violet-50/50 p-4 dark:border-violet-900 dark:bg-violet-950/20" key={draft.id}><div className="min-w-0"><span className="rounded-full bg-violet-100 px-2 py-1 text-xs font-semibold text-violet-800 dark:bg-violet-900 dark:text-violet-100">Draft · Step {Math.min(6,draft.step+1)} of 6</span><h3 className="mt-2 truncate font-semibold">{draft.payload?.form?.company_name||"New placement drive"}</h3><p className="truncate text-sm text-slate-500">{draft.payload?.form?.role_title||"Role not added yet"} · Saved {draft.updated_at?new Date(draft.updated_at).toLocaleString():"recently"}</p></div><div className="flex shrink-0 gap-2"><button type="button" className={primary} onClick={()=>resumeDraft(draft.id)}>Continue</button><button type="button" className={button} aria-label="Delete draft" onClick={()=>deleteDraft(draft.id)}>Delete</button></div></article>)}</div></section>}
+      {draftsError && <p role="status" className={`${card} text-sm text-amber-800 dark:text-amber-200`}>{draftsError}</p>}
+      {drafts.length > 0 && <section className={`${card} space-y-4`}><div><h2 className="text-lg font-bold">Saved drive drafts</h2><p className="mt-1 text-sm text-slate-500">Continue setup where you left off. Draft details are visible only to your institution.</p></div><div className="grid gap-3 md:grid-cols-2 xl:grid-cols-3">{drafts.map(draft=><article className="flex items-center justify-between gap-3 rounded-xl border border-violet-200 bg-violet-50/50 p-4 dark:border-violet-900 dark:bg-violet-950/20" key={draft.id}><div className="min-w-0"><span className="rounded-full bg-violet-100 px-2 py-1 text-xs font-semibold text-violet-800 dark:bg-violet-900 dark:text-violet-100">{draft.localOnly?"Saved on this device":"Cloud draft"} · Step {Math.min(6,draft.step+1)} of 6</span><h3 className="mt-2 truncate font-semibold">{draft.payload?.form?.company_name||"New placement drive"}</h3><p className="truncate text-sm text-slate-500">{draft.payload?.form?.role_title||"Role not added yet"} · Saved {draft.updated_at?new Date(draft.updated_at).toLocaleString():"recently"}</p></div><div className="flex shrink-0 gap-2"><button type="button" className={primary} onClick={()=>resumeDraft(draft.id)}>Continue</button><button type="button" className={button} aria-label="Delete draft" onClick={()=>deleteDraft(draft.id)}>Delete</button></div></article>)}</div></section>}
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div>
           <h2 className="text-xl font-bold">Placement drives</h2>

@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
+import axios from 'axios';
 import { ArrowDown, ArrowLeft, ArrowRight, ArrowUp, Check, ChevronDown, CircleAlert, Plus, Save, Trash2, X } from 'lucide-react';
 import { collegeApi, collegeError, collegeFieldErrors, type Drive, type Program, type RoundConfiguration } from '@/api/collegeApi';
 import type { AgentLibrary, Selection } from './interviewAgentTypes';
@@ -135,8 +136,14 @@ export default function CreateDriveWizard({programs,drive,draftId,collegeTimezon
     localStorage.setItem(DRAFT_KEY,JSON.stringify({id:draftIdRef.current,payload,saved_at:new Date().toISOString()}));
     draftSavingRef.current=true;setDraftStatus('saving');
     try{
-      const body=draftIdRef.current?{payload,step:nextStep}:{payload,step:nextStep,client_draft_key:creationKey};
-      const row=await collegeApi.save<DriveDraft>(draftIdRef.current?`drive-drafts/${draftIdRef.current}`:'drive-drafts',body,Boolean(draftIdRef.current));
+      let row:DriveDraft;
+      if(draftIdRef.current){
+        try{row=await collegeApi.save<DriveDraft>(`drive-drafts/${draftIdRef.current}`,{payload,step:nextStep},true);}
+        catch(error){
+          if(!axios.isAxiosError(error)||error.response?.status!==404)throw error;
+          row=await collegeApi.save<DriveDraft>('drive-drafts',{payload,step:nextStep,client_draft_key:creationKey});
+        }
+      }else row=await collegeApi.save<DriveDraft>('drive-drafts',{payload,step:nextStep,client_draft_key:creationKey});
       draftIdRef.current=row.id;setDraftStatus('saved');setNotice(manual?'Draft saved.':'');
       localStorage.setItem(DRAFT_KEY,JSON.stringify({id:row.id,payload,saved_at:new Date().toISOString()}));
       return true;
