@@ -1,5 +1,5 @@
 import { test, expect, type Page } from '@playwright/test';
-async function setup(page: Page, enabled = true, options: { notFound?: string[]; driveRows?: unknown[]; companyProfiles?: unknown[]; initialPath?: string } = {}) {
+async function setup(page: Page, enabled = true, options: { notFound?: string[]; driveRows?: unknown[]; driveDetails?: unknown; companyProfiles?: unknown[]; initialPath?: string } = {}) {
   await page.addInitScript(() => localStorage.setItem('access_token', 'test-session'));
   await page.route(/\/v[13]\//, route => {
     const path = new URL(route.request().url()).pathname;
@@ -15,6 +15,7 @@ async function setup(page: Page, enabled = true, options: { notFound?: string[];
       '/v3/college/drives/eligibility/preview': {total_students:0,eligible_count:0,not_eligible_count:0,missing_photo_count:0,candidates:[]},
       '/v3/college/agents': {agents:[],tracks:['hr','domain','industry','manager'].map((track,i)=>({track,default_profile:{track,name:['Priya','Arjun','Neha','Vikram'][i],role:['Talent Acquisition Specialist','Senior Domain Specialist','Practical Interviewer','Hiring Manager'][i],intro_message:'Hello {name}',personality_prompt:'Interview for {role}',tone:'professional',voice_id:'flux-priya-en'}}))},
       '/v3/college/drives': options.driveRows ?? [{ id: 'drive-1', company_name: 'Example Company', role_title: 'Software Engineer', status: 'draft', location: 'Chennai' }],
+      '/v3/college/drives/drive-1': options.driveDetails ?? {},
       '/v3/college/students': { items: [], total: 0 },
       '/v3/college/academic-catalog': { programs: [{ code: 'B.Tech', display_name: 'Bachelor of Technology', duration_years: 4, departments: [{ code: 'CSE', display_name: 'Computer Science' },{ code: 'IT', display_name: 'Information Technology' }] }], graduation_years:[2027,2028] },
     };
@@ -565,7 +566,7 @@ test('drive UI shows scan-friendly ATS and skills and saves readiness weights', 
   await page.route('**/v3/college/drives/drive-1', route => route.fulfill({json:{id:'drive-1',company_name:'Example Company',role_title:'Engineer',status:'active'}}));
   await page.route('**/v3/college/drives/drive-1/dashboard/**', route => {
     const path=new URL(route.request().url()).pathname;
-    if(path.endsWith('/ats-fit')) return route.fulfill({json:{candidates:[{student_id:'s1',full_name:'Anu',roll_number:'R1',ats_fit_score:82}],pagination:{total:1}}});
+    if(path.endsWith('/ats-fit')) return route.fulfill({json:{candidates:[{student_id:'s1',full_name:'Anu',roll_number:'R1',assignment_status:'completed',ats_fit_score:82,skills:[{skill:'Python',match_status:'FULL_MATCH',evidence_text:'Built services in Python'},{skill:'LangChain',match_status:'WEAK_OR_INFERRED',evidence_text:'LangChain retrieval project'},{skill:'Kubernetes',match_status:'NO_EVIDENCE'}]}],total_count:1,pending_interview_count:2}});
     if(path.endsWith('/skill-gap')) return route.fulfill({json:{skills:[{skill:'Python',priority:'mandatory',good_count:3,limited_count:1,no_clear_answer_count:0}],total_released:4}});
     if(path.endsWith('/departments')) return route.fulfill({json:{departments:[{department_code:'CSE',student_count:4,avg_score:78,interview_ready_count:2,interview_ready_rate:50,need_training_count:2,students:[]}],recommended_department:{department_code:'CSE'}}});
     return route.fulfill({json:{metrics:{total_assigned:4}}});
@@ -582,6 +583,10 @@ test('drive UI shows scan-friendly ATS and skills and saves readiness weights', 
   await page.getByRole('button',{name:'View details'}).click();
   const candidateDialog=page.getByRole('dialog',{name:'ATS fit details for Anu'});
   await expect(candidateDialog).toBeVisible();
+  await expect(candidateDialog.getByText('Full evidence (1)')).toBeVisible();
+  await expect(candidateDialog.getByText('Related evidence (1)')).toBeVisible();
+  await expect(candidateDialog.getByText('No evidence (1)')).toBeVisible();
+  await expect(candidateDialog.getByText('LangChain',{exact:true})).toBeVisible();
   const resumeFrame=candidateDialog.getByTitle('Candidate resume PDF preview');
   await expect(resumeFrame).toHaveAttribute('src',/#toolbar=0&navpanes=0&scrollbar=1&view=FitH/);
   await expect(candidateDialog).toHaveClass(/max-w-5xl/);
@@ -598,6 +603,31 @@ test('drive UI shows scan-friendly ATS and skills and saves readiness weights', 
   await page.getByRole('button',{name:'Save formula'}).click();
   await expect(page.getByText('Readiness formula saved for every student in this institution.')).toBeVisible();
   expect(formula).toEqual({interview_readiness:80,resume_readiness:20});
+});
+
+test('ATS Fit explains that only completed interviews are included',async({page})=>{
+  await setup(page);
+  await page.route('**/v3/college/drives/drive-1',route=>route.fulfill({json:{id:'drive-1',company_name:'Example Company',role_title:'Engineer',status:'active'}}));
+  await page.route('**/v3/college/drives/drive-1/dashboard/**',route=>route.fulfill({json:{candidates:[],total_count:0,pending_interview_count:2}}));
+  await page.getByRole('button',{name:'Manage drive',exact:true}).click();
+  await page.getByRole('button',{name:'ATS fit',exact:true}).click();
+  await expect(page.getByText(/ATS Fit is available only after an interview is completed/)).toBeVisible();
+  await expect(page.getByText(/2 assigned candidates have not completed an interview/)).toBeVisible();
+});
+
+test('drive editor submits an offset-aware interview window in the institution timezone',async({page})=>{
+  await setup(page,true,{initialPath:'/dashboard/placement-management?drive=drive-1&section=settings',driveRows:[{id:'drive-1',company_name:'Example Company',role_title:'Engineer',status:'scheduled',location:'Chennai'}],driveDetails:{id:'drive-1',company_name:'Example Company',role_title:'Engineer',status:'scheduled',location:'Chennai',window_start_at:'2027-01-10T03:30:00Z',window_end_at:'2027-01-10T04:30:00Z'}});
+  let payload:Record<string,unknown>={};
+  await page.route('**/v3/college/drives/drive-1',route=>{
+    if(route.request().method()==='PUT'){payload=route.request().postDataJSON();return route.fulfill({json:{id:'drive-1',...payload}});}
+    return route.fallback();
+  });
+  await page.locator('article').filter({has:page.getByRole('heading',{name:'Interview configuration'})}).getByRole('button',{name:'Modify section'}).click();
+  await page.getByLabel('Interview start').fill('2027-01-10T09:00');
+  await page.getByLabel('Interview end').fill('2027-01-10T10:00');
+  await page.getByRole('button',{name:'Save this section'}).click();
+  expect(payload.window_start).toBe('2027-01-10T03:30:00.000Z');
+  expect(payload.window_end).toBe('2027-01-10T04:30:00.000Z');
 });
 
 test('AI preview uses drive role and JD and saves staff edits', async ({ page }) => {

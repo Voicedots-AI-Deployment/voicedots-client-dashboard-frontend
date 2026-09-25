@@ -52,7 +52,7 @@ const joinDateTime = (date:string,hour:string,minute:string,ampm:string) => {
   return `${date}T${String(h).padStart(2,'0')}:${minute}`;
 };
 
-export default function CreateDriveWizard({programs,drive,draftId,collegeTimezone='UTC',onCancel,onSaved}:{programs:Program[];drive?:Drive|null;draftId?:string|null;collegeTimezone?:string;onCancel:()=>void;onSaved:(message:string)=>void}) {
+export default function CreateDriveWizard({programs,drive,draftId,collegeTimezone='Asia/Kolkata',onCancel,onSaved}:{programs:Program[];drive?:Drive|null;draftId?:string|null;collegeTimezone?:string;onCancel:()=>void;onSaved:(message:string)=>void}) {
   const [step,setStep]=useState(0),[form,setForm]=useState<FormState>(empty),[selection,setSelection]=useState<Selection[]>(defaultSelection),[rounds,setRounds]=useState<RoundConfiguration[]>([]);
   const [programIds,setProgramIds]=useState<string[]>([]),[departments,setDepartments]=useState<string[]>([]),[years,setYears]=useState<string[]>([]),[availableYears,setAvailableYears]=useState<number[]>([]);
   const [difficultyConfirmed,setDifficultyConfirmed]=useState(false),[confirmDifficulty,setConfirmDifficulty]=useState(false),[library,setLibrary]=useState<AgentLibrary|null>(null);

@@ -332,22 +332,27 @@ function CandidateDetails({
           <div className="space-y-3">
             {([{
               label: "Full evidence",
-              items: skills.filter(skill => ["FULL_MATCH", "RELATED_EVIDENCE"].includes(String(skill.match_status || "").toUpperCase())),
+              items: skills.filter(skill => String(skill.match_status || "").toUpperCase() === "FULL_MATCH"),
               tone: "border-emerald-100 bg-emerald-50/70 dark:border-emerald-900/50 dark:bg-emerald-950/20",
               chip: "bg-emerald-100 text-emerald-800 dark:bg-emerald-900/50 dark:text-emerald-200",
             }, {
+              label: "Related evidence",
+              items: skills.filter(skill => ["RELATED_EVIDENCE", "WEAK_OR_INFERRED"].includes(String(skill.match_status || "").toUpperCase())),
+              tone: "border-amber-100 bg-amber-50/70 dark:border-amber-900/50 dark:bg-amber-950/20",
+              chip: "bg-amber-100 text-amber-800 dark:bg-amber-900/40 dark:text-amber-200",
+            }, {
               label: "No evidence",
-              items: skills.filter(skill => !["FULL_MATCH", "RELATED_EVIDENCE"].includes(String(skill.match_status || "").toUpperCase())),
+              items: skills.filter(skill => !["FULL_MATCH", "RELATED_EVIDENCE", "WEAK_OR_INFERRED"].includes(String(skill.match_status || "").toUpperCase())),
               tone: "border-rose-100 bg-rose-50/60 dark:border-rose-900/50 dark:bg-rose-950/20",
               chip: "bg-rose-100 text-rose-800 dark:bg-rose-900/40 dark:text-rose-200",
             }]).filter(group => group.items.length > 0).map(group => (
               <section className={`rounded-xl border p-3 ${group.tone}`} key={group.label}>
                 <div className="mb-2 flex items-center gap-2 text-sm font-semibold">
-                  <span className="text-base" aria-hidden="true">{group.label === "Full evidence" ? "✓" : "△"}</span>
+                  <span className="text-base" aria-hidden="true">{group.label === "Full evidence" ? "✓" : group.label === "Related evidence" ? "~" : "△"}</span>
                   <span>{group.label} ({group.items.length})</span>
                 </div>
                 <div className="flex flex-wrap gap-2">
-                  {group.items.map((skill, index) => <span className={`rounded-full px-3 py-1.5 text-xs font-medium ${group.chip}`} key={String(skill.skill || index)}>{String(skill.skill || "Requirement")}</span>)}
+                  {group.items.map((skill, index) => <span title={String(skill.evidence_text || skill.reason || "")} className={`rounded-full px-3 py-1.5 text-xs font-medium ${group.chip}`} key={String(skill.skill || index)}>{String(skill.skill || "Requirement")}</span>)}
                 </div>
               </section>
             ))}
@@ -768,8 +773,8 @@ function DriveSettings({
         interview_duration_minutes: Number(form.interview_duration_minutes),
         max_attempts: Number(form.max_attempts),
         difficulty_tier: form.difficulty_tier,
-        window_start: String(form.window_start),
-        window_end: String(form.window_end),
+        window_start: new Date(start).toISOString(),
+        window_end: new Date(end).toISOString(),
       };
     } else if (title === "Eligibility")
       body = {
@@ -1311,7 +1316,7 @@ function LifecycleActions({
 }
 export default function DriveManagement({
   driveId,
-  collegeTimezone = "UTC",
+  collegeTimezone = "Asia/Kolkata",
   back,
 }: {
   driveId: string;
@@ -2057,7 +2062,11 @@ export default function DriveManagement({
             </div>
           )}
           {!loading && !candidates.length && (
-            <p className={panel}>No candidates found for this view.</p>
+            <p className={panel}>
+              {tab === "ats"
+                ? `ATS Fit is available only after an interview is completed. No completed interviews match this view.${Number(data?.pending_interview_count || 0) > 0 ? ` ${Number(data?.pending_interview_count)} assigned ${Number(data?.pending_interview_count) === 1 ? "candidate has" : "candidates have"} not completed an interview.` : ""}`
+                : "No candidates found for this view."}
+            </p>
           )}
           {!!candidates.length && (
             <div id="result-candidate-table" className={`${panel} overflow-x-auto`}>
@@ -2388,7 +2397,9 @@ export default function DriveManagement({
             <p className="mt-2 text-sm text-slate-600 dark:text-slate-300">
               {lifecycleRequest === "removed"
                 ? "The drive will be removed from active management. Drives with historical records are archived so completed reports remain preserved."
-                : "Candidates will no longer be able to start an interview. Completed reports remain available."}
+                : lifecycleRequest === "closed"
+                  ? "Candidates will no longer be able to start an interview. Completed reports remain available. Closed drives cannot be reactivated; create a new drive if you need to recruit again."
+                  : "Candidates will no longer be able to start an interview. Completed reports remain available."}
             </p>
             <div className="mt-5 flex justify-end gap-3">
               <button

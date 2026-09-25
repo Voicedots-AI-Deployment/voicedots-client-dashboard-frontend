@@ -271,7 +271,7 @@ export default function CollegeManagementPage() {
     return (
       <CreateDriveWizard
         programs={programs}
-        collegeTimezone={access.timezone || "UTC"}
+        collegeTimezone={access.timezone || "Asia/Kolkata"}
         draftId={draftId}
         onCancel={() => {
           setParams((p) => {
@@ -296,7 +296,7 @@ export default function CollegeManagementPage() {
     return (
       <DriveManagement
         driveId={driveId}
-        collegeTimezone={access.timezone || "UTC"}
+        collegeTimezone={access.timezone || "Asia/Kolkata"}
         back={() =>
           setParams((p) => {
             p.delete("drive");
@@ -378,7 +378,7 @@ export default function CollegeManagementPage() {
           allDrives={drives}
           drafts={drafts}
           draftsError={draftsError}
-          collegeTimezone={access.timezone || "UTC"}
+          collegeTimezone={access.timezone || "Asia/Kolkata"}
           overview={overview}
           loading={loading}
           query={query}
