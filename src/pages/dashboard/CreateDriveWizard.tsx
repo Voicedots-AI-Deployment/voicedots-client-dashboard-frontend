@@ -61,7 +61,7 @@ export default function CreateDriveWizard({programs,drive,draftId,collegeTimezon
   const [fieldErrors,setFieldErrors]=useState<Record<string,string>>({}),[formError,setFormError]=useState(''),[notice,setNotice]=useState('');
   const [draftLoaded,setDraftLoaded]=useState(Boolean(drive)),[draftStatus,setDraftStatus]=useState<'saved'|'saving'|'error'|'idle'>('idle');
   const [creationKey,setCreationKey]=useState<string>(()=>crypto.randomUUID());
-  const draftIdRef=useRef<string|null>(draftId||null),draftSavingRef=useRef(false),draftResaveRef=useRef(false),companyPickerRef=useRef<HTMLDivElement|null>(null);
+  const draftIdRef=useRef<string|null>(draftId||null),draftSavingRef=useRef(false),draftResaveRef=useRef(false),draftSaveWaitersRef=useRef<Array<()=>void>>([]),companyPickerRef=useRef<HTMLDivElement|null>(null);
 
   const availableDepartments=useMemo(()=>programs.filter(program=>programIds.includes(program.code)).flatMap(program=>program.departments),[programs,programIds]);
   const selectedYears=useMemo(()=>years.map(Number).filter(Number.isFinite).sort((a,b)=>a-b),[years]);
@@ -161,7 +161,7 @@ export default function CreateDriveWizard({programs,drive,draftId,collegeTimezon
       localStorage.setItem(DRAFT_KEY,JSON.stringify({id:row.id,payload,saved_at:new Date().toISOString()}));
       return true;
     }catch(e){setDraftStatus('error');if(manual)setNotice(`Draft kept on this device; cloud save failed: ${collegeError(e)}`);return false;}
-    finally{draftSavingRef.current=false;if(draftResaveRef.current){draftResaveRef.current=false;void saveDraft(false,latestDraftRef.current.step);}}
+    finally{draftSavingRef.current=false;for(const resolve of draftSaveWaitersRef.current.splice(0))resolve();if(draftResaveRef.current){draftResaveRef.current=false;void saveDraft(false,latestDraftRef.current.step);}}
   }
 
   useEffect(()=>{
@@ -256,7 +256,7 @@ export default function CreateDriveWizard({programs,drive,draftId,collegeTimezon
     setFieldErrors({});setFormError('');
     if(step===4&&ambiguousDifficulty&&!difficultyConfirmed){setConfirmDifficulty(true);return;}
     const target=Math.min(5,step+1);
-    if(!drive&&!await saveDraft(true,target))return;
+    if(!drive){while(draftSavingRef.current)await new Promise<void>(resolve=>draftSaveWaitersRef.current.push(resolve));if(!await saveDraft(true,target))return;}
     setStep(target);
   }
   function moveRole(index:number,direction:number){const target=index+direction;if(target<0||target>=selection.length)return;setSelection(current=>{const rows=[...current];[rows[index],rows[target]]=[rows[target],rows[index]];return rows;});}
@@ -400,7 +400,7 @@ export default function CreateDriveWizard({programs,drive,draftId,collegeTimezon
         <section className="dw-review-card"><header><h3>Final check</h3></header><div>{[[Boolean(form.company_name.trim()&&form.role_title.trim()&&form.location.trim()&&form.jd_text.trim()),'Company, role, location, and job description'],[Boolean(form.window_start&&form.window_end&&wallTimeToInstant(form.window_end,collegeTimezone)>wallTimeToInstant(form.window_start,collegeTimezone)),'Interview window and attempt limit'],[Boolean(selection.length>=1&&selection.length<=4&&rounds.every(round=>round.question_source==='personalized'||round.questions.some(question=>question.trim()))),'Interview roles and question configuration'],[Boolean(programIds.length&&departments.length&&selectedYears.length&&preview),'Eligibility criteria and latest preview']].map(([ok,text])=><p key={String(text)}><span className={ok?'text-emerald-700':'text-amber-700'}>{ok?'✓':'○'}</span> {String(text)}</p>)}<p className="mt-2 text-xs text-slate-500">Eligibility is recalculated and saved when the drive is created. The application deadline, interview window, and drive event date are separate dates.</p></div></section>
       </div>}
     </main>
-    <footer className="dw-footer"><button className={button} disabled={!step||busy} onClick={()=>{setFieldErrors({});setFormError('');setStep(value=>value-1);}}><ArrowLeft size={16}/>Back</button><div className="flex flex-wrap justify-end gap-2">{step<5?<button className={primary} disabled={previewBusy||draftStatus==='saving'} onClick={()=>void next()}>{drive?'Continue':'Save draft & continue'}<ArrowRight size={16}/></button>:<button className={primary} disabled={busy} onClick={()=>void submit()}>{busy?'Creating drive…':drive?'Save changes':'Create placement drive'}<ArrowRight size={16}/></button>}</div></footer>
+    <footer className="dw-footer"><button className={button} disabled={!step||busy} onClick={()=>{setFieldErrors({});setFormError('');setStep(value=>value-1);}}><ArrowLeft size={16}/>Back</button><div className="flex flex-wrap justify-end gap-2">{step<5?<button className={primary} disabled={previewBusy} onClick={()=>void next()}>{drive?'Continue':'Save draft & continue'}<ArrowRight size={16}/></button>:<button className={primary} disabled={busy} onClick={()=>void submit()}>{busy?'Creating drive…':drive?'Save changes':'Create placement drive'}<ArrowRight size={16}/></button>}</div></footer>
     {confirmDifficulty&&<dialog open aria-modal="true" aria-labelledby="difficulty-title" className={`${panel} fixed inset-0 z-50 m-auto max-w-lg text-slate-900 shadow-2xl backdrop:bg-slate-950/50 dark:text-white`}><div className="flex items-start justify-between gap-3"><div><h2 id="difficulty-title" className="text-xl font-bold">Confirm interview difficulty</h2><p className="mt-2 text-sm text-slate-600 dark:text-slate-300">Selected graduation years suggest more than one level. This drive will use <strong>{displayName(form.difficulty_tier)}</strong>.</p></div><button type="button" className={button} aria-label="Close difficulty confirmation" onClick={()=>setConfirmDifficulty(false)}><X size={16}/></button></div><div className="mt-6 flex justify-end gap-3"><button type="button" className={button} onClick={()=>setConfirmDifficulty(false)}>Review setup</button><button type="button" className={primary} onClick={()=>{setDifficultyConfirmed(true);setConfirmDifficulty(false);setStep(5);}}><Check size={16}/>Confirm and review</button></div></dialog>}
   </section>;
 }

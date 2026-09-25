@@ -239,6 +239,29 @@ test('save draft persists partial fields and remains resumable', async ({page})=
   await expect(page.getByLabel('Company name')).toHaveValue('Northstar Technologies');
 });
 
+test('save draft and continue waits for an active auto-save before advancing',async({page})=>{
+  await setup(page);
+  const savedSteps:number[]=[];
+  await page.route('**/v3/college/drive-drafts**',async route=>{
+    if(route.request().method()==='GET')return route.fulfill({json:[]});
+    if(!['POST','PUT'].includes(route.request().method()))return route.fallback();
+    const body=route.request().postDataJSON();savedSteps.push(body.step);
+    if(savedSteps.length===1)await new Promise(resolve=>setTimeout(resolve,1500));
+    return route.fulfill({json:{id:'draft-wait',client_draft_key:body.client_draft_key||'drive-draft-key',step:body.step,payload:body.payload,updated_at:new Date().toISOString()}});
+  });
+  await page.getByRole('button',{name:'Create drive',exact:true}).click();
+  await page.getByLabel('Company name').fill('Northstar Technologies');
+  await page.locator('#role_title').fill('Data Analyst');
+  await page.getByLabel('Location').fill('Remote');
+  await page.getByLabel('Job description').fill('Analyze business data and share findings.');
+  await expect(page.getByText('Saving draft…')).toBeVisible();
+  const continueButton=page.getByRole('button',{name:'Save draft & continue'});
+  await expect(continueButton).toBeEnabled();
+  await continueButton.click();
+  await expect(page.getByText('STEP 2 OF 6')).toBeVisible();
+  expect(savedSteps).toEqual([0,1]);
+});
+
 test('stale cloud draft ID is recovered without a missing-resource request and appears in the draft list',async({page})=>{
   await setup(page);
   const key='stable-drive-draft-key-12345';
@@ -261,7 +284,7 @@ test('stale cloud draft ID is recovered without a missing-resource request and a
   await expect.poll(()=>created!==null,{timeout:10000}).toBe(true);
   expect(stalePutRequested).toBe(false);
   await page.getByRole('button',{name:'Back to placement drives'}).click();
-  await expect(page.getByText('Cloud draft · Step 1 of 6')).toBeVisible();
+  await expect(page.getByText('Draft · Step 1 of 6')).toBeVisible();
   await expect(page.getByRole('heading',{name:'Recovered Employer'})).toBeVisible();
   await page.getByRole('button',{name:'Continue',exact:true}).click();
   await expect(page.getByLabel('Company name')).toHaveValue('Recovered Employer');
@@ -271,7 +294,7 @@ test('device-only drive draft stays visible and can be resumed when cloud list i
   await setup(page);
   await page.evaluate(()=>localStorage.setItem('voicedots:placement-drive-draft:v2',JSON.stringify({id:'stale-cloud-id',saved_at:'2026-09-25T10:00:00Z',payload:{form:{company_name:'Offline Employer'},selection:[],rounds:[],programIds:[],departments:[],years:[],step:1,creationKey:'local-device-draft-key-12345'}})));
   await page.reload();
-  await expect(page.getByText('Saved on this device · Step 2 of 6')).toBeVisible();
+  await expect(page.getByText('Draft · Step 2 of 6')).toBeVisible();
   await page.getByRole('button',{name:'Continue',exact:true}).click();
   await page.getByRole('button',{name:'1. Drive & company'}).click();
   await expect(page.getByLabel('Company name')).toHaveValue('Offline Employer');
