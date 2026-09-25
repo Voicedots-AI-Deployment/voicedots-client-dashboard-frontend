@@ -46,7 +46,8 @@ const compareAscendingDates = (left?: string, right?: string) => {
   if (!Number.isFinite(b)) return -1;
   return a - b;
 };
-const effectiveStatus = (drive: Drive) => {
+const effectiveStatus = (drive: Drive | null | undefined) => {
+  if (!drive) return "scheduled";
   if (drive.status === "cancelled" || drive.status === "draft") return drive.status;
   const now = Date.now();
   const start = drive.window_start_at ? Date.parse(drive.window_start_at) : NaN;
@@ -65,6 +66,37 @@ type Landing = {
   completion_rate?: number;
 };
 type DriveDraftSummary = { id:string; step:number; payload:{form?:{company_name?:string;role_title?:string}}; updated_at:string };
+type ApiObject = Record<string, unknown>;
+const isApiObject = (value: unknown): value is ApiObject =>
+  typeof value === "object" && value !== null && !Array.isArray(value);
+const normalizeDrives = (value: unknown): Drive[] =>
+  Array.isArray(value)
+    ? value.filter((item): item is Drive =>
+        isApiObject(item) &&
+        typeof item.id === "string" &&
+        typeof item.company_name === "string" &&
+        typeof item.role_title === "string",
+      )
+    : [];
+const normalizeDrafts = (value: unknown): DriveDraftSummary[] =>
+  Array.isArray(value)
+    ? value.flatMap((item) => {
+        if (!isApiObject(item) || typeof item.id !== "string") return [];
+        const payload = isApiObject(item.payload) ? item.payload : {};
+        const form = isApiObject(payload.form) ? payload.form : {};
+        return [{
+          id: item.id,
+          step: typeof item.step === "number" && Number.isFinite(item.step) ? item.step : 0,
+          payload: {
+            form: {
+              company_name: typeof form.company_name === "string" ? form.company_name : undefined,
+              role_title: typeof form.role_title === "string" ? form.role_title : undefined,
+            },
+          },
+          updated_at: typeof item.updated_at === "string" ? item.updated_at : "",
+        }];
+      })
+    : [];
 
 export default function CollegeManagementPage() {
   const {
@@ -89,6 +121,7 @@ export default function CollegeManagementPage() {
     [overview, setOverview] = useState<Landing>({}),
     [loading, setLoading] = useState(false),
     [error, setError] = useState(""),
+    [draftsError, setDraftsError] = useState(""),
     [notice, setNotice] = useState(""),
     [version, setVersion] = useState(0),
     [query, setQuery] = useState(""),
@@ -100,21 +133,49 @@ export default function CollegeManagementPage() {
     const c = new AbortController();
     setLoading(true);
     setError("");
-    Promise.all([
+    const requests = Promise.allSettled([
       collegeApi.get<Drive[]>("drives", c.signal),
       collegeApi.get<{ programs: Program[] }>("academic-catalog", c.signal),
       collegeApi.get<Analytics>("analytics", c.signal),
       collegeApi.get<Landing>("dashboard/overview", c.signal),
-    ])
-      .then(([d, p, a, o]) => {
-        setDrives(d);
-        setPrograms(p.programs);
-        setAnalytics(a);
-        setOverview(o);
-      })
-      .catch((e) => !c.signal.aborted && setError(collegeError(e)))
-      .finally(() => !c.signal.aborted && setLoading(false));
-    collegeApi.get<DriveDraftSummary[]>("drive-drafts", c.signal).then(setDrafts).catch(() => setDrafts([]));
+    ]).then(([drivesResult, programsResult, analyticsResult, overviewResult]) => {
+      if (c.signal.aborted) return;
+      const errors: string[] = [];
+      if (drivesResult.status === "fulfilled") {
+        setDrives(normalizeDrives(drivesResult.value));
+      } else {
+        setDrives([]);
+        errors.push(`Failed to load placement drives: ${collegeError(drivesResult.reason)}`);
+      }
+      if (programsResult.status === "fulfilled") {
+        const rows = programsResult.value?.programs;
+        setPrograms(Array.isArray(rows) ? rows.filter((program): program is Program =>
+          Boolean(program) && typeof program.code === "string" && Array.isArray(program.departments),
+        ) : []);
+      } else {
+        setPrograms([]);
+        errors.push(`Failed to load academic programs: ${collegeError(programsResult.reason)}`);
+      }
+      if (analyticsResult.status === "fulfilled") setAnalytics(analyticsResult.value || null);
+      else setAnalytics(null);
+      if (overviewResult.status === "fulfilled" && isApiObject(overviewResult.value)) {
+        setOverview(overviewResult.value as Landing);
+      } else {
+        setOverview({});
+      }
+      setError(errors.join(" "));
+    }).finally(() => {
+      if (!c.signal.aborted) setLoading(false);
+    });
+    setDraftsError("");
+    collegeApi.get<unknown>("drive-drafts", c.signal)
+      .then((value) => { if (!c.signal.aborted) setDrafts(normalizeDrafts(value)); })
+      .catch((reason) => {
+        if (c.signal.aborted) return;
+        setDrafts([]);
+        setDraftsError(`Failed to load drive drafts: ${collegeError(reason)}. Existing placement drives remain available.`);
+      });
+    void requests;
     return () => c.abort();
   }, [access?.enabled, version, driveId]);
   const filtered = useMemo(
@@ -281,6 +342,7 @@ export default function CollegeManagementPage() {
           drives={filtered}
           allDrives={drives}
           drafts={drafts}
+          draftsError={draftsError}
           collegeTimezone={access.timezone || "UTC"}
           overview={overview}
           loading={loading}
@@ -327,6 +389,7 @@ function PlacementLanding({
   drives,
   allDrives,
   drafts,
+  draftsError,
   collegeTimezone,
   overview,
   loading,
@@ -349,6 +412,7 @@ function PlacementLanding({
   drives: Drive[];
   allDrives: Drive[];
   drafts: DriveDraftSummary[];
+  draftsError: string;
   collegeTimezone: string;
   overview: Landing;
   loading: boolean;
@@ -410,7 +474,7 @@ function PlacementLanding({
           note="Students actively connected now"
         />
       </div>
-      {drafts.length>0&&<section className={`${card} space-y-4`}><div><h2 className="text-lg font-bold">Saved drive drafts</h2><p className="mt-1 text-sm text-slate-500">Continue setup where you left off. Draft details are visible only to your institution.</p></div><div className="grid gap-3 md:grid-cols-2 xl:grid-cols-3">{drafts.map(draft=><article className="flex items-center justify-between gap-3 rounded-xl border border-violet-200 bg-violet-50/50 p-4 dark:border-violet-900 dark:bg-violet-950/20" key={draft.id}><div className="min-w-0"><span className="rounded-full bg-violet-100 px-2 py-1 text-xs font-semibold text-violet-800 dark:bg-violet-900 dark:text-violet-100">Draft · Step {Math.min(6,draft.step+1)} of 6</span><h3 className="mt-2 truncate font-semibold">{draft.payload?.form?.company_name||"New placement drive"}</h3><p className="truncate text-sm text-slate-500">{draft.payload?.form?.role_title||"Role not added yet"} · Saved {draft.updated_at?new Date(draft.updated_at).toLocaleString():"recently"}</p></div><div className="flex shrink-0 gap-2"><button type="button" className={primary} onClick={()=>resumeDraft(draft.id)}>Continue</button><button type="button" className={button} aria-label="Delete draft" onClick={()=>deleteDraft(draft.id)}>Delete</button></div></article>)}</div></section>}
+      {draftsError ? <p role="status" className={`${card} text-sm text-amber-800 dark:text-amber-200`}>{draftsError}</p> : drafts.length>0&&<section className={`${card} space-y-4`}><div><h2 className="text-lg font-bold">Saved drive drafts</h2><p className="mt-1 text-sm text-slate-500">Continue setup where you left off. Draft details are visible only to your institution.</p></div><div className="grid gap-3 md:grid-cols-2 xl:grid-cols-3">{drafts.map(draft=><article className="flex items-center justify-between gap-3 rounded-xl border border-violet-200 bg-violet-50/50 p-4 dark:border-violet-900 dark:bg-violet-950/20" key={draft.id}><div className="min-w-0"><span className="rounded-full bg-violet-100 px-2 py-1 text-xs font-semibold text-violet-800 dark:bg-violet-900 dark:text-violet-100">Draft · Step {Math.min(6,draft.step+1)} of 6</span><h3 className="mt-2 truncate font-semibold">{draft.payload?.form?.company_name||"New placement drive"}</h3><p className="truncate text-sm text-slate-500">{draft.payload?.form?.role_title||"Role not added yet"} · Saved {draft.updated_at?new Date(draft.updated_at).toLocaleString():"recently"}</p></div><div className="flex shrink-0 gap-2"><button type="button" className={primary} onClick={()=>resumeDraft(draft.id)}>Continue</button><button type="button" className={button} aria-label="Delete draft" onClick={()=>deleteDraft(draft.id)}>Delete</button></div></article>)}</div></section>}
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div>
           <h2 className="text-xl font-bold">Placement drives</h2>

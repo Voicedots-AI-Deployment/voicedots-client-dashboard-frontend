@@ -1,5 +1,5 @@
 import { test, expect, type Page } from '@playwright/test';
-async function setup(page: Page, enabled = true) {
+async function setup(page: Page, enabled = true, options: { notFound?: string[]; driveRows?: unknown[]; initialPath?: string } = {}) {
   await page.addInitScript(() => localStorage.setItem('access_token', 'test-session'));
   await page.route(/\/v[13]\//, route => {
     const path = new URL(route.request().url()).pathname;
@@ -14,14 +14,48 @@ async function setup(page: Page, enabled = true) {
       '/v3/college/drive-drafts': [],
       '/v3/college/drives/eligibility/preview': {total_students:0,eligible_count:0,not_eligible_count:0,missing_photo_count:0,candidates:[]},
       '/v3/college/agents': {agents:[],tracks:['hr','domain','industry','manager'].map((track,i)=>({track,default_profile:{track,name:['Priya','Arjun','Neha','Vikram'][i],role:track,intro_message:'Hello {name}',personality_prompt:'Interview for {role}',tone:'professional',voice_id:'flux-priya-en'}}))},
-      '/v3/college/drives': [{ id: 'drive-1', company_name: 'Example Company', role_title: 'Software Engineer', status: 'draft', location: 'Chennai' }],
+      '/v3/college/drives': options.driveRows ?? [{ id: 'drive-1', company_name: 'Example Company', role_title: 'Software Engineer', status: 'draft', location: 'Chennai' }],
       '/v3/college/students': { items: [], total: 0 },
       '/v3/college/academic-catalog': { programs: [{ code: 'B.Tech', display_name: 'Bachelor of Technology', duration_years: 4, departments: [{ code: 'CSE', display_name: 'Computer Science' },{ code: 'IT', display_name: 'Information Technology' }] }], graduation_years:[2027,2028] },
     };
     return route.fulfill({ json: values[path] || {} });
   });
-  await page.goto('/dashboard/college');
+  if (options.notFound?.length) await page.route(/\/v[13]\//, route => {
+    const path = new URL(route.request().url()).pathname;
+    if (options.notFound?.includes(path)) return route.fulfill({ status: 404, json: { detail: 'Endpoint not found' } });
+    return route.fallback();
+  });
+  await page.goto(options.initialPath || '/dashboard/college');
 }
+
+test('drive editor remains usable when company profiles return 404', async ({ page }) => {
+  const pageErrors: string[] = [];
+  page.on('pageerror', error => pageErrors.push(error.message));
+  await setup(page, true, {
+    notFound: ['/v3/college/company-profiles'],
+    initialPath: '/dashboard/placement-management?drive=drive-1&section=settings',
+    driveRows: [{ id: 'drive-1', company_name: 'Example Company', role_title: 'Software Engineer', status: 'draft', location: 'Chennai' }],
+  });
+  await expect(page.getByRole('heading', { name: 'Drive management' })).toBeVisible();
+  await page.getByRole('button', { name: 'Modify section' }).first().click();
+  await expect(page.getByLabel('Company', { exact: true })).toBeVisible();
+  await expect(page.getByText(/Reusable company profiles couldn't be loaded/)).toBeVisible();
+  await expect(page.getByLabel('Company', { exact: true })).toHaveValue('');
+  expect(pageErrors).toEqual([]);
+});
+
+test('placement management filters null drive rows and shows draft endpoint failures', async ({ page }) => {
+  const pageErrors: string[] = [];
+  page.on('pageerror', error => pageErrors.push(error.message));
+  await setup(page, true, {
+    notFound: ['/v3/college/drive-drafts'],
+    driveRows: [null, { id: 'drive-1', company_name: 'Example Company', role_title: 'Software Engineer', status: 'draft', location: 'Chennai' }],
+  });
+  await expect(page.getByRole('heading', { name: 'Placement management' })).toBeVisible();
+  await expect(page.getByRole('heading', { name: 'Example Company' })).toBeVisible();
+  await expect(page.getByText(/Failed to load drive drafts/)).toBeVisible();
+  expect(pageErrors).toEqual([]);
+});
 async function driveFields(page: Page) {
   await page.getByRole('button', { name: 'Create drive', exact: true }).click();
   await page.getByLabel('Company name').fill('Campus Employer');
@@ -180,15 +214,14 @@ test('student roster and academic setup work on a phone', async ({ page }) => {
 });
 
 test('drive editor handles an invalid stored date without crashing', async ({ page }) => {
-  await setup(page);
+  await setup(page, true, { initialPath: '/dashboard/placement-management?drive=drive-1&section=settings' });
   await page.route('**/v3/college/drives/drive-1', route => route.fulfill({json:{
     id:'drive-1',company_name:'Example Company',role_title:'Engineer',status:'draft',
     window_start_at:'invalid',window_end_at:'2027-01-11T12:30:00Z',
   }}));
-  await page.getByRole('button',{name:'Edit drive',exact:true}).click();
-  await expect(page.getByRole('dialog')).toBeVisible();
+  await page.getByRole('button', { name: 'Modify section' }).nth(1).click();
+  await expect(page.getByLabel('Interview start')).toBeVisible();
   await expect(page.getByLabel('Interview start')).toHaveValue('');
-  await expect(page.getByLabel('Company',{exact:true})).toHaveValue('Example Company');
 });
 
 

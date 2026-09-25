@@ -16,12 +16,7 @@ import { ConversationsVolumeChart } from "@/components/charts/ConversationsVolum
 import { EngagementChart } from "@/components/charts/EngagementChart";
 import { LeadsCapturedChart } from "@/components/charts/LeadsCapturedChart";
 import { AvgCallDurationChart } from "@/components/charts/AvgCallDurationChart";
-import {
-  ResponsiveContainer,
-  AreaChart,
-  Area,
-  Tooltip,
-} from "recharts";
+import { AreaChart, Area, Tooltip } from "recharts";
 
 /* ================= TYPES & HELPERS ================= */
 
@@ -77,8 +72,7 @@ const item = {
 
 const MiniSparkline = ({ data, color, formatter }: { data: any[], color: string, formatter?: (v: number) => string }) => (
   <div className="h-10 w-24">
-    <ResponsiveContainer width="100%" height="100%">
-      <AreaChart data={data}>
+      <AreaChart width={96} height={40} data={data}>
         <defs>
           <linearGradient id={`gradient-${color.replace('#', '')}`} x1="0" y1="0" x2="0" y2="1">
             <stop offset="5%" stopColor={color} stopOpacity={0.15} />
@@ -111,7 +105,6 @@ const MiniSparkline = ({ data, color, formatter }: { data: any[], color: string,
           activeDot={{ r: 3, strokeWidth: 0, fill: color }}
         />
       </AreaChart>
-    </ResponsiveContainer>
   </div>
 );
 
@@ -129,8 +122,13 @@ export function HomePage() {
     if (!user?.agent_id) return;
     if (!isSilent) setLoading(true);
     try {
-      const res = await kpiAPI.getKpis(user.agent_id);
-      setTimeseries(res.timeseries);
+      const res: unknown = await kpiAPI.getKpis(user.agent_id);
+      const response = res && typeof res === "object" ? res as { timeseries?: unknown } : null;
+      const points = Array.isArray(response?.timeseries) ? response.timeseries.flatMap((point): KpiTimeseriesPoint[] => {
+        if (!point || typeof point !== "object" || typeof (point as KpiTimeseriesPoint).date !== "string") return [];
+        return [point as KpiTimeseriesPoint];
+      }) : [];
+      setTimeseries(points);
     } catch (err) {
       console.error("Failed to fetch KPIs:", err);
     } finally {

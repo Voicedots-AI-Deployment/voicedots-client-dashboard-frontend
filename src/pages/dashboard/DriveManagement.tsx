@@ -136,7 +136,7 @@ function attemptValue(value: unknown, fallback: number): number {
 }
 
 function windowStatus(drive: Drive): "scheduled" | "active" | "closed" | "draft" | "cancelled" {
-  const status = String(drive.status || "scheduled").toLowerCase();
+  const status = String(drive?.status || "scheduled").toLowerCase();
   return ["scheduled", "active", "closed", "draft", "cancelled"].includes(status)
     ? status as "scheduled" | "active" | "closed" | "draft" | "cancelled"
     : "scheduled";
@@ -570,6 +570,7 @@ function DriveSettings({
     [generating, setGenerating] = useState("");
   const [catalogPrograms, setCatalogPrograms] = useState<Program[]>([]);
   const [companyProfiles, setCompanyProfiles] = useState<Data[]>([]);
+  const [companyProfilesError, setCompanyProfilesError] = useState("");
   const [form, setForm] = useState<Data>({
     drive_type: drive.drive_type || "official_placement",
     company_profile_id: drive.company_profile_id || "",
@@ -607,7 +608,17 @@ function DriveSettings({
       .get<AgentLibrary>("agents")
       .then(setLibrary)
       .catch(() => setLibrary(null));
-    collegeApi.get<Data[]>("company-profiles").then(setCompanyProfiles).catch(() => setCompanyProfiles([]));
+    collegeApi.get<unknown>("company-profiles").then(value => {
+      const profiles = Array.isArray(value) ? value.filter((profile): profile is Data =>
+        Boolean(profile) && typeof profile === "object" && !Array.isArray(profile) &&
+        typeof (profile as Data).id === "string" && typeof (profile as Data).company_name === "string",
+      ) : [];
+      setCompanyProfiles(profiles);
+      setCompanyProfilesError("");
+    }).catch(error => {
+      setCompanyProfiles([]);
+      setCompanyProfilesError(`Reusable company profiles couldn't be loaded. Enter company details manually. (${collegeError(error)})`);
+    });
   }, []);
   const selectedPrograms = String(form.eligible_programs || "")
     .split(",").map((value) => value.trim()).filter(Boolean);
@@ -863,6 +874,7 @@ function DriveSettings({
             {companyProfiles.map(profile => <option key={String(profile.id)} value={String(profile.id)}>{String(profile.company_name)}</option>)}
           </select>
         </label>
+        {companyProfilesError && <p role="status" className="text-sm text-amber-700 sm:col-span-2">{companyProfilesError}</p>}
         {input("company_name", "Company")}
         {input("role_title", "Role")}
         <label className="block text-sm">
@@ -922,7 +934,7 @@ function DriveSettings({
             }
           />
         </label>
-        <button type="button" className={`${btn} sm:col-span-2`} onClick={async () => { try { const profile = await collegeApi.save<Data>("company-profiles", {company_name: String(form.company_name || ""), company_description: String(form.company_description || ""), company_website: String(form.company_website || ""), company_linkedin: String(form.company_linkedin || "")}); setCompanyProfiles(items => [...items.filter(item => item.id !== profile.id), profile]); setForm(value=>({...value,company_profile_id:String(profile.id)})); setWarning("Company profile saved for reuse and linked to this drive."); } catch (error) { setWarning(collegeError(error)); } }}>Save as reusable company profile</button>
+        <button type="button" className={`${btn} sm:col-span-2`} disabled={Boolean(companyProfilesError)} onClick={async () => { try { const profile = await collegeApi.save<unknown>("company-profiles", {company_name: String(form.company_name || ""), company_description: String(form.company_description || ""), company_website: String(form.company_website || ""), company_linkedin: String(form.company_linkedin || "")}); if (!profile || typeof profile !== "object" || Array.isArray(profile) || typeof (profile as Data).id !== "string" || typeof (profile as Data).company_name !== "string") throw new Error("The company profile response was invalid."); const validProfile = profile as Data; setCompanyProfiles(items => [...items.filter(item => item.id !== validProfile.id), validProfile]); setForm(value=>({...value,company_profile_id:String(validProfile.id)})); setWarning("Company profile saved for reuse and linked to this drive."); } catch (error) { setWarning(collegeError(error)); } }}>Save as reusable company profile</button>
       </>
     ) : title === "Interview configuration" ? (
       <>
