@@ -210,6 +210,15 @@ export default function CollegeManagementPage() {
       setVersion((v) => v + 1);
     } catch (e) { setError(collegeError(e)); }
   }
+  async function deleteDrive(drive: Drive) {
+    if (!window.confirm(`Delete ${drive.company_name} · ${drive.role_title}? This removes the drive from placement management.`)) return;
+    try {
+      await collegeApi.remove(`drives/${drive.id}`);
+      setDrives(current => current.filter(item => item.id !== drive.id));
+      setNotice("Drive deleted.");
+      setVersion(v => v + 1);
+    } catch (e) { setError(collegeError(e)); }
+  }
   if (accessLoading) return <p role="status">Loading placement management…</p>;
   if (accessError || !access?.enabled)
     return (
@@ -356,6 +365,7 @@ export default function CollegeManagementPage() {
           setSort={setSort}
           refresh={() => setVersion((v) => v + 1)}
           toggleLock={toggleDriveLock}
+          deleteDrive={deleteDrive}
           create={() =>
             setParams((p) => {
               p.set("create", "1");
@@ -403,6 +413,7 @@ function PlacementLanding({
   setSort,
   refresh,
   toggleLock,
+  deleteDrive,
   create,
   resumeDraft,
   deleteDraft,
@@ -426,6 +437,7 @@ function PlacementLanding({
   setSort: (v: string) => void;
   refresh: () => void;
   toggleLock: (drive: Drive) => void;
+  deleteDrive: (drive: Drive) => void;
   create: () => void;
   resumeDraft: (id:string) => void;
   deleteDraft: (id:string) => void;
@@ -551,6 +563,7 @@ function PlacementLanding({
               manage={() => manage(d.id)}
               edit={() => edit(d.id)}
               toggleLock={() => void toggleLock(d)}
+              deleteDrive={() => void deleteDrive(d)}
             />
           ))}
         </div>
@@ -590,12 +603,14 @@ function DriveCard({
   manage,
   edit,
   toggleLock,
+  deleteDrive,
 }: {
   drive: Drive;
   collegeTimezone: string;
   manage: () => void;
   edit: () => void;
   toggleLock: () => void;
+  deleteDrive: () => void;
 }) {
   const assigned = drive.assignment_count || 0,
     completed = drive.completed_count || 0,
@@ -634,6 +649,7 @@ function DriveCard({
         <button className={primary} onClick={manage}>Manage drive</button>
         <button className={button} onClick={edit}>Edit drive</button>
         <button className={`${button} ${drive.is_locked ? "border-emerald-200 text-emerald-700 hover:bg-emerald-50" : "border-amber-200 text-amber-700 hover:bg-amber-50"}`} onClick={toggleLock}>{drive.is_locked ? "Unlock drive" : "Lock drive"}</button>
+        <button className={`${button} border-rose-200 text-rose-700 hover:bg-rose-50`} onClick={deleteDrive}>Delete drive</button>
       </div>
     </article>
   );

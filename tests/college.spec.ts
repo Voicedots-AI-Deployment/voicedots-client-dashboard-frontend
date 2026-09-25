@@ -170,6 +170,54 @@ test('interview end ordering error appears beside the end input', async ({page})
   await expect(page.getByLabel('Interview ends date')).toBeFocused();
 });
 
+test('interview window accepts any minute and saves it precisely', async ({page})=>{
+  await setup(page);
+  let payload: Record<string, unknown> = {};
+  await page.route('**/v3/college/drives', route => route.request().method() === 'POST' ? (payload=route.request().postDataJSON(),route.fulfill({json:{drive_id:'minute-drive',status:'scheduled',warnings:[]}})) : route.fallback());
+  await page.getByRole('button',{name:'Create drive',exact:true}).click();
+  await page.getByLabel('Company name').fill('Northstar');
+  await page.locator('#role_title').fill('Data Analyst');
+  await page.getByLabel('Location').fill('Remote');
+  await page.getByLabel('Job description').fill('Analyze business data and present findings.');
+  await page.getByRole('button',{name:'Continue'}).click();
+  await page.getByLabel('Interview starts date').fill('2027-01-10');
+  await page.getByLabel('Interview starts hour').selectOption('9');
+  await page.getByLabel('Interview starts minute').fill('35');
+  await page.getByLabel('Interview starts AM / PM').selectOption('AM');
+  await page.getByLabel('Interview ends date').fill('2027-01-11');
+  await page.getByLabel('Interview ends hour').selectOption('6');
+  await page.getByLabel('Interview ends AM / PM').selectOption('PM');
+  await page.getByRole('button',{name:'4. Questions'}).click();
+  await page.getByRole('button',{name:'5. Eligibility'}).click();
+  await page.getByRole('checkbox',{name:/Bachelor of Technology.*B\.Tech/i}).check();
+  await page.getByRole('checkbox',{name:/Computer Science.*CSE/i}).check();
+  await page.locator('#graduation_from').fill('2027');
+  await page.locator('#graduation_to').fill('2028');
+  await page.getByRole('button',{name:'Continue'}).click();
+  if(await page.getByRole('dialog').isVisible().catch(()=>false)) await page.getByRole('button',{name:'Confirm and review'}).click();
+  await page.getByRole('button',{name:'Create placement drive'}).click();
+  expect(payload.window_start).toBe('2027-01-10T09:35');
+  await expect(page.getByRole('alert')).toHaveCount(0);
+});
+
+test('drive deletion uses delete endpoint and removes the drive rather than unlocking it',async({page})=>{
+  let deleted=false,lockRequested=false;
+  await setup(page,true,{driveRows:[{id:'drive-delete',company_name:'Northstar',role_title:'Analyst',status:'scheduled',location:'Remote'}]});
+  await page.route('**/v3/college/drives',route=>route.request().method()==='GET'&&deleted?route.fulfill({json:[]}):route.fallback());
+  await page.route('**/v3/college/drives/drive-delete',route=>{
+    if(route.request().method()==='DELETE'){deleted=true;return route.fulfill({json:{status:'removed'}});}
+    return route.fallback();
+  });
+  await page.route('**/v3/college/drives/drive-delete/lock',route=>{lockRequested=true;return route.fulfill({json:{is_locked:true}});});
+  page.on('dialog',dialog=>dialog.accept());
+  await page.getByRole('button',{name:'Delete drive'}).click();
+  await expect.poll(()=>deleted).toBe(true);
+  await expect(page.getByRole('heading',{name:'Northstar'})).toHaveCount(0);
+  await expect(page.getByRole('status')).toContainText('Drive deleted.');
+  expect(deleted).toBe(true);
+  expect(lockRequested).toBe(false);
+});
+
 test('save draft persists partial fields and remains resumable', async ({page})=>{
   await setup(page);
   let draftPayload:Record<string,unknown>={},draftSaved=false;
