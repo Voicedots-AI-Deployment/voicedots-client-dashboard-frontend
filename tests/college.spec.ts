@@ -239,7 +239,7 @@ test('save draft persists partial fields and remains resumable', async ({page})=
   await expect(page.getByLabel('Company name')).toHaveValue('Northstar Technologies');
 });
 
-test('stale cloud draft ID is recovered through idempotent create and appears in the draft list',async({page})=>{
+test('stale cloud draft ID is recovered without a missing-resource request and appears in the draft list',async({page})=>{
   await setup(page);
   const key='stable-drive-draft-key-12345';
   const local={id:'stale-draft-id',saved_at:'2026-09-25T10:00:00Z',payload:{form:{company_name:'Recovered Employer'},selection:[],rounds:[],programIds:[],departments:[],years:[],step:0,creationKey:key}};
@@ -255,10 +255,11 @@ test('stale cloud draft ID is recovered through idempotent create and appears in
     }
     return route.fallback();
   });
-  await page.route('**/v3/college/drive-drafts/stale-draft-id',route=>route.request().method()==='PUT'?route.fulfill({status:404,json:{detail:'Drive draft not found.'}}):route.fallback());
-  await page.route('**/v3/college/drive-drafts/recovered-cloud-id',route=>route.fulfill({json:created}));
+  let stalePutRequested=false;
+  await page.route('**/v3/college/drive-drafts/stale-draft-id',route=>{stalePutRequested=true;return route.fulfill({status:404,json:{detail:'Drive draft not found.'}});});
   await page.getByRole('button',{name:'Create drive',exact:true}).click();
   await expect.poll(()=>created!==null,{timeout:10000}).toBe(true);
+  expect(stalePutRequested).toBe(false);
   await page.getByRole('button',{name:'Back to placement drives'}).click();
   await expect(page.getByText('Cloud draft · Step 1 of 6')).toBeVisible();
   await expect(page.getByRole('heading',{name:'Recovered Employer'})).toBeVisible();

@@ -105,17 +105,30 @@ export default function CreateDriveWizard({programs,drive,draftId,collegeTimezon
       setForm({...empty,company_profile_id:drive.company_profile_id||'',drive_type:drive.drive_type||'official_placement',company_name:drive.company_name||'',company_description:drive.company_description||'',company_website:drive.company_website||'',company_linkedin:drive.company_linkedin||'',role_title:drive.role_title||'',job_type:drive.job_type||'full_time',location:drive.location||'',salary_type:drive.salary_type||(drive.package_min_lpa!=null&&drive.package_max_lpa==null?'fixed':'range'),salary_min_amount:String(drive.salary_min_amount??(drive.package_min_lpa==null?'':drive.package_min_lpa*100000)),salary_max_amount:String(drive.salary_max_amount??(drive.package_max_lpa==null?'':drive.package_max_lpa*100000)),salary_currency:drive.salary_currency||drive.package_currency||'INR',salary_period:drive.salary_period||'annual',jd_text:drive.jd_raw_text||'',window_start:wallTimeFromInstant(drive.window_start_at,collegeTimezone),window_end:wallTimeFromInstant(drive.window_end_at,collegeTimezone),drive_date:dateFromApi(drive.drive_date),application_deadline:dateFromApi(drive.application_deadline),duration:String(drive.interview_duration_minutes||30),max_attempts:String(drive.max_attempts||1),difficulty_tier:drive.difficulty_tier||'intermediate',min_cgpa:String(drive.criteria_min_cgpa??0)});
       setSelection(drive.agent_selection?.length?drive.agent_selection:defaultSelection);setRounds(drive.round_configuration||[]);setProgramIds(drive.criteria_programs||[]);setDepartments(drive.criteria_department_codes||[]);setYears((drive.criteria_graduation_years||[]).map(String));setDraftLoaded(true);return;
     }
-    if(draftId){
-      collegeApi.get<DriveDraft>(`drive-drafts/${draftId}`).then(row=>{
-        hydrate(row.payload,row.step);draftIdRef.current=row.id;setCreationKey(row.client_draft_key);
-      }).catch(e=>setFormError(collegeError(e))).finally(()=>setDraftLoaded(true));
-      return;
-    }
-    try{
-      const saved=JSON.parse(localStorage.getItem(DRAFT_KEY)||'null');
-      if(saved?.payload){hydrate(saved.payload,saved.payload.step??0);setCreationKey(saved.payload.creationKey||crypto.randomUUID());draftIdRef.current=saved.id||null;}
-    }catch{localStorage.removeItem(DRAFT_KEY);}
-    setDraftLoaded(true);
+    const controller=new AbortController();
+    void (async()=>{
+      let saved:{id?:string|null;payload?:DraftPayload;saved_at?:string}|null=null;
+      try{saved=JSON.parse(localStorage.getItem(DRAFT_KEY)||'null');}catch{localStorage.removeItem(DRAFT_KEY);}
+      const savedKey=typeof saved?.payload?.creationKey==='string'?saved.payload.creationKey:crypto.randomUUID();
+      let rows:DriveDraft[]=[];
+      if(draftId||saved?.id){
+        try{rows=await collegeApi.get<DriveDraft[]>('drive-drafts',controller.signal);}catch{rows=[];}
+      }
+      if(controller.signal.aborted)return;
+      const row=rows.find(item=>draftId
+        ? item.id===draftId||(item.client_draft_key&&item.client_draft_key===savedKey)
+        : item.id===saved?.id||(item.client_draft_key&&item.client_draft_key===savedKey));
+      if(row){
+        const localIsNewer=Boolean(saved?.payload&&Date.parse(saved.saved_at||'')>Date.parse(row.updated_at||''));
+        hydrate(localIsNewer?saved!.payload!:row.payload,localIsNewer?(saved!.payload!.step??0):row.step);
+        setCreationKey(row.client_draft_key||savedKey);draftIdRef.current=row.id;
+      }else if(saved?.payload&&(!draftId||saved.id===draftId)){
+        hydrate(saved.payload,saved.payload.step??0);setCreationKey(savedKey);draftIdRef.current=null;
+        if(saved.id)setNotice('Recovered your saved draft. Syncing it to your account now.');
+      }else if(draftId)setFormError('This draft is no longer available.');
+      setDraftLoaded(true);
+    })();
+    return()=>controller.abort();
   },[drive,draftId,collegeTimezone]);
 
   function hydrate(value:DraftPayload,storedStep:number){
