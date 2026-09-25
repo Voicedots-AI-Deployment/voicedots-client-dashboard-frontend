@@ -35,7 +35,7 @@ export function LeadsCapturedChart({ data }: Props) {
       </div>
 
       <div className="h-[200px] w-full">
-        <ResponsiveContainer width="100%" height="100%">
+        <ResponsiveContainer width="100%" height="100%" initialDimension={{ width: 320, height: 200 }}>
           <BarChart data={data} margin={{ top: 5, right: 5, left: 0, bottom: 0 }}>
             <CartesianGrid vertical={false} strokeDasharray="3 3" stroke="#e5e7eb" />
             <XAxis
