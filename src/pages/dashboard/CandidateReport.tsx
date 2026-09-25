@@ -3,6 +3,7 @@ import { ArrowLeft, FileText, ShieldCheck, Volume2 } from "lucide-react";
 import { collegeApi, collegeError, type Drive } from "@/api/collegeApi";
 import { btn, field, panel } from "./interviewAgentTypes";
 import { displayName } from "./placementDisplay";
+import { roleLabels } from "./interviewAgentTypes";
 
 type Data = Record<string, unknown>;
 type Report = Data & {
@@ -165,7 +166,7 @@ export default function CandidateReport({
     [resultSettings, setResultSettings] = useState<Data | null>(null);
   const [transcript, setTranscript] = useState<Data | null>(null),
     [integrity, setIntegrity] = useState<Data | null>(null);
-  const [decision, setDecision] = useState("hold"),
+  const [decision, setDecision] = useState(""),
     [note, setNote] = useState(""),
     [schedule, setSchedule] = useState("");
   const [confirm, setConfirm] = useState<
@@ -191,7 +192,7 @@ export default function CandidateReport({
       setDecisionData(decisionValue);
       setResultSettings(settingsValue);
       const current = decisionValue.decision as Data | undefined;
-      if (current?.decision) setDecision(String(current.decision));
+      setDecision(current?.decision ? String(current.decision) : "");
     } catch (e) {
       setError(collegeError(e));
     } finally {
@@ -299,6 +300,21 @@ export default function CandidateReport({
     events = (integrity?.events || []) as Data[],
     history = (decisionData?.history || []) as Data[];
   const recommendationLabels = (resultSettings?.recommendation_labels || {}) as Data;
+  const roundRole = (trackValue: unknown, configured?: unknown) => {
+    const track = String(trackValue || "").toLowerCase();
+    const saved = drive?.agent_selection?.find(item => item.track === track)?.profile?.role;
+    const allowed = new Set([...(drive?.agent_selection || []).map(item => item.profile?.role).filter(Boolean), ...Object.values(roleLabels)]);
+    const candidate = String(saved || configured || "").trim();
+    if (candidate && allowed.has(candidate)) return candidate;
+    return roleLabels[track] || "Interviewer role not configured";
+  };
+  const orderedHistory = [...history].sort((a, b) => {
+    const aTime = Date.parse(String(a.decided_at || a.created_at || ""));
+    const bTime = Date.parse(String(b.decided_at || b.created_at || ""));
+    if (!Number.isFinite(aTime)) return Number.isFinite(bTime) ? 1 : 0;
+    if (!Number.isFinite(bTime)) return -1;
+    return bTime - aTime;
+  });
   const comparable = pri.comparable !== false && typeof pri.score === "number";
   return (
     <section className="space-y-6 pb-12 text-slate-900 dark:text-white">
@@ -573,12 +589,7 @@ export default function CandidateReport({
                         Round {index + 1}
                       </p>
                       <strong>
-                        {show(
-                          round.agent_name ||
-                            displayName(
-                              show(round.agent_type, "Interview agent"),
-                            ),
-                        )}
+                        {roundRole(round.agent_type || round.track, round.interviewer_role)}
                       </strong>
                     </div>
                     <span>
@@ -627,12 +638,7 @@ export default function CandidateReport({
               <article className={panel} key={index}>
                 <div className="flex justify-between gap-3">
                   <p className="text-xs font-semibold uppercase text-indigo-600">
-                    {displayName(
-                      show(
-                        review.agent_type || review.track,
-                        `Question ${index + 1}`,
-                      ),
-                    )}
+                    {roundRole(review.agent_type || review.track)}
                   </p>
                   <span>
                     {displayName(
@@ -690,7 +696,7 @@ export default function CandidateReport({
                   >
                     <p className="text-xs font-semibold uppercase text-slate-500">
                       Turn {show(turn.turn_index, String(index + 1))} ·{" "}
-                      {displayName(show(turn.agent_type, "Agent"))} ·{" "}
+                      {roundRole(turn.agent_type)} ·{" "}
                       {displayName(show(turn.kind, "Question"))}
                     </p>
                     <p className="mt-2 font-semibold">
@@ -817,22 +823,26 @@ export default function CandidateReport({
                 className={field}
                 value={decision}
                 onChange={(event) => setDecision(event.target.value)}
+                required
               >
+                <option value="">Select a decision</option>
                 <option value="shortlist">Shortlisted</option>
                 <option value="hold">Hold</option>
                 <option value="reject">Rejected</option>
               </select>
             </label>
             <label className="mt-4 block text-sm">
-              Officer note
+              Officer note (Optional)
               <textarea
                 className={field}
                 maxLength={2000}
+                placeholder="Add context for this decision (optional)"
                 value={note}
                 onChange={(event) => setNote(event.target.value)}
               />
+              <span className="mt-1 block text-right text-xs text-slate-500">{2000 - note.length} characters remaining</span>
             </label>
-            <button className={`${btn} mt-4`} disabled={busy}>
+            <button className={`${btn} mt-4`} disabled={busy || !decision}>
               Review decision
             </button>
           </form>
@@ -891,7 +901,7 @@ export default function CandidateReport({
           <h4 className="font-bold">Decision history</h4>
           <div className="mt-4 space-y-3">
             {history.length ? (
-              history.map((item, index) => (
+              orderedHistory.map((item, index) => (
                 <div className="rounded-xl border p-3 text-sm" key={index}>
                   <div className="flex justify-between gap-3">
                     <strong>{decisionLabel(item.decision)}</strong>

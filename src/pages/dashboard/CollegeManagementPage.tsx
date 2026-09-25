@@ -30,8 +30,22 @@ const input =
 const button =
   "inline-flex items-center justify-center gap-2 rounded-xl border border-slate-200 px-4 py-2.5 text-sm font-semibold disabled:opacity-50 dark:border-slate-700";
 const primary = `${button} border-indigo-600 bg-indigo-600 text-white`;
-const date = (value?: string) =>
-  value ? new Date(value).toLocaleString() : "Not scheduled";
+const date = (value?: string, timeZone = "UTC") =>
+  value ? `${new Date(value).toLocaleString(undefined,{timeZone})} (${timeZone})` : "Not scheduled";
+const compareDates = (left?: string, right?: string) => {
+  const a = left ? Date.parse(left) : NaN;
+  const b = right ? Date.parse(right) : NaN;
+  if (!Number.isFinite(a)) return Number.isFinite(b) ? 1 : 0;
+  if (!Number.isFinite(b)) return -1;
+  return b - a;
+};
+const compareAscendingDates = (left?: string, right?: string) => {
+  const a = left ? Date.parse(left) : NaN;
+  const b = right ? Date.parse(right) : NaN;
+  if (!Number.isFinite(a)) return Number.isFinite(b) ? 1 : 0;
+  if (!Number.isFinite(b)) return -1;
+  return a - b;
+};
 const effectiveStatus = (drive: Drive) => {
   if (drive.status === "cancelled" || drive.status === "draft") return drive.status;
   const now = Date.now();
@@ -47,8 +61,10 @@ type Landing = {
   eligible_candidates?: number;
   eligible_drive_matches?: number;
   interviews_completed?: number;
+  live_interviews?: number;
   completion_rate?: number;
 };
+type DriveDraftSummary = { id:string; step:number; payload:{form?:{company_name?:string;role_title?:string}}; updated_at:string };
 
 export default function CollegeManagementPage() {
   const {
@@ -64,8 +80,10 @@ export default function CollegeManagementPage() {
       | "agents"
       | "settings",
     driveId = params.get("drive"),
+    draftId = params.get("draft"),
     creating = params.get("create") === "1";
   const [drives, setDrives] = useState<Drive[]>([]),
+    [drafts, setDrafts] = useState<DriveDraftSummary[]>([]),
     [programs, setPrograms] = useState<Program[]>([]),
     [analytics, setAnalytics] = useState<Analytics | null>(null),
     [overview, setOverview] = useState<Landing>({}),
@@ -96,6 +114,7 @@ export default function CollegeManagementPage() {
       })
       .catch((e) => !c.signal.aborted && setError(collegeError(e)))
       .finally(() => !c.signal.aborted && setLoading(false));
+    collegeApi.get<DriveDraftSummary[]>("drive-drafts", c.signal).then(setDrafts).catch(() => setDrafts([]));
     return () => c.abort();
   }, [access?.enabled, version, driveId]);
   const filtered = useMemo(
@@ -114,12 +133,10 @@ export default function CollegeManagementPage() {
           sort === "company"
             ? a.company_name.localeCompare(b.company_name)
             : sort === "starting"
-              ? +new Date(a.window_start_at || 0) -
-                +new Date(b.window_start_at || 0)
+              ? compareAscendingDates(a.window_start_at, b.window_start_at)
               : sort === "ending"
-                ? +new Date(a.window_end_at || 0) -
-                  +new Date(b.window_end_at || 0)
-                : +new Date(b.created_at || 0) - +new Date(a.created_at || 0),
+                ? compareAscendingDates(a.window_end_at, b.window_end_at)
+                : compareDates(a.created_at, b.created_at),
         ),
     [drives, query, status, type, sort],
   );
@@ -150,6 +167,7 @@ export default function CollegeManagementPage() {
       p.set("view", view);
       p.delete("drive");
       p.delete("create");
+      p.delete("draft");
       p.delete("section");
       return p;
     });
@@ -157,16 +175,21 @@ export default function CollegeManagementPage() {
     return (
       <CreateDriveWizard
         programs={programs}
-        onCancel={() =>
+        collegeTimezone={access.timezone || "UTC"}
+        draftId={draftId}
+        onCancel={() => {
           setParams((p) => {
             p.delete("create");
+            p.delete("draft");
             return p;
-          })
-        }
+          }, { replace:true });
+          setVersion(v=>v+1);
+        }}
         onSaved={(message) => {
           setNotice(message);
           setParams((p) => {
             p.delete("create");
+            p.delete("draft");
             return p;
           });
           setVersion((v) => v + 1);
@@ -177,6 +200,7 @@ export default function CollegeManagementPage() {
     return (
       <DriveManagement
         driveId={driveId}
+        collegeTimezone={access.timezone || "UTC"}
         back={() =>
           setParams((p) => {
             p.delete("drive");
@@ -256,7 +280,8 @@ export default function CollegeManagementPage() {
         <PlacementLanding
           drives={filtered}
           allDrives={drives}
-          analytics={analytics}
+          drafts={drafts}
+          collegeTimezone={access.timezone || "UTC"}
           overview={overview}
           loading={loading}
           query={query}
@@ -275,6 +300,8 @@ export default function CollegeManagementPage() {
               return p;
             })
           }
+          resumeDraft={(id) => setParams((p) => { p.set("create", "1"); p.set("draft", id); return p; })}
+          deleteDraft={async (id) => { try { await collegeApi.remove(`drive-drafts/${id}`); setDrafts(current=>current.filter(item=>item.id!==id)); } catch (e) { setError(collegeError(e)); } }}
           manage={(id) =>
             setParams((p) => {
               p.set("drive", id);
@@ -299,7 +326,8 @@ export default function CollegeManagementPage() {
 function PlacementLanding({
   drives,
   allDrives,
-  analytics,
+  drafts,
+  collegeTimezone,
   overview,
   loading,
   query,
@@ -313,12 +341,15 @@ function PlacementLanding({
   refresh,
   toggleLock,
   create,
+  resumeDraft,
+  deleteDraft,
   manage,
   edit,
 }: {
   drives: Drive[];
   allDrives: Drive[];
-  analytics: Analytics | null;
+  drafts: DriveDraftSummary[];
+  collegeTimezone: string;
   overview: Landing;
   loading: boolean;
   query: string;
@@ -332,12 +363,14 @@ function PlacementLanding({
   refresh: () => void;
   toggleLock: (drive: Drive) => void;
   create: () => void;
+  resumeDraft: (id:string) => void;
+  deleteDraft: (id:string) => void;
   manage: (id: string) => void;
   edit: (id: string) => void;
 }) {
   return (
     <>
-      <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
+      <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-5">
         <Kpi
           icon={<BriefcaseBusiness />}
           label="Active drives"
@@ -367,18 +400,17 @@ function PlacementLanding({
         <Kpi
           icon={<CheckCircle2 />}
           label="Interviews completed"
-          value={
-            overview.interviews_completed ??
-            analytics?.summary?.completed_attempts ??
-            0
-          }
-          note={
-            overview.completion_rate == null
-              ? "Completed placement interviews"
-              : `${overview.completion_rate}% completion rate`
-          }
+          value={overview.interviews_completed ?? 0}
+          note="Completed drive assignments; held-for-review results are excluded"
+        />
+        <Kpi
+          icon={<Users />}
+          label="Live interviews"
+          value={overview.live_interviews ?? 0}
+          note="Students actively connected now"
         />
       </div>
+      {drafts.length>0&&<section className={`${card} space-y-4`}><div><h2 className="text-lg font-bold">Saved drive drafts</h2><p className="mt-1 text-sm text-slate-500">Continue setup where you left off. Draft details are visible only to your institution.</p></div><div className="grid gap-3 md:grid-cols-2 xl:grid-cols-3">{drafts.map(draft=><article className="flex items-center justify-between gap-3 rounded-xl border border-violet-200 bg-violet-50/50 p-4 dark:border-violet-900 dark:bg-violet-950/20" key={draft.id}><div className="min-w-0"><span className="rounded-full bg-violet-100 px-2 py-1 text-xs font-semibold text-violet-800 dark:bg-violet-900 dark:text-violet-100">Draft · Step {Math.min(6,draft.step+1)} of 6</span><h3 className="mt-2 truncate font-semibold">{draft.payload?.form?.company_name||"New placement drive"}</h3><p className="truncate text-sm text-slate-500">{draft.payload?.form?.role_title||"Role not added yet"} · Saved {draft.updated_at?new Date(draft.updated_at).toLocaleString():"recently"}</p></div><div className="flex shrink-0 gap-2"><button type="button" className={primary} onClick={()=>resumeDraft(draft.id)}>Continue</button><button type="button" className={button} aria-label="Delete draft" onClick={()=>deleteDraft(draft.id)}>Delete</button></div></article>)}</div></section>}
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div>
           <h2 className="text-xl font-bold">Placement drives</h2>
@@ -437,7 +469,7 @@ function PlacementLanding({
           value={sort}
           onChange={(e) => setSort(e.target.value)}
         >
-          <option value="recent">Recently created</option>
+          <option value="recent">Newest first</option>
           <option value="starting">Starting soon</option>
           <option value="ending">Ending soon</option>
           <option value="company">Company A–Z</option>
@@ -451,6 +483,7 @@ function PlacementLanding({
             <DriveCard
               key={d.id}
               drive={d}
+              collegeTimezone={collegeTimezone}
               manage={() => manage(d.id)}
               edit={() => edit(d.id)}
               toggleLock={() => void toggleLock(d)}
@@ -489,11 +522,13 @@ function Kpi({
 }
 function DriveCard({
   drive,
+  collegeTimezone,
   manage,
   edit,
   toggleLock,
 }: {
   drive: Drive;
+  collegeTimezone: string;
   manage: () => void;
   edit: () => void;
   toggleLock: () => void;
@@ -503,8 +538,7 @@ function DriveCard({
     progress = assigned ? Math.round((completed / assigned) * 100) : 0;
   const readable = (value?: string) => displayName(value?.replace(/_/g, " "));
   const currentStatus = effectiveStatus(drive);
-  const statusLabel = drive.is_locked ? "Locked" : readable(currentStatus);
-  const statusTone = drive.is_locked ? "bg-slate-900 text-white" : currentStatus === "active" ? "bg-emerald-50 text-emerald-700" : currentStatus === "scheduled" ? "bg-blue-50 text-blue-700" : currentStatus === "closed" ? "bg-slate-100 text-slate-700" : "bg-amber-50 text-amber-800";
+  const statusTone = currentStatus === "active" ? "bg-emerald-50 text-emerald-700" : currentStatus === "scheduled" ? "bg-blue-50 text-blue-700" : currentStatus === "closed" ? "bg-slate-100 text-slate-700" : "bg-amber-50 text-amber-800";
   return (
     <article className={`${card} transition-shadow hover:shadow-md`}>
       <div className="flex items-start justify-between gap-4">
@@ -512,22 +546,25 @@ function DriveCard({
           <p className="text-xs font-semibold uppercase tracking-[0.14em] text-indigo-600">
             {readable(drive.drive_type || "official_placement")}
           </p>
-          <h3 className="mt-2 truncate text-xl font-bold">{drive.company_name}</h3>
+          <h3 className="mt-2 break-words text-xl font-bold">{drive.company_name}</h3>
           <p className="mt-1 text-sm text-slate-600">{drive.role_title}</p>
         </div>
-        <span className={`shrink-0 rounded-full px-3 py-1 text-xs font-semibold ${statusTone}`}>
-          {statusLabel}
-        </span>
+        <div className="flex shrink-0 flex-wrap justify-end gap-2">
+          <span className={`rounded-full px-3 py-1 text-xs font-semibold ${statusTone}`}>{readable(currentStatus)}</span>
+          {drive.is_locked && <span className="rounded-full bg-slate-900 px-3 py-1 text-xs font-semibold text-white">Locked</span>}
+        </div>
       </div>
       <dl className="mt-5 grid grid-cols-2 gap-x-6 gap-y-4 text-sm">
         <div><dt className="text-xs text-slate-500">Job type</dt><dd className="mt-1 font-medium">{readable(drive.job_type || "full_time")}</dd></div>
         <div><dt className="text-xs text-slate-500">Location</dt><dd className="mt-1 font-medium">{drive.location || "Not supplied"}</dd></div>
-        <div><dt className="text-xs text-slate-500">Starts</dt><dd className="mt-1 font-medium">{date(drive.window_start_at)}</dd></div>
-        <div><dt className="text-xs text-slate-500">Ends</dt><dd className="mt-1 font-medium">{date(drive.window_end_at)}</dd></div>
+        <div><dt className="text-xs text-slate-500">Starts</dt><dd className="mt-1 font-medium">{date(drive.window_start_at,collegeTimezone)}</dd></div>
+        <div><dt className="text-xs text-slate-500">Ends</dt><dd className="mt-1 font-medium">{date(drive.window_end_at,collegeTimezone)}</dd></div>
+        <div><dt className="text-xs text-slate-500">Salary details</dt><dd className="mt-1 font-medium">{drive.salary_min_amount == null ? "Not specified" : `${drive.salary_currency || "INR"} ${Number(drive.salary_min_amount).toLocaleString()}${drive.salary_type === "range" && drive.salary_max_amount != null ? ` – ${Number(drive.salary_max_amount).toLocaleString()}` : ""} per ${drive.salary_period === "monthly" ? "month" : "year"}`}</dd></div>
+        <div><dt className="text-xs text-slate-500">Application deadline</dt><dd className="mt-1 font-medium">{date(drive.application_deadline,collegeTimezone)}</dd></div>
+        <div><dt className="text-xs text-slate-500">Latest eligibility preview</dt><dd className="mt-1 font-medium">{drive.latest_snapshot_eligible_count == null ? "Not available" : `${drive.latest_snapshot_eligible_count} eligible students`}</dd></div>
       </dl>
       <div className="mt-5 border-t border-slate-100 pt-4">
-        <div className="flex items-center justify-between text-xs"><span>{assigned} assigned · {completed} completed</span><strong>{progress}%</strong></div>
-        <div className="mt-2 h-2 overflow-hidden rounded-full bg-slate-100"><div className="h-full rounded-full bg-indigo-600 transition-all" style={{ width: `${progress}%` }} /></div>
+        {assigned ? <><div className="flex items-center justify-between text-xs"><span>{completed} of {assigned} assigned interviews completed</span><strong>{progress}%</strong></div><div className="mt-2 h-2 overflow-hidden rounded-full bg-slate-100"><div className="h-full rounded-full bg-indigo-600 transition-all" style={{ width: `${progress}%` }} /></div></> : <p className="text-sm text-slate-500">No students assigned yet.</p>}
       </div>
       <div className="mt-5 flex flex-wrap gap-2">
         <button className={primary} onClick={manage}>Manage drive</button>

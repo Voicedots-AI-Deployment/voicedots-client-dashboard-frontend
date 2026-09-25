@@ -8,11 +8,15 @@ async function setup(page: Page, enabled = true) {
       '/v3/email/capabilities': { email_enabled: false },
       '/v3/college/roster-options': {batches:['2023-2027'],graduation_years:[2027,2028],statuses:['active']},
       '/v3/college/analytics': {summary:{total_students:0,placed_students:0,students_attended:0,total_attempts:0,completed_attempts:0,repeat_students:0,not_attended:0,participation_rate:0,completion_rate:0,average_duration_minutes:null},by_drive:[],by_program:[],trend:[],scope:'Placement interviews only.'},
-      '/v3/college/access': { enabled, college_name: 'Example Engineering College' },
+      '/v3/college/access': { enabled, college_name: 'Example Engineering College', timezone:'Asia/Kolkata' },
+      '/v3/college/company-profiles': [{id:'company-1',company_name:'Northstar Technologies',company_description:'Builds software',company_website:'https://northstar.example',company_linkedin:'https://linkedin.com/company/northstar'}],
+      '/v3/college/drives/role-suggestions': ['Data Analyst','Data Scientist','LLM Engineer'],
+      '/v3/college/drive-drafts': [],
+      '/v3/college/drives/eligibility/preview': {total_students:0,eligible_count:0,not_eligible_count:0,missing_photo_count:0,candidates:[]},
       '/v3/college/agents': {agents:[],tracks:['hr','domain','industry','manager'].map((track,i)=>({track,default_profile:{track,name:['Priya','Arjun','Neha','Vikram'][i],role:track,intro_message:'Hello {name}',personality_prompt:'Interview for {role}',tone:'professional',voice_id:'flux-priya-en'}}))},
       '/v3/college/drives': [{ id: 'drive-1', company_name: 'Example Company', role_title: 'Software Engineer', status: 'draft', location: 'Chennai' }],
       '/v3/college/students': { items: [], total: 0 },
-      '/v3/college/academic-catalog': { programs: [{ code: 'B.Tech', display_name: 'Bachelor of Technology', duration_years: 4, departments: [{ code: 'CSE', display_name: 'Computer Science' },{ code: 'IT', display_name: 'Information Technology' }] }] },
+      '/v3/college/academic-catalog': { programs: [{ code: 'B.Tech', display_name: 'Bachelor of Technology', duration_years: 4, departments: [{ code: 'CSE', display_name: 'Computer Science' },{ code: 'IT', display_name: 'Information Technology' }] }], graduation_years:[2027,2028] },
     };
     return route.fulfill({ json: values[path] || {} });
   });
@@ -20,20 +24,26 @@ async function setup(page: Page, enabled = true) {
 }
 async function driveFields(page: Page) {
   await page.getByRole('button', { name: 'Create drive', exact: true }).click();
-  await page.getByLabel('Company', { exact: true }).fill('Campus Employer');
-  await page.getByLabel('Role', { exact: true }).fill('Software Engineer');
-  await page.getByLabel('Location', { exact: true }).fill('Chennai');
-  await page.getByLabel('Job description', { exact: true }).fill('Build and maintain accessible web applications using JavaScript and Python.');
-  await page.getByLabel('Interview start').fill('2027-01-10T09:00');
-  await page.getByLabel('Interview end').fill('2027-01-11T18:00');
-  await page.locator('fieldset').filter({has:page.getByText('Eligible programs',{exact:true})}).locator('summary').click();
-  await page.getByRole('checkbox',{name:'Bachelor of technology (B.Tech)'}).check();
-  await page.locator('fieldset').filter({has:page.getByText('Eligible departments',{exact:true})}).locator('summary').click();
-  await page.getByRole('checkbox',{name:'Computer science (CSE)'}).check();
-  await page.getByRole('checkbox',{name:'Information technology (IT)'}).check();
-  await page.locator('fieldset').filter({has:page.getByText('Graduation years',{exact:true})}).locator('summary').click();
-  await page.getByRole('checkbox',{name:'2027',exact:true}).check();
-  await page.getByRole('checkbox',{name:'2028',exact:true}).check();
+  await page.getByLabel('Company name').fill('Campus Employer');
+  await page.locator('#role_title').fill('Software Engineer');
+  await page.getByLabel('Location').fill('Chennai');
+  await page.getByLabel('Job description').fill('Build and maintain accessible web applications using JavaScript and Python.');
+  await page.getByRole('button', {name:'Continue'}).click();
+  await page.getByLabel('Interview starts date').fill('2027-01-10');
+  await page.getByLabel('Interview starts hour').selectOption('9');
+  await page.getByLabel('Interview starts AM / PM').selectOption('AM');
+  await page.getByLabel('Interview ends date').fill('2027-01-11');
+  await page.getByLabel('Interview ends hour').selectOption('6');
+  await page.getByLabel('Interview ends AM / PM').selectOption('PM');
+  await page.getByRole('button',{name:'4. Questions'}).click();
+  await page.getByRole('button',{name:'5. Eligibility'}).click();
+  await page.getByRole('checkbox',{name:/Bachelor of Technology.*B\.Tech/i}).check();
+  await page.getByRole('checkbox',{name:/Computer Science.*CSE/i}).check();
+  await page.getByRole('checkbox',{name:/Information Technology.*IT/i}).check();
+  await page.locator('#graduation_from').fill('2027');
+  await page.locator('#graduation_to').fill('2028');
+  await page.getByRole('button',{name:'Continue'}).click();
+  if(await page.getByRole('dialog').isVisible().catch(()=>false)) await page.getByRole('button',{name:'Confirm and review'}).click();
 }
 
 test('unassigned client cannot see management navigation or controls', async ({ page }) => {
@@ -52,21 +62,85 @@ test('drive form uses the client API and does not supply a college identity', as
     return route.fulfill({ json: { drive_id: 'new-drive', status: 'active', warnings: [] } });
   });
   await driveFields(page);
-  await page.getByRole('button', { name: 'Create & evaluate drive' }).click();
-  await expect(page.getByText('Drive saved (active).')).toBeVisible();
+  await page.getByRole('button', {name:'Create placement drive'}).click();
+  await expect(page.getByText('Drive created (active).')).toBeVisible();
   expect(payload.eligible_departments).toEqual(['CSE', 'IT']);
   expect(payload.eligible_graduation_years).toEqual([2027, 2028]);
   expect(payload).not.toHaveProperty('college_id');
-  expect(String(payload.window_start)).toMatch(/Z$/);
+  expect(payload.window_start).toBe('2027-01-10T09:00');
+  expect(payload.window_end).toBe('2027-01-11T18:00');
+});
+
+test('company profile selection fills company information while role suggestions remain drive-specific', async ({page})=>{
+  await setup(page);
+  await page.getByRole('button',{name:'Create drive',exact:true}).click();
+  await page.getByRole('button',{name:/Northstar Technologies/}).click();
+  await expect(page.getByLabel('Company name')).toHaveValue('Northstar Technologies');
+  await expect(page.getByLabel('Company website')).toHaveValue('https://northstar.example');
+  await page.locator('#role_title').fill('Data');
+  await expect(page.locator('#drive-role-options option')).toHaveCount(3);
+  await expect(page.locator('#role_title')).toHaveValue('Data');
+});
+
+test('field validation keeps the current step and focuses the exact invalid field', async ({page})=>{
+  await setup(page);
+  await page.getByRole('button',{name:'Create drive',exact:true}).click();
+  await page.getByLabel('Company name').fill('Northstar');
+  await page.locator('#role_title').fill('Data Analyst');
+  await page.getByLabel('Location').fill('Remote');
+  await page.getByLabel('Job description').fill('Analyze operational data and build dashboards.');
+  await page.getByLabel('Company website').fill('http://northstar.example');
+  await page.getByRole('button',{name:'Continue'}).click();
+  await expect(page.getByText('Please enter a valid URL beginning with https://')).toBeVisible();
+  await expect(page.getByRole('heading',{name:'Drive & company'})).toBeVisible();
+  await expect(page.getByLabel('Company website')).toBeFocused();
+});
+
+test('interview end ordering error appears beside the end input', async ({page})=>{
+  await setup(page);
+  await page.getByRole('button',{name:'Create drive',exact:true}).click();
+  await page.getByLabel('Company name').fill('Northstar');
+  await page.locator('#role_title').fill('Data Analyst');
+  await page.getByLabel('Location').fill('Remote');
+  await page.getByLabel('Job description').fill('Analyze operational data and build dashboards.');
+  await page.getByRole('button',{name:'Continue'}).click();
+  await page.getByLabel('Interview starts date').fill('2027-01-10');
+  await page.getByLabel('Interview starts hour').selectOption('10');
+  await page.getByLabel('Interview ends date').fill('2027-01-10');
+  await page.getByLabel('Interview ends hour').selectOption('9');
+  await page.getByRole('button',{name:'Continue'}).click();
+  await expect(page.getByText('Interview end must be later than interview start.')).toBeVisible();
+  await expect(page.getByLabel('Interview ends date')).toBeFocused();
+});
+
+test('save draft persists partial fields and remains resumable', async ({page})=>{
+  await setup(page);
+  let draftPayload:Record<string,unknown>={},draftSaved=false;
+  await page.route('**/v3/college/drive-drafts',route=>{
+    if(route.request().method()==='GET')return route.fulfill({json:draftSaved?[{id:'draft-1',step:0,payload:draftPayload.payload,updated_at:'2026-09-23T10:00:00Z'}]:[]});
+    if(route.request().method()!=='POST')return route.fallback();
+    draftPayload=route.request().postDataJSON();
+    draftSaved=true;
+    return route.fulfill({json:{id:'draft-1',client_draft_key:'draft-key-1234567890',step:0,payload:draftPayload.payload,updated_at:'2026-09-23T10:00:00Z'}});
+  });
+  await page.route('**/v3/college/drive-drafts/draft-1',route=>route.fulfill({json:{id:'draft-1',client_draft_key:'draft-key-1234567890',step:0,payload:draftPayload.payload,updated_at:'2026-09-23T10:00:00Z'}}));
+  await page.getByRole('button',{name:'Create drive',exact:true}).click();
+  await page.getByLabel('Company name').fill('Northstar Technologies');
+  await page.getByRole('button',{name:'Save draft'}).first().click();
+  await expect(page.getByText('Draft saved.',{exact:true})).toBeVisible();
+  expect((draftPayload.payload as {form?:{company_name?:string}}).form?.company_name).toBe('Northstar Technologies');
+  await page.getByRole('button',{name:'Back to placement drives'}).click();
+  await page.getByRole('button',{name:'Continue',exact:true}).click();
+  await expect(page.getByLabel('Company name')).toHaveValue('Northstar Technologies');
 });
 
 test('backend errors preserve the form instead of claiming a successful creation', async ({ page }) => {
   await setup(page);
   await page.route('**/v3/college/drives', route => route.request().method() === 'POST' ? route.fulfill({ status: 422, json: { detail: 'The interview window is invalid.' } }) : route.fallback());
   await driveFields(page);
-  await page.getByRole('button', { name: 'Create & evaluate drive' }).click();
+  await page.getByRole('button',{name:'Create placement drive'}).click();
   await expect(page.getByRole('alert')).toHaveText('The interview window is invalid.');
-  await expect(page.getByLabel('Company', { exact: true })).toHaveValue('Campus Employer');
+  await expect(page.getByText('Campus Employer',{exact:true})).toBeVisible();
 });
 
 test('student roster and academic setup work on a phone', async ({ page }) => {
@@ -209,18 +283,19 @@ test('single selected round saves manual questions in the drive', async ({ page 
     payload = route.request().postDataJSON(); return route.fulfill({json:{drive_id:'new',status:'active'}});
   });
   await driveFields(page);
-  const rounds = page.getByRole('group', {name:'Select interview agents / rounds'});
-  await rounds.getByRole('button', {name:'Remove',exact:true}).nth(3).click();
-  await rounds.getByRole('button', {name:'Remove',exact:true}).nth(2).click();
-  await rounds.getByRole('button', {name:'Remove',exact:true}).nth(0).click();
-  await page.getByLabel('Question source').selectOption('manual');
+  await page.getByRole('button',{name:'3. Interview roles'}).click();
+  await page.getByRole('button',{name:'Remove Hiring Manager'}).click();
+  await page.getByRole('button',{name:'Remove Practical Interviewer'}).click();
+  await page.getByRole('button',{name:'Remove Talent Acquisition Specialist'}).click();
+  await page.getByRole('button',{name:'4. Questions'}).click();
+  await page.getByRole('button',{name:'Manual Questions'}).click();
   await page.getByRole('button', {name:'Add question',exact:true}).click();
-  await page.getByLabel('Arjun question 1').fill('How would you approach the JD requirements?');
-  await page.getByRole('button', {name:'Create & evaluate drive'}).click();
-  await expect(page.getByText('Drive saved (active).')).toBeVisible();
+  await page.getByLabel('Senior Domain Specialist question 1').fill('How would you approach the JD requirements?');
+  await page.getByRole('button',{name:'6. Review & create'}).click();
+  await page.getByRole('button', {name:'Create placement drive'}).click();
+  await expect(page.getByText('Drive created (active).')).toBeVisible();
   expect(payload.agent_selection).toEqual([{track:'domain',agent_id:null}]);
-  expect(payload.question_source).toBe('manual');
-  expect(payload.scripted_questions).toEqual({domain:['How would you approach the JD requirements?']});
+  expect(payload.round_configuration).toEqual([{track:'domain',question_source:'manual',questions:['How would you approach the JD requirements?']}]);
 });
 
 test('manage drive opens the selected overview and results without evaluating eligibility', async ({ page }) => {
@@ -278,16 +353,16 @@ test('AI preview uses drive role and JD and saves staff edits', async ({ page })
     if (route.request().method() !== 'POST') return route.fallback();
     saved = route.request().postDataJSON(); return route.fulfill({json:{drive_id:'new',status:'active'}});
   });
-  await page.getByLabel('Question source').selectOption('ai_generated');
-  await page.getByRole('button',{name:'Generate questions from role + JD'}).click();
-  await expect(page.getByLabel('Arjun question 1')).toHaveValue('Explain Python?');
-  await page.getByLabel('Arjun question 1').fill('How would you maintain this Python service?');
-  await page.getByRole('button',{name:'Move round 2 up'}).click();
-  await page.getByRole('button',{name:'Create & evaluate drive'}).click();
-  await expect(page.getByText('Drive saved (active).')).toBeVisible();
+  await page.getByRole('button',{name:'4. Questions'}).click();
+  await page.getByRole('button',{name:'AI Generated'}).nth(1).click();
+  await page.getByRole('button',{name:'Generate from job description'}).click();
+  await expect(page.getByLabel('Senior Domain Specialist question 1')).toHaveValue('Explain Python?');
+  await page.getByLabel('Senior Domain Specialist question 1').fill('How would you maintain this Python service?');
+  await page.getByRole('button',{name:'6. Review & create'}).click();
+  await page.getByRole('button',{name:'Create placement drive'}).click();
+  await expect(page.getByText('Drive created (active).')).toBeVisible();
   expect(generation.role_title).toBe('Software Engineer');
   expect(String(generation.jd_text)).toContain('JavaScript and Python');
-  expect(saved.question_source).toBe('ai_generated');
-  expect((saved.scripted_questions as Record<string,string[]>).domain).toEqual(['How would you maintain this Python service?']);
-  expect((saved.agent_selection as {track:string}[])[0].track).toBe('domain');
+  expect(saved.round_configuration).toEqual(expect.arrayContaining([{track:'domain',question_source:'ai_generated',questions:['How would you maintain this Python service?']} ]));
+  expect((saved.agent_selection as {track:string}[])[0].track).toBe('hr');
 });

@@ -1,4 +1,4 @@
-import { useEffect, useState, type FormEvent } from 'react';
+import { useEffect, useRef, useState, type FormEvent } from 'react';
 import { collegeApi, collegeError } from '@/api/collegeApi';
 
 import { tracks, agentOptions, selectionName, field, btn, panel, type Agent, type AgentLibrary, type Selection } from './interviewAgentTypes';
@@ -6,6 +6,8 @@ import { tracks, agentOptions, selectionName, field, btn, panel, type Agent, typ
 export default function InterviewAgents() {
   const [library, setLibrary] = useState<AgentLibrary | null>(null), [editing, setEditing] = useState<Agent | null>(null);
   const [error, setError] = useState(''), [busy, setBusy] = useState(false);
+  const messageRef = useRef<HTMLTextAreaElement | null>(null);
+  const insertVariable = (value: string) => { const area = messageRef.current; if (!area) return; const start = area.selectionStart, end = area.selectionEnd; area.value = `${area.value.slice(0, start)}${value}${area.value.slice(end)}`; area.focus(); area.selectionStart = area.selectionEnd = start + value.length; };
   async function refresh() { try { setLibrary(await collegeApi.get<AgentLibrary>('agents')); } catch (e) { setError(collegeError(e)); } }
   useEffect(() => { void refresh(); }, []);
   async function save(e: FormEvent<HTMLFormElement>) {
@@ -25,9 +27,9 @@ export default function InterviewAgents() {
     {editing && <form key={editing.id || "new"} className={`${panel} space-y-4`} onSubmit={save}>
       <h3 className="font-bold">{editing.id ? 'Edit custom agent' : 'Create custom agent'}</h3>
       <label className="block text-sm">Role<input name="role" className={field} required maxLength={120} defaultValue={editing.role} /></label>
-      <label className="block text-sm">First message<textarea name="intro_message" className={field} required maxLength={500} defaultValue={editing.intro_message} /></label>
+      <label className="block text-sm">First message<textarea ref={messageRef} name="intro_message" className={field} required maxLength={500} defaultValue={editing.intro_message} /><span className="mt-2 block text-xs text-slate-500">Insert dynamic values:</span><span className="mt-1 flex flex-wrap gap-2">{['{name}','{role}','{company}'].map(variable=><button type="button" className="rounded-full border border-indigo-200 px-3 py-1 text-xs text-indigo-700" key={variable} onClick={()=>insertVariable(variable)}>{variable}</button>)}</span></label>
       <label className="block text-sm">System prompt<textarea name="personality_prompt" className={field} required rows={5} maxLength={4000} defaultValue={editing.personality_prompt} /></label>
-      <p className="text-xs text-slate-500">Available variables: {'{name}'}, {'{role}'}, {'{company}'}, {'{department}'}. Name refers to the student; role refers to the drive role.</p>
+      <p className="text-xs text-slate-500">Variables are inserted from the chips above. Name refers to the student; role and company come from the drive.</p>
       <div className="flex gap-3"><button className={btn} disabled={busy}>Save agent</button><button type="button" className={btn} disabled={busy} onClick={() => setEditing(null)}>Cancel</button></div>
     </form>}
     <div className="grid gap-4 md:grid-cols-2">{agentOptions(library).map(a => <article key={a.id || a.track} className={panel}><div className="flex justify-between"><h3 className="font-bold">{a.id ? a.role : a.name}</h3><span className="text-xs text-slate-500">{a.id ? 'Custom role template' : 'Locked default'}</span></div><p className="mt-2 text-sm">{a.id ? 'Identity, voice, and avatar are assigned automatically when selected in a round.' : a.role}</p><p className="mt-3 text-sm text-slate-500">{a.intro_message}</p>{a.id && <div className="mt-4 flex gap-3"><button className={btn} disabled={busy} onClick={() => setEditing(a)}>Edit</button><button className={btn} disabled={busy} onClick={() => void remove(a)}>Delete</button></div>}</article>)}</div>
@@ -62,7 +64,7 @@ export function DriveInterviewSetup({ selection, setSelection, source, setSource
     <legend className="font-semibold">Select interview agents / rounds ({selection.length}/4)</legend>
     {selection.map((item, i) => <div key={item.track} className="flex items-center gap-2 rounded-xl border p-3"><span className="flex-1 text-sm">{i + 1}. {selectionName(item, library)}</span><button type="button" className={btn} disabled={i === 0} aria-label={`Move round ${i + 1} up`} onClick={() => { const next = [...selection]; [next[i - 1], next[i]] = [next[i], next[i - 1]]; setSelection(next); }}>↑</button><button type="button" className={btn} disabled={i === selection.length - 1} aria-label={`Move round ${i + 1} down`} onClick={() => { const next = [...selection]; [next[i + 1], next[i]] = [next[i], next[i + 1]]; setSelection(next); }}>↓</button><button type="button" className={btn} onClick={() => { setSelection(selection.filter((_, n) => n !== i)); const next = { ...questions }; delete next[item.track]; setQuestions(next); }}>Remove</button></div>)}
     <label className="block text-sm">Add agent<select className={field} value="" disabled={selection.length >= 4 || !library} onChange={e => add(e.target.value)}><option value="">Select an agent</option>{options.filter(a => !selection.some(s => a.id ? s.agent_id === a.id : !s.agent_id && s.track === a.track)).map(a => <option key={a.id || a.track} value={a.id || a.track}>{a.id ? a.role : `${a.name} — ${a.role}`}</option>)}</select></label>
-    <label className="block text-sm">Question source<select className={field} value={source} onChange={e => setSource(e.target.value)}><option value="personalized">Personalized AI questions</option><option value="manual">Manual questions</option><option value="ai_generated">AI generate before creating drive</option></select></label>
+    <label className="block text-sm">Question source<select className={field} value={source} onChange={e => setSource(e.target.value)}><option value="personalized">Personalized AI</option><option value="manual">Manual Questions</option><option value="ai_generated">AI Generated</option></select></label>
     {source === 'personalized' ? <p className="text-sm text-slate-500">Each student's resume is matched against the drive role and JD to plan adaptive questions within the interview duration.</p> : <>
       <p className="text-sm text-slate-500">Questions are asked in the order saved for each round. Allow roughly two minutes per question, plus two minutes for opening and closing.</p>
       {source === 'ai_generated' && <button type="button" className={btn} disabled={!selection.length} onClick={() => void generate()}>{generating ? 'Generating questions…' : 'Generate questions from role + JD'}</button>}

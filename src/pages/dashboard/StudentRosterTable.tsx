@@ -9,7 +9,7 @@ export default function StudentRosterTable({students,total,offset,busy,onPage,on
   {accessorKey:'program',header:'Program',enableSorting:false},
   {accessorKey:'department_code',header:'Department',enableSorting:false},
   {accessorKey:'batch_label',header:'Batch',enableSorting:false},
-  {accessorKey:'date_of_birth',header:'Date of birth',enableSorting:false,cell:info=>info.getValue()?new Date(String(info.getValue())+'T00:00:00').toLocaleDateString():'—'},
+  {accessorKey:'date_of_birth',header:'Date of birth',enableSorting:false,cell:info=>info.getValue()?new Date(String(info.getValue())+'T00:00:00').toLocaleDateString('en-IN',{day:'2-digit',month:'2-digit',year:'numeric'}):'—'},
   {accessorKey:'graduation_year',header:'Graduation'},
   {accessorKey:'cgpa',header:'Cgpa'},
   {accessorKey:'status',header:'Status',enableSorting:false,cell:info=>displayName(String(info.getValue()))},

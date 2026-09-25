@@ -1,4 +1,6 @@
 export const tracks = ['hr', 'domain', 'industry', 'manager'] as const;
+export const fixedPersonaKeys = ['priya_sharma', 'arjun_mehta', 'neha_kapoor', 'vikram_rao'] as const;
+export const roleLabels: Record<string, string> = { hr: 'Talent Acquisition Specialist', domain: 'Senior Domain Specialist', industry: 'Practical Interviewer', manager: 'Hiring Manager' };
 export type Agent = { id?: string; track: string; name?: string; role: string; intro_message: string; personality_prompt: string; tone: string; voice_id?: string };
 export type AgentLibrary = { agents: Agent[]; tracks: { track: string; default_profile: Agent }[] };
 export type Selection = { track: string; agent_id: string | null; profile?: Agent };
@@ -11,5 +13,5 @@ export function agentOptions(library: AgentLibrary | null) {
 }
 export function selectionName(item: Selection, library: AgentLibrary | null) {
   const agent = item.profile || agentOptions(library).find(a => item.agent_id ? a.id === item.agent_id : !a.id && a.track === item.track);
-  return agent?.role || item.track;
+  return agent?.role || roleLabels[item.track] || item.track;
 }
