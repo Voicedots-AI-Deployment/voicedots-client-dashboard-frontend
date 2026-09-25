@@ -233,9 +233,18 @@ test('interview window accepts any minute and saves it precisely', async ({page}
   await page.getByRole('button',{name:'Continue'}).click();
   await page.getByLabel('Interview starts date').fill('2027-01-10');
   await page.getByLabel('Interview starts hour').selectOption('9');
-  await page.getByLabel('Interview starts minute').fill('6');
-  await expect(page.getByLabel('Interview starts minute')).toHaveValue('06');
-  await page.getByLabel('Interview starts minute').fill('35');
+  const minutes=page.getByLabel('Interview starts minute');
+  await expect(minutes).toHaveAttribute('placeholder','00');
+  await minutes.focus();
+  await minutes.pressSequentially('23');
+  await expect(minutes).toHaveValue('23');
+  await minutes.fill('8');
+  await minutes.press('Tab');
+  await expect(minutes).toHaveValue('08');
+  await minutes.fill('');
+  await minutes.press('Tab');
+  await expect(minutes).toHaveValue('00');
+  await minutes.fill('35');
   await page.getByLabel('Interview starts AM / PM').selectOption('AM');
   await page.getByLabel('Interview ends date').fill('2027-01-11');
   await page.getByLabel('Interview ends hour').selectOption('6');
@@ -531,7 +540,24 @@ test('manage drive opens the selected overview and results without evaluating el
   await expect(page.getByText('17',{exact:true})).toBeVisible();
   await page.getByRole('button',{name:'Interview results',exact:true}).click();
   await expect(page.getByText('Anu',{exact:true})).toBeVisible();
+  const selectBox=await page.getByLabel('Select Anu').boundingBox();
+  const photoBox=await page.getByLabel('Anu initials').boundingBox();
+  expect(selectBox).not.toBeNull(); expect(photoBox).not.toBeNull();
+  expect(Math.abs((selectBox!.y+selectBox!.height/2)-(photoBox!.y+photoBox!.height/2))).toBeLessThan(2);
   expect(eligibilityWrites).toBe(0);
+});
+
+test('opportunity summary shows exact company URLs with external-link controls',async({page})=>{
+  await setup(page);
+  await page.route('**/v3/college/drives/drive-1',route=>route.fulfill({json:{id:'drive-1',company_name:'Example Company',role_title:'Engineer',status:'active',company_website:'https://jobs.example.com/careers?team=eng',company_linkedin:'https://www.linkedin.com/company/example-company/'}}));
+  await page.route('**/v3/college/drives/drive-1/dashboard/overview**',route=>route.fulfill({json:{metrics:{total_assigned:0}}}));
+  await page.getByRole('button',{name:'Manage drive',exact:true}).click();
+  const website=page.getByRole('link',{name:'https://jobs.example.com/careers?team=eng'});
+  const linkedin=page.getByRole('link',{name:'https://www.linkedin.com/company/example-company/'});
+  await expect(website).toHaveAttribute('href','https://jobs.example.com/careers?team=eng');
+  await expect(linkedin).toHaveAttribute('href','https://www.linkedin.com/company/example-company/');
+  await expect(website.locator('svg')).toBeVisible();
+  await expect(linkedin.locator('svg')).toBeVisible();
 });
 
 test('drive UI shows scan-friendly ATS and skills and saves readiness weights', async ({page}) => {
@@ -541,8 +567,10 @@ test('drive UI shows scan-friendly ATS and skills and saves readiness weights', 
     const path=new URL(route.request().url()).pathname;
     if(path.endsWith('/ats-fit')) return route.fulfill({json:{candidates:[{student_id:'s1',full_name:'Anu',roll_number:'R1',ats_fit_score:82}],pagination:{total:1}}});
     if(path.endsWith('/skill-gap')) return route.fulfill({json:{skills:[{skill:'Python',priority:'mandatory',good_count:3,limited_count:1,no_clear_answer_count:0}],total_released:4}});
+    if(path.endsWith('/departments')) return route.fulfill({json:{departments:[{department_code:'CSE',student_count:4,avg_score:78,interview_ready_count:2,interview_ready_rate:50,need_training_count:2,students:[]}],recommended_department:{department_code:'CSE'}}});
     return route.fulfill({json:{metrics:{total_assigned:4}}});
   });
+  await page.route('**/v3/college/drives/drive-1/candidates/s1/resume-file',route=>route.fulfill({status:200,contentType:'application/pdf',body:'%PDF-1.4\n%%EOF'}));
   let formula:Record<string,number>|undefined;
   await page.route('**/v3/college/readiness-policy', route => {
     if(route.request().method()==='PUT'){formula=route.request().postDataJSON();return route.fulfill({json:formula});}
@@ -551,9 +579,20 @@ test('drive UI shows scan-friendly ATS and skills and saves readiness weights', 
   await page.getByRole('button',{name:'Manage drive',exact:true}).click();
   await page.getByRole('button',{name:'ATS fit',exact:true}).click();
   await expect(page.getByText('82/100',{exact:true})).toBeVisible();
+  await page.getByRole('button',{name:'View details'}).click();
+  const candidateDialog=page.getByRole('dialog',{name:'ATS fit details for Anu'});
+  await expect(candidateDialog).toBeVisible();
+  const resumeFrame=candidateDialog.getByTitle('Candidate resume PDF preview');
+  await expect(resumeFrame).toHaveAttribute('src',/#toolbar=0&navpanes=0&scrollbar=1&view=FitH/);
+  await expect(candidateDialog).toHaveClass(/max-w-5xl/);
+  await page.getByRole('button',{name:'Close details'}).click();
   await page.getByRole('button',{name:'Skill intelligence',exact:true}).click();
-  await expect(page.getByLabel('Python evidence summary')).toContainText('Good · 3');
-  await page.getByRole('button',{name:'Drive settings',exact:true}).click();
+  await expect(page.getByRole('button',{name:'Python',exact:true})).toBeVisible();
+  await expect(page.getByRole('row',{name:/Python Mandatory 3/})).toBeVisible();
+  await page.getByRole('button',{name:'Departments',exact:true}).click();
+  await expect(page.getByText('Department comparison',{exact:true})).toBeVisible();
+  await page.getByRole('button',{name:/Placement drives/}).click();
+  await page.getByRole('navigation',{name:'Placement sections'}).getByRole('button',{name:'Settings',exact:true}).click();
   await page.getByLabel('Interview performance (%)').fill('80');
   await expect(page.getByLabel('Resume quality (%)')).toHaveValue('20');
   await page.getByRole('button',{name:'Save formula'}).click();

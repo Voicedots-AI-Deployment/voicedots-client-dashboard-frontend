@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import { useSearchParams } from "react-router-dom";
+import { ExternalLink } from "lucide-react";
 import {
   collegeApi,
   collegeError,
@@ -408,7 +409,7 @@ function ATSResumeFile({ driveId, studentId }: { driveId: string; studentId: str
     });
     return () => { active = false; if (objectUrl) URL.revokeObjectURL(objectUrl); };
   }, [driveId, studentId]);
-  return <section className="rounded-xl border p-4"><div className="flex flex-wrap items-center justify-between gap-2"><div><h4 className="font-semibold">Original resume</h4><p className="text-xs text-slate-500">Source document used for resume-to-JD ATS Fit.</p></div>{state === "ready" && <a className={btn} href={url} download>Download resume</a>}</div>{state === "loading" && <p className="mt-3 text-sm text-slate-500">Loading the candidate’s resume…</p>}{state === "missing" && <p className="mt-3 rounded-lg bg-slate-50 p-3 text-sm text-slate-600">No resume document is available for this candidate.</p>}{state === "error" && <p role="alert" className="mt-3 rounded-lg bg-rose-50 p-3 text-sm text-rose-700">The resume document could not be loaded. Try opening the candidate details again.</p>}{state === "ready" && mime === "application/pdf" && <iframe title="Candidate resume PDF preview" src={url} className="mt-3 h-[min(70vh,800px)] w-full rounded-lg border" />}{state === "ready" && mime !== "application/pdf" && <p className="mt-3 rounded-lg bg-slate-50 p-3 text-sm text-slate-600">Preview is unavailable for this document format. Use Download resume to review the original file.</p>}</section>;
+  return <section className="rounded-xl border p-4"><div className="flex flex-wrap items-center justify-between gap-2"><div><h4 className="font-semibold">Original resume</h4><p className="text-xs text-slate-500">Source document used for resume-to-JD ATS Fit.</p></div>{state === "ready" && <a className={btn} href={url} download>Download resume</a>}</div>{state === "loading" && <p className="mt-3 text-sm text-slate-500">Loading the candidate’s resume…</p>}{state === "missing" && <p className="mt-3 rounded-lg bg-slate-50 p-3 text-sm text-slate-600">No resume document is available for this candidate.</p>}{state === "error" && <p role="alert" className="mt-3 rounded-lg bg-rose-50 p-3 text-sm text-rose-700">The resume document could not be loaded. Try opening the candidate details again.</p>}{state === "ready" && mime === "application/pdf" && <iframe title="Candidate resume PDF preview" src={`${url}#toolbar=0&navpanes=0&scrollbar=1&view=FitH`} className="mt-3 h-[82vh] min-h-[680px] max-h-[1100px] w-full rounded-lg border" />}{state === "ready" && mime !== "application/pdf" && <p className="mt-3 rounded-lg bg-slate-50 p-3 text-sm text-slate-600">Preview is unavailable for this document format. Use Download resume to review the original file.</p>}</section>;
 }
 function Bar({
   label,
@@ -1850,24 +1851,24 @@ export default function DriveManagement({
                       </dd>
                     </div>
                     {drive?.company_website && (
-                      <a
-                        className="text-indigo-600"
-                        href={drive.company_website}
-                        target="_blank"
-                        rel="noreferrer"
-                      >
-                        Company website
-                      </a>
+                      <div className="sm:col-span-2">
+                        <dt className="text-slate-500">Company website</dt>
+                        <dd className="mt-1 min-w-0">
+                          <a className="inline-flex max-w-full items-center gap-2 text-indigo-600 hover:underline" href={drive.company_website} target="_blank" rel="noreferrer">
+                            <span className="truncate">{drive.company_website}</span><ExternalLink aria-hidden="true" className="h-4 w-4 shrink-0" />
+                          </a>
+                        </dd>
+                      </div>
                     )}
                     {drive?.company_linkedin && (
-                      <a
-                        className="text-indigo-600"
-                        href={drive.company_linkedin}
-                        target="_blank"
-                        rel="noreferrer"
-                      >
-                        LinkedIn
-                      </a>
+                      <div className="sm:col-span-2">
+                        <dt className="text-slate-500">LinkedIn</dt>
+                        <dd className="mt-1 min-w-0">
+                          <a className="inline-flex max-w-full items-center gap-2 text-indigo-600 hover:underline" href={drive.company_linkedin} target="_blank" rel="noreferrer">
+                            <span className="truncate">{drive.company_linkedin}</span><ExternalLink aria-hidden="true" className="h-4 w-4 shrink-0" />
+                          </a>
+                        </dd>
+                      </div>
                     )}
                   </dl>
                 </article>
@@ -2113,9 +2114,10 @@ export default function DriveManagement({
                         </td>
                       )}
                       <td className="p-3">
+                        <div className="flex min-w-64 items-center gap-3">
                         {tab === "results" && (
                           <input
-                            className="mr-2"
+                            className="m-0 h-4 w-4 shrink-0 accent-indigo-600"
                             type="checkbox"
                             aria-label={`Select ${c.full_name}`}
                             checked={checked.includes(c.student_id)}
@@ -2128,10 +2130,11 @@ export default function DriveManagement({
                             }
                           />
                         )}
-                        <div className="flex items-center gap-3"><StudentAvatar student={c}/><div><strong>{c.full_name}</strong><p className="text-xs text-slate-500">
+                        <div className="flex min-w-0 items-center gap-3"><StudentAvatar student={c}/><div className="min-w-0"><strong>{c.full_name}</strong><p className="text-xs text-slate-500">
                           {c.roll_number}
                           {c.email ? ` · ${c.email}` : ""}
                         </p></div></div>
+                        </div>
                       </td>
                       {tab === "results" ? (
                         <>
@@ -2292,7 +2295,7 @@ export default function DriveManagement({
             role="dialog"
             aria-modal="true"
             aria-label={`${tab === "ats" ? "ATS fit" : "Candidate"} details for ${selected.full_name}`}
-            className="ml-auto h-full w-full max-w-2xl overflow-y-auto bg-white p-6 shadow-2xl dark:bg-slate-950"
+            className={`ml-auto h-full w-full ${tab === "ats" ? "max-w-5xl" : "max-w-2xl"} overflow-y-auto bg-white p-6 shadow-2xl dark:bg-slate-950`}
           >
               <div className="space-y-4">
               <div className="flex items-center justify-between gap-3">
