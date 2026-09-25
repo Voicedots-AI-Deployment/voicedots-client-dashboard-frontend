@@ -1,5 +1,5 @@
 import { test, expect, type Page } from '@playwright/test';
-async function setup(page: Page, enabled = true, options: { notFound?: string[]; driveRows?: unknown[]; initialPath?: string } = {}) {
+async function setup(page: Page, enabled = true, options: { notFound?: string[]; driveRows?: unknown[]; companyProfiles?: unknown[]; initialPath?: string } = {}) {
   await page.addInitScript(() => localStorage.setItem('access_token', 'test-session'));
   await page.route(/\/v[13]\//, route => {
     const path = new URL(route.request().url()).pathname;
@@ -9,7 +9,7 @@ async function setup(page: Page, enabled = true, options: { notFound?: string[];
       '/v3/college/roster-options': {batches:['2023-2027'],graduation_years:[2027,2028],statuses:['active']},
       '/v3/college/analytics': {summary:{total_students:0,placed_students:0,students_attended:0,total_attempts:0,completed_attempts:0,repeat_students:0,not_attended:0,participation_rate:0,completion_rate:0,average_duration_minutes:null},by_drive:[],by_program:[],trend:[],scope:'Placement interviews only.'},
       '/v3/college/access': { enabled, college_name: 'Example Engineering College', timezone:'Asia/Kolkata' },
-      '/v3/college/company-profiles': [{id:'company-1',company_name:'Northstar Technologies',company_description:'Builds software',company_website:'https://northstar.example',company_linkedin:'https://linkedin.com/company/northstar'}],
+      '/v3/college/company-profiles': options.companyProfiles ?? [{id:'company-1',company_name:'Northstar Technologies',company_description:'Builds software',company_website:'https://northstar.example',company_linkedin:'https://linkedin.com/company/northstar'}],
       '/v3/college/drives/role-suggestions': ['Data Analyst','Data Scientist','LLM Engineer'],
       '/v3/college/drive-drafts': [],
       '/v3/college/drives/eligibility/preview': {total_students:0,eligible_count:0,not_eligible_count:0,missing_photo_count:0,candidates:[]},
@@ -108,12 +108,35 @@ test('drive form uses the client API and does not supply a college identity', as
 test('company profile selection fills company information while role suggestions remain drive-specific', async ({page})=>{
   await setup(page);
   await page.getByRole('button',{name:'Create drive',exact:true}).click();
-  await page.getByRole('button',{name:/Northstar Technologies/}).click();
+  await page.getByRole('combobox',{name:/Find a saved company/}).fill('Northstar');
+  await page.getByRole('option',{name:/Northstar Technologies/}).click();
   await expect(page.getByLabel('Company name')).toHaveValue('Northstar Technologies');
   await expect(page.getByLabel('Company website')).toHaveValue('https://northstar.example');
   await page.locator('#role_title').fill('Data');
   await expect(page.locator('#drive-role-options option')).toHaveCount(3);
   await expect(page.locator('#role_title')).toHaveValue('Data');
+});
+
+test('saved company picker opens from its arrow, scrolls large lists, and filters as you type', async ({page})=>{
+  const profiles=Array.from({length:100},(_,index)=>({
+    id:`company-${index}`,
+    company_name:`Company ${String(index).padStart(3,'0')}`,
+    company_website:`https://company-${index}.example`,
+  }));
+  await setup(page,true,{companyProfiles:profiles});
+  await page.getByRole('button',{name:'Create drive',exact:true}).click();
+  const picker=page.getByRole('combobox',{name:/Find a saved company/});
+  const list=page.getByRole('listbox',{name:'Saved company profiles'});
+  await expect(list).toHaveCount(0);
+  await page.getByRole('button',{name:'Open saved company profiles'}).click();
+  await expect(list).toBeVisible();
+  await expect(list.getByRole('option')).toHaveCount(100);
+  expect(await list.evaluate(element=>element.scrollHeight>element.clientHeight)).toBe(true);
+  await picker.fill('Company 099');
+  await expect(list.getByRole('option')).toHaveCount(1);
+  await list.getByRole('option',{name:/Company 099/}).click();
+  await expect(page.getByLabel('Company name')).toHaveValue('Company 099');
+  await expect(list).toHaveCount(0);
 });
 
 test('field validation keeps the current step and focuses the exact invalid field', async ({page})=>{

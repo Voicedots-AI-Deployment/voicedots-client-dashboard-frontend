@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
-import { ArrowDown, ArrowLeft, ArrowRight, ArrowUp, Check, CircleAlert, Plus, Save, Trash2, X } from 'lucide-react';
+import { ArrowDown, ArrowLeft, ArrowRight, ArrowUp, Check, ChevronDown, CircleAlert, Plus, Save, Trash2, X } from 'lucide-react';
 import { collegeApi, collegeError, collegeFieldErrors, type Drive, type Program, type RoundConfiguration } from '@/api/collegeApi';
 import type { AgentLibrary, Selection } from './interviewAgentTypes';
 import { defaultSelection, roleLabels } from './interviewAgentTypes';
@@ -56,18 +56,20 @@ export default function CreateDriveWizard({programs,drive,draftId,collegeTimezon
   const [step,setStep]=useState(0),[form,setForm]=useState<FormState>(empty),[selection,setSelection]=useState<Selection[]>(defaultSelection),[rounds,setRounds]=useState<RoundConfiguration[]>([]);
   const [programIds,setProgramIds]=useState<string[]>([]),[departments,setDepartments]=useState<string[]>([]),[years,setYears]=useState<string[]>([]),[availableYears,setAvailableYears]=useState<number[]>([]);
   const [difficultyConfirmed,setDifficultyConfirmed]=useState(false),[confirmDifficulty,setConfirmDifficulty]=useState(false),[library,setLibrary]=useState<AgentLibrary|null>(null);
-  const [companyProfiles,setCompanyProfiles]=useState<CompanyProfile[]>([]),[companySearch,setCompanySearch]=useState(''),[roleSuggestions,setRoleSuggestions]=useState<string[]>([]);
+  const [companyProfiles,setCompanyProfiles]=useState<CompanyProfile[]>([]),[companySearch,setCompanySearch]=useState(''),[companyPickerOpen,setCompanyPickerOpen]=useState(false),[roleSuggestions,setRoleSuggestions]=useState<string[]>([]);
   const [preview,setPreview]=useState<Preview|null>(null),[previewRefreshedAt,setPreviewRefreshedAt]=useState<string|null>(null),[previewBusy,setPreviewBusy]=useState(false),[busy,setBusy]=useState(false),[generating,setGenerating]=useState('');
   const [fieldErrors,setFieldErrors]=useState<Record<string,string>>({}),[formError,setFormError]=useState(''),[notice,setNotice]=useState('');
   const [draftLoaded,setDraftLoaded]=useState(Boolean(drive)),[draftStatus,setDraftStatus]=useState<'saved'|'saving'|'error'|'idle'>('idle');
   const [creationKey,setCreationKey]=useState<string>(()=>crypto.randomUUID());
-  const draftIdRef=useRef<string|null>(draftId||null),draftSavingRef=useRef(false),draftResaveRef=useRef(false);
+  const draftIdRef=useRef<string|null>(draftId||null),draftSavingRef=useRef(false),draftResaveRef=useRef(false),companyPickerRef=useRef<HTMLDivElement|null>(null);
 
   const availableDepartments=useMemo(()=>programs.filter(program=>programIds.includes(program.code)).flatMap(program=>program.departments),[programs,programIds]);
   const selectedYears=useMemo(()=>years.map(Number).filter(Number.isFinite).sort((a,b)=>a-b),[years]);
   const yearMin=selectedYears.length?selectedYears[0]:(availableYears[0]||new Date().getFullYear());
   const yearMax=selectedYears.length?selectedYears[selectedYears.length-1]:(availableYears.at(-1)||yearMin);
-  const filteredCompanies=companyProfiles.filter(profile=>profile.company_name.toLowerCase().includes(companySearch.toLowerCase()));
+  const filteredCompanies=useMemo(()=>companyProfiles
+    .filter(profile=>`${profile.company_name} ${profile.company_website||''}`.toLowerCase().includes(companySearch.trim().toLowerCase()))
+    .sort((a,b)=>a.company_name.localeCompare(b.company_name)),[companyProfiles,companySearch]);
   const recommendations=useMemo(()=>{
     const currentYear=new Date().getFullYear();
     return new Set(programs.filter(program=>programIds.includes(program.code)).flatMap(program=>selectedYears.map(year=>{
@@ -82,6 +84,14 @@ export default function CreateDriveWizard({programs,drive,draftId,collegeTimezon
     collegeApi.get<AgentLibrary>('agents').then(setLibrary).catch(e=>setFormError(collegeError(e)));
     collegeApi.get<{graduation_years:number[]}>('academic-catalog').then(value=>setAvailableYears(value.graduation_years||[])).catch(e=>setFormError(collegeError(e)));
     collegeApi.get<CompanyProfile[]>('company-profiles').then(setCompanyProfiles).catch(()=>setCompanyProfiles([]));
+  },[]);
+
+  useEffect(()=>{
+    function closeCompanyPicker(event:MouseEvent){
+      if(event.target instanceof Node&&!companyPickerRef.current?.contains(event.target))setCompanyPickerOpen(false);
+    }
+    document.addEventListener('mousedown',closeCompanyPicker);
+    return()=>document.removeEventListener('mousedown',closeCompanyPicker);
   },[]);
 
   useEffect(()=>{
@@ -293,9 +303,16 @@ export default function CreateDriveWizard({programs,drive,draftId,collegeTimezon
       {step===0&&<div className="dw-content space-y-5">
         <Section title="Company profile" description="Reuse an existing company profile or add a profile without leaving this flow.">
           <div className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_auto]">
-            <label className="block text-sm font-medium">{label('Find a saved company')}<input className={input} value={companySearch} placeholder="Search company profiles…" onChange={event=>{setCompanySearch(event.target.value);if(form.company_profile_id)update('company_profile_id','');}} list="drive-company-options"/><datalist id="drive-company-options">{filteredCompanies.map(profile=><option value={profile.company_name} key={profile.id}/>)}</datalist>
-              {filteredCompanies.length>0&&<div className="dw-company-results">{filteredCompanies.slice(0,5).map(profile=><button type="button" key={profile.id} className={form.company_profile_id===profile.id?'selected':''} onClick={()=>selectedProfile(profile)}><span><strong>{profile.company_name}</strong><small>{profile.company_website||'Company profile'}</small></span>{form.company_profile_id===profile.id&&<Check size={16}/>}</button>)}</div>}
-            </label>
+            <div className="relative block text-sm font-medium" ref={companyPickerRef}>
+              <label htmlFor="drive-company-search">{label('Find a saved company')}</label>
+              <div className="relative">
+                <input id="drive-company-search" className={`${input} pr-11`} value={companySearch} placeholder="Search company profiles…" role="combobox" aria-autocomplete="list" aria-expanded={companyPickerOpen} aria-controls="drive-company-options" onFocus={()=>setCompanyPickerOpen(true)} onChange={event=>{setCompanySearch(event.target.value);setCompanyPickerOpen(true);if(form.company_profile_id)update('company_profile_id','');}} onKeyDown={event=>{if(event.key==='Escape')setCompanyPickerOpen(false);else if(event.key==='ArrowDown'){event.preventDefault();setCompanyPickerOpen(true);}}}/>
+                <button type="button" className="absolute inset-y-0 right-1 grid w-10 place-items-center rounded-lg text-slate-600 hover:bg-violet-50 focus:outline-none focus:ring-2 focus:ring-violet-400 dark:text-slate-300 dark:hover:bg-slate-800" aria-label={companyPickerOpen?'Close saved company profiles':'Open saved company profiles'} aria-expanded={companyPickerOpen} onMouseDown={event=>event.preventDefault()} onClick={()=>setCompanyPickerOpen(open=>!open)}><ChevronDown size={17} className={`transition-transform ${companyPickerOpen?'rotate-180':''}`}/></button>
+              </div>
+              {companyPickerOpen&&<div id="drive-company-options" className="dw-company-results" role="listbox" aria-label="Saved company profiles">
+                {filteredCompanies.length?filteredCompanies.map(profile=><button type="button" role="option" aria-selected={form.company_profile_id===profile.id} key={profile.id} className={form.company_profile_id===profile.id?'selected':''} onClick={()=>{selectedProfile(profile);setCompanyPickerOpen(false);}}><span><strong>{profile.company_name}</strong><small>{profile.company_website||'Company profile'}</small></span>{form.company_profile_id===profile.id&&<Check size={16}/>}</button>):<p className="px-3 py-4 text-sm font-normal text-slate-500" role="status">{companyProfiles.length?'No matching company profiles.':'No saved company profiles yet.'}</p>}
+              </div>}
+            </div>
             <div className="flex items-end"><button type="button" className={button} disabled={busy} onClick={()=>void saveCompanyProfile()}><Plus size={16}/>{busy?'Saving…':'Add new company profile'}</button></div>
           </div>
           {chosenProfile&&<div className="dw-selected-company"><span className="dw-company-avatar">{chosenProfile.company_name.slice(0,2).toUpperCase()}</span><span><strong>{chosenProfile.company_name}</strong><small>Selected company profile · reusable for other roles</small></span><button type="button" className="text-violet-700" onClick={()=>{setForm(current=>({...current,company_profile_id:''}));setCompanySearch('');}}>Unlink</button></div>}
