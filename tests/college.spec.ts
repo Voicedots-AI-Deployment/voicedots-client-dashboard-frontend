@@ -13,7 +13,7 @@ async function setup(page: Page, enabled = true, options: { notFound?: string[];
       '/v3/college/drives/role-suggestions': ['Data Analyst','Data Scientist','LLM Engineer'],
       '/v3/college/drive-drafts': [],
       '/v3/college/drives/eligibility/preview': {total_students:0,eligible_count:0,not_eligible_count:0,missing_photo_count:0,candidates:[]},
-      '/v3/college/agents': {agents:[],tracks:['hr','domain','industry','manager'].map((track,i)=>({track,default_profile:{track,name:['Priya','Arjun','Neha','Vikram'][i],role:track,intro_message:'Hello {name}',personality_prompt:'Interview for {role}',tone:'professional',voice_id:'flux-priya-en'}}))},
+      '/v3/college/agents': {agents:[],tracks:['hr','domain','industry','manager'].map((track,i)=>({track,default_profile:{track,name:['Priya','Arjun','Neha','Vikram'][i],role:['Talent Acquisition Specialist','Senior Domain Specialist','Practical Interviewer','Hiring Manager'][i],intro_message:'Hello {name}',personality_prompt:'Interview for {role}',tone:'professional',voice_id:'flux-priya-en'}}))},
       '/v3/college/drives': options.driveRows ?? [{ id: 'drive-1', company_name: 'Example Company', role_title: 'Software Engineer', status: 'draft', location: 'Chennai' }],
       '/v3/college/students': { items: [], total: 0 },
       '/v3/college/academic-catalog': { programs: [{ code: 'B.Tech', display_name: 'Bachelor of Technology', duration_years: 4, departments: [{ code: 'CSE', display_name: 'Computer Science' },{ code: 'IT', display_name: 'Information Technology' }] }], graduation_years:[2027,2028] },
@@ -57,7 +57,6 @@ test('placement management filters null drive rows and shows draft endpoint fail
   expect(pageErrors).toEqual([]);
 });
 async function driveFields(page: Page) {
-  await page.getByRole('button', { name: 'Create drive', exact: true }).click();
   await page.getByLabel('Company name').fill('Campus Employer');
   await page.locator('#role_title').fill('Software Engineer');
   await page.getByLabel('Location').fill('Chennai');
@@ -71,11 +70,11 @@ async function driveFields(page: Page) {
   await page.getByLabel('Interview ends AM / PM').selectOption('PM');
   await page.getByRole('button',{name:'4. Questions'}).click();
   await page.getByRole('button',{name:'5. Eligibility'}).click();
-  await page.getByRole('checkbox',{name:/Bachelor of Technology.*B\.Tech/i}).check();
-  await page.getByRole('checkbox',{name:/Computer Science.*CSE/i}).check();
-  await page.getByRole('checkbox',{name:/Information Technology.*IT/i}).check();
-  await page.locator('#graduation_from').fill('2027');
-  await page.locator('#graduation_to').fill('2028');
+  await page.getByRole('checkbox',{name:/Bachelor Of Technology B\.Tech/}).check();
+  await page.getByRole('checkbox',{name:/Computer Science · CSE/}).check();
+  await page.getByRole('checkbox',{name:/Information Technology · IT/}).check();
+  await page.locator('#graduation_from').selectOption('2027');
+  await page.locator('#graduation_to').selectOption('2028');
   await page.getByRole('button',{name:'Continue'}).click();
   if(await page.getByRole('dialog').isVisible().catch(()=>false)) await page.getByRole('button',{name:'Confirm and review'}).click();
 }
@@ -88,33 +87,85 @@ test('unassigned client cannot see management navigation or controls', async ({ 
 });
 
 test('drive form uses the client API and does not supply a college identity', async ({ page }) => {
-  await setup(page);
+  await setup(page,true,{initialPath:'/dashboard/placement-management'});
   let payload: Record<string, unknown> = {};
   await page.route('**/v3/college/drives', route => {
     if (route.request().method() !== 'POST') return route.fallback();
     payload = route.request().postDataJSON();
     return route.fulfill({ json: { drive_id: 'new-drive', status: 'active', warnings: [] } });
   });
+  await page.getByRole('button',{name:'Create drive',exact:true}).click();
   await driveFields(page);
   await page.getByRole('button', {name:'Create placement drive'}).click();
   await expect(page.getByText('Drive created (active).')).toBeVisible();
   expect(payload.eligible_departments).toEqual(['CSE', 'IT']);
   expect(payload.eligible_graduation_years).toEqual([2027, 2028]);
   expect(payload).not.toHaveProperty('college_id');
-  expect(payload.window_start).toBe('2027-01-10T09:00');
-  expect(payload.window_end).toBe('2027-01-11T18:00');
+  expect(payload.window_start).toMatch(/^2027-01-10T03:30:00\.000Z$/);
+  expect(payload.window_end).toMatch(/^2027-01-11T12:30:00\.000Z$/);
 });
 
 test('company profile selection fills company information while role suggestions remain drive-specific', async ({page})=>{
-  await setup(page);
+  await setup(page,true,{initialPath:'/dashboard/placement-management'});
   await page.getByRole('button',{name:'Create drive',exact:true}).click();
   await page.getByRole('combobox',{name:/Find a saved company/}).fill('Northstar');
   await page.getByRole('option',{name:/Northstar Technologies/}).click();
   await expect(page.getByLabel('Company name')).toHaveValue('Northstar Technologies');
   await expect(page.getByLabel('Company website')).toHaveValue('https://northstar.example');
   await page.locator('#role_title').fill('Data');
-  await expect(page.locator('#drive-role-options option')).toHaveCount(3);
+  await expect(page.getByRole('listbox',{name:'Existing drive roles'}).getByRole('option')).toHaveCount(3);
   await expect(page.locator('#role_title')).toHaveValue('Data');
+});
+
+test('role menu loads and selects unique historical drive roles before typing',async({page})=>{
+  await setup(page,true,{initialPath:'/dashboard/placement-management'});
+  await page.getByRole('button',{name:'Create drive',exact:true}).click();
+  const role=page.locator('#role_title');
+  await role.focus();
+  const options=page.getByRole('listbox',{name:'Existing drive roles'});
+  await expect(options.getByRole('option')).toHaveCount(3);
+  await options.getByRole('option').first().click();
+  await expect(role).toHaveValue('Data Analyst');
+});
+
+test('graduation year can target a single year',async({page})=>{
+  await setup(page,true,{initialPath:'/dashboard/placement-management'});
+  await page.getByRole('button',{name:'Create drive',exact:true}).click();
+  await page.getByLabel('Company name').fill('Campus Employer');
+  await page.locator('#role_title').fill('Analyst');
+  await page.getByLabel('Location').fill('Remote');
+  await page.getByLabel('Job description').fill('Analyze company operations.');
+  await page.getByRole('button',{name:'2. Interview setup'}).click();
+  await page.getByLabel('Interview starts date').fill('2027-01-10');
+  await page.getByLabel('Interview ends date').fill('2027-01-11');
+  await page.getByRole('button',{name:'5. Eligibility'}).click();
+  await page.getByRole('checkbox',{name:/Bachelor Of Technology B\.Tech/}).check();
+  await page.getByRole('checkbox',{name:/Computer Science · CSE/}).check();
+  await page.locator('#graduation_from').selectOption('2028');
+  await expect(page.locator('#graduation_to')).toHaveValue('2028');
+  await expect(page.getByText('Selected graduation years: 2028')).toBeVisible();
+});
+
+test('custom interviewer appends into an available sequence slot and can start an empty sequence',async({page})=>{
+  await setup(page,true,{initialPath:'/dashboard/placement-management'});
+  await page.route('**/v3/college/agents',route=>route.fulfill({json:{agents:[{id:'custom-problem',track:'industry',role:'Problem Solving Specialist',personality_prompt:'Assess structured problem solving',intro_message:'Start',tone:'direct'}],tracks:['hr','domain','industry','manager'].map(track=>({track,default_profile:{track,role:track,name:track,intro_message:'Hello',personality_prompt:'Assess',tone:'professional'}}))}}));
+  await page.getByRole('button',{name:'Create drive',exact:true}).click();
+  await page.getByLabel('Company name').fill('Campus Employer');
+  await page.locator('#role_title').fill('Analyst');
+  await page.getByLabel('Location').fill('Remote');
+  await page.getByLabel('Job description').fill('Analyze company operations.');
+  await page.getByRole('button',{name:'2. Interview setup'}).click();
+  await page.getByLabel('Interview starts date').fill('2027-01-10');
+  await page.getByLabel('Interview ends date').fill('2027-01-11');
+  await page.getByRole('button',{name:'3. Interview roles'}).click();
+  await expect(page.getByRole('button',{name:'Remove Talent Acquisition Specialist'})).toBeVisible();
+  for(const role of ['Talent Acquisition Specialist','Senior Domain Specialist','Practical Interviewer','Hiring Manager']) await page.getByRole('button',{name:`Remove ${role}`}).click();
+  await page.getByLabel(/Add a saved custom interview role/).selectOption('custom-problem');
+  await expect(page.getByRole('heading',{name:'Problem Solving Specialist'})).toBeVisible();
+  await page.getByRole('button',{name:/Senior Domain Specialist Add this interview role/}).click();
+  await expect(page.getByLabel(/Add a saved custom interview role/).locator('option')).toHaveCount(1);
+  await expect(page.getByRole('heading',{name:'Problem Solving Specialist'})).toHaveCount(1);
+  await expect(page.getByRole('heading',{name:'Senior Domain Specialist'})).toHaveCount(1);
 });
 
 test('saved company picker opens from its arrow, scrolls large lists, and filters as you type', async ({page})=>{
@@ -171,7 +222,7 @@ test('interview end ordering error appears beside the end input', async ({page})
 });
 
 test('interview window accepts any minute and saves it precisely', async ({page})=>{
-  await setup(page);
+  await setup(page,true,{initialPath:'/dashboard/placement-management'});
   let payload: Record<string, unknown> = {};
   await page.route('**/v3/college/drives', route => route.request().method() === 'POST' ? (payload=route.request().postDataJSON(),route.fulfill({json:{drive_id:'minute-drive',status:'scheduled',warnings:[]}})) : route.fallback());
   await page.getByRole('button',{name:'Create drive',exact:true}).click();
@@ -182,6 +233,8 @@ test('interview window accepts any minute and saves it precisely', async ({page}
   await page.getByRole('button',{name:'Continue'}).click();
   await page.getByLabel('Interview starts date').fill('2027-01-10');
   await page.getByLabel('Interview starts hour').selectOption('9');
+  await page.getByLabel('Interview starts minute').fill('6');
+  await expect(page.getByLabel('Interview starts minute')).toHaveValue('06');
   await page.getByLabel('Interview starts minute').fill('35');
   await page.getByLabel('Interview starts AM / PM').selectOption('AM');
   await page.getByLabel('Interview ends date').fill('2027-01-11');
@@ -191,12 +244,12 @@ test('interview window accepts any minute and saves it precisely', async ({page}
   await page.getByRole('button',{name:'5. Eligibility'}).click();
   await page.getByRole('checkbox',{name:/Bachelor of Technology.*B\.Tech/i}).check();
   await page.getByRole('checkbox',{name:/Computer Science.*CSE/i}).check();
-  await page.locator('#graduation_from').fill('2027');
-  await page.locator('#graduation_to').fill('2028');
+  await page.locator('#graduation_from').selectOption('2027');
+  await page.locator('#graduation_to').selectOption('2028');
   await page.getByRole('button',{name:'Continue'}).click();
   if(await page.getByRole('dialog').isVisible().catch(()=>false)) await page.getByRole('button',{name:'Confirm and review'}).click();
   await page.getByRole('button',{name:'Create placement drive'}).click();
-  expect(payload.window_start).toBe('2027-01-10T09:35');
+  expect(payload.window_start).toMatch(/^2027-01-10T04:05:00\.000Z$/);
   await expect(page.getByRole('alert')).toHaveCount(0);
 });
 
@@ -303,6 +356,7 @@ test('device-only drive draft stays visible and can be resumed when cloud list i
 test('backend errors preserve the form instead of claiming a successful creation', async ({ page }) => {
   await setup(page);
   await page.route('**/v3/college/drives', route => route.request().method() === 'POST' ? route.fulfill({ status: 422, json: { detail: 'The interview window is invalid.' } }) : route.fallback());
+  await page.getByRole('button',{name:'Create drive',exact:true}).click();
   await driveFields(page);
   await page.getByRole('button',{name:'Create placement drive'}).click();
   await expect(page.getByRole('alert')).toHaveText('The interview window is invalid.');
@@ -447,6 +501,7 @@ test('single selected round saves manual questions in the drive', async ({ page 
     if (route.request().method() !== 'POST') return route.fallback();
     payload = route.request().postDataJSON(); return route.fulfill({json:{drive_id:'new',status:'active'}});
   });
+  await page.getByRole('button',{name:'Create drive',exact:true}).click();
   await driveFields(page);
   await page.getByRole('button',{name:'3. Interview roles'}).click();
   await page.getByRole('button',{name:'Remove Hiring Manager'}).click();
@@ -507,20 +562,28 @@ test('drive UI shows scan-friendly ATS and skills and saves readiness weights', 
 });
 
 test('AI preview uses drive role and JD and saves staff edits', async ({ page }) => {
-  await setup(page);
+  await setup(page,true,{initialPath:'/dashboard/placement-management'});
+  await page.getByRole('button',{name:'Create drive',exact:true}).click();
   await driveFields(page);
   let generation: Record<string, unknown> = {}, saved: Record<string, unknown> = {};
-  await page.route('**/v3/college/drive-questions/preview', route => {
-    generation = route.request().postDataJSON();
-    return route.fulfill({json:{scripted_questions:{hr:['Motivation?'],domain:['Explain Python?'],industry:['How would you test?'],manager:['How would you lead?']}}});
-  });
+  const releaseGeneration:Array<()=>void>=[];
+  await page.route('**/v3/college/drive-questions/preview', route => {generation=route.request().postDataJSON();return new Promise<void>(resolve=>releaseGeneration.push(()=>{void route.fulfill({json:{scripted_questions:{hr:['Motivation?'],domain:['Explain Python?'],industry:['How would you test?'],manager:['How would you lead?']}}}).then(resolve);}));});
   await page.route('**/v3/college/drives', route => {
     if (route.request().method() !== 'POST') return route.fallback();
     saved = route.request().postDataJSON(); return route.fulfill({json:{drive_id:'new',status:'active'}});
   });
   await page.getByRole('button',{name:'4. Questions'}).click();
   await page.getByRole('button',{name:'AI Generated'}).nth(1).click();
+  await page.getByRole('button',{name:'AI Generated'}).nth(2).click();
+  await page.getByRole('button',{name:'Generate from job description'}).first().click();
+  await expect(page.getByRole('button',{name:'Generating…'})).toHaveCount(1);
   await page.getByRole('button',{name:'Generate from job description'}).click();
+  await expect(page.getByRole('button',{name:'Generating…'})).toHaveCount(2);
+  releaseGeneration[0]();
+  await expect(page.getByRole('button',{name:'Generating…'})).toHaveCount(1);
+  releaseGeneration[1]();
+  await expect(page.getByRole('button',{name:'Generating…'})).toHaveCount(0);
+  await expect(page.getByLabel('Senior Domain Specialist question 1')).toHaveValue('Explain Python?');
   await expect(page.getByLabel('Senior Domain Specialist question 1')).toHaveValue('Explain Python?');
   await page.getByLabel('Senior Domain Specialist question 1').fill('How would you maintain this Python service?');
   await page.getByRole('button',{name:'6. Review & create'}).click();
