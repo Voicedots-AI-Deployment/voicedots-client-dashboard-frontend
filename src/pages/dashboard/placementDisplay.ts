@@ -1,4 +1,24 @@
 // Display formatting only: preserve stored names, codes and login identifiers.
+export const PLACEMENT_TIME_ZONE = 'Asia/Kolkata';
+
+export function formatDateOnly(value?: string | null) {
+ if(!value)return 'Not scheduled';
+ const match=value.match(/^(\d{4})-(\d{2})-(\d{2})$/);
+ if(!match)return 'Not scheduled';
+ const [,year,month,day]=match;
+ const parsed=new Date(Date.UTC(Number(year),Number(month)-1,Number(day)));
+ return parsed.getUTCFullYear()===Number(year)&&parsed.getUTCMonth()+1===Number(month)&&parsed.getUTCDate()===Number(day)
+  ?`${day}/${month}/${year}`:'Not scheduled';
+}
+
+export function formatPlacementDateTime(value?: string | null, timeZone = PLACEMENT_TIME_ZONE) {
+ if(!value)return 'Not scheduled';
+ const instant=new Date(value);
+ return Number.isFinite(instant.getTime())
+  ?`${instant.toLocaleString('en-GB',{timeZone,day:'2-digit',month:'2-digit',year:'numeric',hour:'2-digit',minute:'2-digit',hourCycle:'h23'})} ${timeZone==='Asia/Kolkata'?'IST':timeZone}`
+  :'Not scheduled';
+}
+
 export function displayName(value?: string) {
  const text=(value || '').trim().toLocaleLowerCase().replace(/[-_]+/g, ' ');
  const exact: Record<string, string> = {
@@ -56,5 +76,5 @@ export function wallTimeFromInstant(value?: string, timeZone = 'UTC') {
 
 export function formatWallTime(value: string, timeZone: string) {
  const instant=wallTimeToInstant(value,timeZone);
- return Number.isFinite(instant)?`${new Date(instant).toLocaleString(undefined,{timeZone,dateStyle:'medium',timeStyle:'short'})} (${timeZone})`:'Not scheduled';
+ return Number.isFinite(instant)?formatPlacementDateTime(new Date(instant).toISOString(),timeZone):'Not scheduled';
 }

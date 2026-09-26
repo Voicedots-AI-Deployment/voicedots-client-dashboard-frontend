@@ -22,7 +22,7 @@ import CreateDriveWizard from "./CreateDriveWizard";
 import DriveManagement, { InterviewResultsSettings, ReadinessPolicy } from "./DriveManagement";
 import InterviewAgents from "./InterviewAgents";
 import PlacementAnalytics, { type Analytics } from "./PlacementAnalytics";
-import { displayName } from "./placementDisplay";
+import { displayName, formatDateOnly, formatPlacementDateTime, PLACEMENT_TIME_ZONE } from "./placementDisplay";
 
 const card =
   "rounded-2xl border border-slate-200 bg-white p-5 dark:border-slate-800 dark:bg-slate-900";
@@ -31,8 +31,10 @@ const input =
 const button =
   "inline-flex items-center justify-center gap-2 rounded-xl border border-slate-200 px-4 py-2.5 text-sm font-semibold disabled:opacity-50 dark:border-slate-700";
 const primary = `${button} border-indigo-600 bg-indigo-600 text-white`;
-const date = (value?: string, timeZone = "UTC") =>
-  value ? `${new Date(value).toLocaleString(undefined,{timeZone})} (${timeZone})` : "Not scheduled";
+const date = (value?: string) =>
+  value && /^\d{4}-\d{2}-\d{2}$/.test(value)
+    ? formatDateOnly(value)
+    : formatPlacementDateTime(value);
 const compareDates = (left?: string, right?: string) => {
   const a = left ? Date.parse(left) : NaN;
   const b = right ? Date.parse(right) : NaN;
@@ -272,7 +274,7 @@ export default function CollegeManagementPage() {
     return (
       <CreateDriveWizard
         programs={programs}
-        collegeTimezone={access.timezone || "Asia/Kolkata"}
+        collegeTimezone={PLACEMENT_TIME_ZONE}
         draftId={draftId}
         onCancel={() => {
           setParams((p) => {
@@ -297,7 +299,7 @@ export default function CollegeManagementPage() {
     return (
       <DriveManagement
         driveId={driveId}
-        collegeTimezone={access.timezone || "Asia/Kolkata"}
+        collegeTimezone={PLACEMENT_TIME_ZONE}
         back={() =>
           setParams((p) => {
             p.delete("drive");
@@ -379,7 +381,6 @@ export default function CollegeManagementPage() {
           allDrives={drives}
           drafts={drafts}
           draftsError={draftsError}
-          collegeTimezone={access.timezone || "Asia/Kolkata"}
           overview={overview}
           loading={loading}
           query={query}
@@ -427,7 +428,6 @@ function PlacementLanding({
   allDrives,
   drafts,
   draftsError,
-  collegeTimezone,
   overview,
   loading,
   query,
@@ -451,7 +451,6 @@ function PlacementLanding({
   allDrives: Drive[];
   drafts: DriveDraftSummary[];
   draftsError: string;
-  collegeTimezone: string;
   overview: Landing;
   loading: boolean;
   query: string;
@@ -587,7 +586,6 @@ function PlacementLanding({
             <DriveCard
               key={d.id}
               drive={d}
-              collegeTimezone={collegeTimezone}
               manage={() => manage(d.id)}
               edit={() => edit(d.id)}
               toggleLock={() => void toggleLock(d)}
@@ -627,14 +625,12 @@ function Kpi({
 }
 function DriveCard({
   drive,
-  collegeTimezone,
   manage,
   edit,
   toggleLock,
   deleteDrive,
 }: {
   drive: Drive;
-  collegeTimezone: string;
   manage: () => void;
   edit: () => void;
   toggleLock: () => void;
@@ -664,10 +660,10 @@ function DriveCard({
       <dl className="mt-5 grid grid-cols-2 gap-x-6 gap-y-4 text-sm">
         <div><dt className="text-xs text-slate-500">Job type</dt><dd className="mt-1 font-medium">{readable(drive.job_type || "full_time")}</dd></div>
         <div><dt className="text-xs text-slate-500">Location</dt><dd className="mt-1 font-medium">{drive.location || "Not supplied"}</dd></div>
-        <div><dt className="text-xs text-slate-500">Starts</dt><dd className="mt-1 font-medium">{date(drive.window_start_at,collegeTimezone)}</dd></div>
-        <div><dt className="text-xs text-slate-500">Ends</dt><dd className="mt-1 font-medium">{date(drive.window_end_at,collegeTimezone)}</dd></div>
+        <div><dt className="text-xs text-slate-500">Starts · IST</dt><dd className="mt-1 font-medium">{date(drive.window_start_at)}</dd></div>
+        <div><dt className="text-xs text-slate-500">Ends · IST</dt><dd className="mt-1 font-medium">{date(drive.window_end_at)}</dd></div>
         <div><dt className="text-xs text-slate-500">Salary details</dt><dd className="mt-1 font-medium">{drive.salary_min_amount == null ? "Not specified" : `${drive.salary_currency || "INR"} ${Number(drive.salary_min_amount).toLocaleString()}${drive.salary_type === "range" && drive.salary_max_amount != null ? ` – ${Number(drive.salary_max_amount).toLocaleString()}` : ""} per ${drive.salary_period === "monthly" ? "month" : "year"}`}</dd></div>
-        <div><dt className="text-xs text-slate-500">Application deadline</dt><dd className="mt-1 font-medium">{date(drive.application_deadline,collegeTimezone)}</dd></div>
+        <div><dt className="text-xs text-slate-500">Application deadline</dt><dd className="mt-1 font-medium">{date(drive.application_deadline)}</dd></div>
         <div><dt className="text-xs text-slate-500">Latest eligibility preview</dt><dd className="mt-1 font-medium">{drive.latest_snapshot_eligible_count == null ? "Not available" : `${drive.latest_snapshot_eligible_count} eligible students`}</dd></div>
       </dl>
       <div className="mt-5 border-t border-slate-100 pt-4">

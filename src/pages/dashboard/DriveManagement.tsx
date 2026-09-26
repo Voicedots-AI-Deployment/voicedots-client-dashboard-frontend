@@ -18,7 +18,7 @@ import {
   type AgentLibrary,
   type Selection,
 } from "./interviewAgentTypes";
-import { displayName, wallTimeFromInstant, wallTimeToInstant } from "./placementDisplay";
+import { displayName, formatPlacementDateTime, wallTimeFromInstant, wallTimeToInstant } from "./placementDisplay";
 import CandidateReport from "./CandidateReport";
 import ResultCohortBuilder, {type ResultFilterOptions,type ResultRule} from "./ResultCohortBuilder";
 
@@ -655,15 +655,11 @@ function DriveSettings({
       [
         [
           "Window starts",
-          drive.window_start_at
-            ? new Date(drive.window_start_at).toLocaleString(undefined,{timeZone:collegeTimezone}) + ` (${collegeTimezone})`
-            : "Not scheduled",
+          formatPlacementDateTime(drive.window_start_at, collegeTimezone),
         ],
         [
           "Window ends",
-          drive.window_end_at
-            ? new Date(drive.window_end_at).toLocaleString(undefined,{timeZone:collegeTimezone}) + ` (${collegeTimezone})`
-            : "Not scheduled",
+          formatPlacementDateTime(drive.window_end_at, collegeTimezone),
         ],
         ["Duration", `${drive.interview_duration_minutes || 30} minutes`],
         ["Attempts", drive.max_attempts || 1],
@@ -950,7 +946,7 @@ function DriveSettings({
       </>
     ) : title === "Interview configuration" ? (
       <>
-        <p className="text-sm text-slate-500">Times use the institution time zone: {collegeTimezone}.</p>
+        <p className="text-sm text-slate-500">Interview times are shown and saved in IST ({collegeTimezone}).</p>
         {input("window_start", "Interview start", "datetime-local")}
         {input("window_end", "Interview end", "datetime-local")}
         <label className="block text-sm">
@@ -1737,12 +1733,12 @@ export default function DriveManagement({
                   <h3 className="font-bold">Interview window</h3>
                   <p className="mt-1 text-sm text-slate-500">When candidates can attend this drive.</p>
                   {(() => {
-                    const start = drive?.window_start_at ? new Date(drive.window_start_at).getTime() : NaN;
-                    const end = drive?.window_end_at ? new Date(drive.window_end_at).getTime() : NaN;
+                    const start = drive?.window_start_at;
+                    const end = drive?.window_end_at;
                     const status = drive ? windowStatus(drive) : "draft";
                     const state = status === "active" ? "Open now" : status === "closed" ? "Closed" : status === "scheduled" ? "Opens soon" : "Not scheduled";
                     const tone = state === "Open now" ? "text-emerald-700 bg-emerald-50" : state === "Closed" ? "text-slate-600 bg-slate-100" : "text-indigo-700 bg-indigo-50";
-                    return <div className="mt-5 flex flex-wrap items-center gap-4"><span className={`rounded-full px-3 py-1 text-sm font-semibold ${tone}`}>{state}</span><dl className="grid grid-cols-2 gap-x-8 gap-y-2 text-sm"><div><dt className="text-xs text-slate-500">Starts · {collegeTimezone}</dt><dd>{start ? new Date(start).toLocaleString(undefined,{timeZone:collegeTimezone}) : "—"}</dd></div><div><dt className="text-xs text-slate-500">Ends · {collegeTimezone}</dt><dd>{end ? new Date(end).toLocaleString(undefined,{timeZone:collegeTimezone}) : "—"}</dd></div></dl></div>;
+                    return <div className="mt-5 flex flex-wrap items-center gap-4"><span className={`rounded-full px-3 py-1 text-sm font-semibold ${tone}`}>{state}</span><dl className="grid grid-cols-2 gap-x-8 gap-y-2 text-sm"><div><dt className="text-xs text-slate-500">Starts · IST</dt><dd>{formatPlacementDateTime(start, collegeTimezone)}</dd></div><div><dt className="text-xs text-slate-500">Ends · IST</dt><dd>{formatPlacementDateTime(end, collegeTimezone)}</dd></div></dl></div>;
                   })()}
               </article>
               <div className="grid gap-5 lg:grid-cols-2">
@@ -1890,11 +1886,11 @@ export default function DriveManagement({
                       <dt className="text-slate-500">Interview Window</dt>
                       <dd>
                         {drive?.window_start_at
-                          ? new Date(drive.window_start_at).toLocaleString(undefined,{timeZone:collegeTimezone})
+                          ? formatPlacementDateTime(drive.window_start_at, collegeTimezone)
                           : "—"}{" "}
                         –{" "}
                         {drive?.window_end_at
-                          ? new Date(drive.window_end_at).toLocaleString(undefined,{timeZone:collegeTimezone})
+                          ? formatPlacementDateTime(drive.window_end_at, collegeTimezone)
                           : "—"}
                       </dd>
                     </div>

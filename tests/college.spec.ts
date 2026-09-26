@@ -424,15 +424,15 @@ test('backend errors preserve the form instead of claiming a successful creation
 
 test('student roster and academic setup work on a phone', async ({ page }) => {
   await page.setViewportSize({ width: 390, height: 844 });
-  await setup(page);
+  await setup(page, true, { initialPath: '/dashboard/attendance' });
   await page.getByRole('button', { name: 'Student roster', exact: true }).click();
   await page.getByRole('button', { name: 'Add student', exact: true }).click();
   await page.getByLabel('Full name').fill('Example Student');
   await page.getByLabel('Roll number').fill('CSE-2027-001');
-  await page.getByLabel('Email', { exact: true }).fill('student@example.edu');
-  await page.getByLabel('Phone', { exact: true }).fill('+919876543210');
-  await page.getByLabel('CGPA', { exact: true }).fill('8.2');
-  await page.locator('input[name=photo]').setInputFiles({ name: 'student.jpg', mimeType: 'image/jpeg', buffer: Buffer.from('reference-photo') });
+  await page.locator('input[name=email]').fill('student@example.edu');
+  await page.locator('input[type=tel]').fill('9876543210');
+  await page.locator('input[name=cgpa]').fill('8.2');
+  await page.getByLabel('Upload photo').setInputFiles({ name: 'student.jpg', mimeType: 'image/jpeg', buffer: Buffer.from('reference-photo') });
   let payload: Record<string, unknown> = {};
   await page.route('**/v3/college/students', route => {
     if (route.request().method() !== 'POST') return route.fallback();
@@ -446,14 +446,14 @@ test('student roster and academic setup work on a phone', async ({ page }) => {
   expect(payload).toEqual({});
   await page.locator('input[name=confirm_password]').fill('StudentSecure123!');
   await page.getByRole('button', { name: 'Save student' }).click();
-  await expect(page.getByText('Student added with a login password.', { exact: false })).toBeVisible();
+  await expect(page.getByText('Student and login account created.', { exact: false })).toBeVisible();
   expect(payload.password).toBe('StudentSecure123!');
   expect(payload.confirm_password).toBeUndefined();
   expect(payload.photo).toMatch(/^data:image\/jpeg;base64,/);
   expect(payload.program).toBe('B.Tech');
   expect(payload.department_code).toBe('CSE');
   await page.getByRole('button', { name: 'Academic setup', exact: true }).click();
-  await expect(page.getByRole('heading', { name: 'Add or update program' })).toBeVisible();
+  await expect(page.getByRole('button', { name: 'Add program', exact: true })).toBeVisible();
   expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(390);
   await page.screenshot({ path: 'test-results/college-management-mobile.png', fullPage: true });
 });
@@ -504,16 +504,16 @@ test('drive editor handles an invalid stored date without crashing', async ({ pa
 
 
 test('roster filters reach the server and clear without leaving stale selections', async ({page})=>{
- await setup(page);
+ await setup(page,true,{initialPath:'/dashboard/attendance'});
  await page.getByRole('button',{name:'Student roster',exact:true}).click();
- const response=page.waitForRequest(r=>r.url().includes('/v3/college/students?')&&r.url().includes('program=B.Tech'));
- await page.getByRole('combobox',{name:'Filter by program',exact:true}).selectOption('B.Tech');
+ const response=page.waitForRequest(r=>{const url=new URL(r.url());return url.pathname.endsWith('/v3/college/students')&&url.searchParams.get('program')==='B.Tech'});
+ await page.getByRole('combobox',{name:'Filter by program'}).selectOption('B.Tech');
  await response;
- const batchRequest=page.waitForRequest(r=>r.url().includes('batch_label=2023-2027'));
+ const batchRequest=page.waitForRequest(r=>new URL(r.url()).searchParams.get('batch_label')==='2023-2027');
  await page.getByRole('combobox',{name:'Filter by batch',exact:true}).selectOption('2023-2027');
  await batchRequest;
  await page.getByRole('button',{name:'Clear filters'}).click();
- await expect(page.getByRole('combobox',{name:'Filter by program',exact:true})).toHaveValue('');
+ await expect(page.getByRole('combobox',{name:'Filter by program'})).toHaveValue('');
  await expect(page.getByRole('combobox',{name:'Filter by batch',exact:true})).toHaveValue('');
 });
 
@@ -528,14 +528,14 @@ test('analytics has honest empty data and fits a mobile viewport',async ({page})
 });
 
 test('roster imports a workbook and offers a downloadable CSV template',async({page})=>{
- await setup(page);await page.route('**/v3/college/students/upload',async route=>{expect(route.request().headers()['content-type']).toContain('multipart/form-data; boundary=');expect(route.request().postDataBuffer()?.toString()).toContain('roster.csv');return route.fulfill({json:{records_created:2,records_updated:1,records_processed:3,errors_count:1,errors_sample:['Students row 5: Email is required'],warnings_count:0,warnings_sample:[]}})});
+ await setup(page,true,{initialPath:'/dashboard/attendance'});await page.route('**/v3/college/students/upload',async route=>{expect(route.request().headers()['content-type']).toContain('multipart/form-data; boundary=');expect(route.request().postDataBuffer()?.toString()).toContain('roster.csv');return route.fulfill({json:{records_created:2,records_updated:1,records_processed:3,errors_count:1,errors_sample:['Students row 5: Email is required'],warnings_count:0,warnings_sample:[]}})});
  await page.route('**/v3/college/students/template?format=csv',route=>route.fulfill({contentType:'text/csv',body:'roll_number,full_name,email\r\n'}));
  await page.getByRole('button',{name:'Student roster',exact:true}).click();await page.getByText('Import students from CSV or Excel',{exact:true}).click();const downloaded=page.waitForEvent('download');await page.getByRole('button',{name:'Download CSV template'}).click();expect((await downloaded).suggestedFilename()).toBe('student-import-template.csv');await page.getByLabel('Student import file').setInputFiles({name:'roster.csv',mimeType:'text/csv',buffer:Buffer.from('roll_number,full_name,email\n001,Asha,asha@example.com')});await page.getByRole('button',{name:'Import students',exact:true}).click();await expect(page.getByText('2 created · 1 updated · 1 errors · 0 warnings')).toBeVisible();await expect(page.getByText('Students row 5: Email is required')).toBeVisible();
 });
 
 for (const existing of [true, false]) {
  test(`existing student photo can be ${existing ? 'viewed and replaced' : 'added'} from the roster editor`, async ({page}) => {
-  await setup(page);
+  await setup(page,true,{initialPath:'/dashboard/attendance'});
   const student = {id:'student-1',full_name:'Example Student',email:'student@example.edu',roll_number:'CS01',phone:'9999999999',program:'B.Tech',department_code:'CSE',graduation_year:2027,cgpa:8,status:'active'};
   const image = await page.evaluate(() => { const canvas=document.createElement('canvas');canvas.width=32;canvas.height=32;canvas.getContext('2d')!.fillRect(0,0,32,32);return canvas.toDataURL('image/png'); });
   let photo = existing ? image : '';
@@ -559,7 +559,7 @@ for (const existing of [true, false]) {
   await expect(dialog.getByText('Verification photo saved.')).toBeVisible();
   expect(saves).toBe(1);expect(studentWrites).toBe(0);
   expect(photo).toMatch(/^data:image\/jpeg;base64,/);
-  await dialog.getByRole('button',{name:'Close form'}).click();
+  await dialog.getByRole('button',{name:'Close',exact:true}).click();
   await page.getByRole('button',{name:'Edit',exact:true}).click();
   await expect(page.getByAltText('Example Student verification reference')).toHaveAttribute('src',photo);
  });
@@ -572,7 +572,6 @@ test('agents follow academic setup and defaults cannot be edited', async ({ page
   await expect(page.getByText('Locked default')).toHaveCount(4);
   await expect(page.getByRole('button', { name: 'Edit', exact: true })).toHaveCount(0);
   await page.getByRole('button', { name: 'Create agent', exact: true }).click();
-  await page.getByLabel('Name', {exact:true}).fill('Asha');
   await page.getByLabel('Role', {exact:true}).fill('Product interviewer');
   await page.getByLabel('First message').fill('Welcome {name} to {company}');
   await page.getByLabel('System prompt').fill('Interview for {role} using product scenarios.');
@@ -583,7 +582,7 @@ test('agents follow academic setup and defaults cannot be edited', async ({ page
   });
   await page.getByRole('button', {name:'Save agent'}).click();
   await expect(page.getByRole('button', {name:'Save agent'})).toHaveCount(0);
-  expect(saved.name).toBe('Asha'); expect(saved.intro_message).toContain('{company}');
+  expect(saved.role).toBe('Product interviewer'); expect(saved.intro_message).toContain('{company}');
 });
 
 test('single selected round saves manual questions in the drive', async ({ page }) => {
@@ -710,13 +709,14 @@ test('ATS Fit keeps pending candidates visible without showing scores or the rem
   expect(resumeFileRequested).toBe(false);
 });
 
-test('drive editor submits an offset-aware interview window in the institution timezone',async({page})=>{
+test('drive editor submits and displays interview windows in IST',async({page})=>{
   await setup(page,true,{initialPath:'/dashboard/placement-management?drive=drive-1&section=settings',driveRows:[{id:'drive-1',company_name:'Example Company',role_title:'Engineer',status:'scheduled',location:'Chennai'}],driveDetails:{id:'drive-1',company_name:'Example Company',role_title:'Engineer',status:'scheduled',location:'Chennai',window_start_at:'2027-01-10T03:30:00Z',window_end_at:'2027-01-10T04:30:00Z'}});
   let payload:Record<string,unknown>={};
   await page.route('**/v3/college/drives/drive-1',route=>{
     if(route.request().method()==='PUT'){payload=route.request().postDataJSON();return route.fulfill({json:{id:'drive-1',...payload}});}
     return route.fallback();
   });
+  await expect(page.getByText('10/01/2027, 09:00 IST',{exact:true})).toBeVisible();
   await page.locator('article').filter({has:page.getByRole('heading',{name:'Interview configuration'})}).getByRole('button',{name:'Modify section'}).click();
   await page.getByLabel('Interview start').fill('2027-01-10T09:00');
   await page.getByLabel('Interview end').fill('2027-01-10T10:00');
