@@ -15,14 +15,10 @@ type Report = Data & {
   detail?: Data;
 };
 const nav = [
-  "summary",
-  "competencies",
-  "role-fit",
-  "panel-rounds",
-  "evidence",
-  "integrity",
-  "decision",
-];
+  ["summary", "Overview"], ["integrity", "AI Proctor review"],
+  ["evidence", "Interview answers"], ["panel-rounds", "Rounds"],
+  ["competencies", "Competencies"], ["role-fit", "Job fit"], ["decision", "Decision"],
+] as const;
 const show = (value: unknown, fallback = "Not available") =>
   value === null || value === undefined || value === ""
     ? fallback
@@ -30,6 +26,21 @@ const show = (value: unknown, fallback = "Not available") =>
 const stamp = (value: unknown) =>
   value ? new Date(String(value)).toLocaleString() : "Not available";
 const decisionLabel = (value: unknown) => value === "shortlist" ? "Shortlisted" : value === "reject" ? "Rejected" : displayName(show(value, "undecided"));
+const eventExplanation = (event: Data) => {
+  const details = event.details;
+  if (details && typeof details === "object" && typeof (details as Data).message === "string") return String((details as Data).message);
+  const descriptions: Record<string, string> = {
+    camera_lost: "The interview camera connection was interrupted.",
+    candidate_not_visible: "The candidate was not detected in the camera view.",
+    multiple_people_visible: "More than one person was detected in the camera view.",
+    multiple_people_cleared: "The additional person was no longer detected.",
+    tab_hidden: "The interview page moved out of the foreground.",
+    fullscreen_exit: "The interview left full-screen mode.",
+    screen_share_ended: "Screen sharing ended during the interview.",
+    gaze_off_camera: "A gaze direction change was recorded for review.",
+  };
+  return descriptions[String(event.event_type || event.type)] || "A proctoring observation was recorded for human review.";
+};
 
 function Metric({
   label,
@@ -166,6 +177,14 @@ export default function CandidateReport({
     [resultSettings, setResultSettings] = useState<Data | null>(null);
   const [transcript, setTranscript] = useState<Data | null>(null),
     [integrity, setIntegrity] = useState<Data | null>(null);
+  const [transcriptLoading, setTranscriptLoading] = useState(false),
+    [integrityLoading, setIntegrityLoading] = useState(false),
+    [transcriptError, setTranscriptError] = useState(""),
+    [integrityError, setIntegrityError] = useState(""),
+    [activeSection, setActiveSection] = useState("summary"),
+    [activeEvent, setActiveEvent] = useState(0);
+  const [driveError, setDriveError] = useState(""),
+    [decisionError, setDecisionError] = useState("");
   const [decision, setDecision] = useState(""),
     [note, setNote] = useState(""),
     [schedule, setSchedule] = useState("");
@@ -179,7 +198,7 @@ export default function CandidateReport({
     setBusy(true);
     setError("");
     try {
-      const [reports, driveValue, decisionValue, settingsValue] = await Promise.all([
+      const [reports, driveValue, decisionValue, settingsValue] = await Promise.allSettled([
         collegeApi.get<Data>(`students/${studentId}/reports`),
         collegeApi.get<Drive>(`drives/${driveId}`),
         collegeApi.get<Data>(
@@ -187,12 +206,17 @@ export default function CandidateReport({
         ),
         collegeApi.get<Data>("interview-results-settings"),
       ]);
-      setBundle(reports);
-      setDrive(driveValue);
-      setDecisionData(decisionValue);
-      setResultSettings(settingsValue);
-      const current = decisionValue.decision as Data | undefined;
-      setDecision(current?.decision ? String(current.decision) : "");
+      if (reports.status === "fulfilled") setBundle(reports.value);
+      else setError(`Interview report could not be loaded: ${collegeError(reports.reason)}`);
+      if (driveValue.status === "fulfilled") { setDrive(driveValue.value); setDriveError(""); }
+      else setDriveError(collegeError(driveValue.reason));
+      if (decisionValue.status === "fulfilled") {
+        setDecisionData(decisionValue.value);
+        setDecisionError("");
+        const current = decisionValue.value.decision as Data | undefined;
+        setDecision(current?.decision ? String(current.decision) : "");
+      } else setDecisionError(collegeError(decisionValue.reason));
+      if (settingsValue.status === "fulfilled") setResultSettings(settingsValue.value);
     } catch (e) {
       setError(collegeError(e));
     } finally {
@@ -202,6 +226,14 @@ export default function CandidateReport({
   useEffect(() => {
     void load();
   }, [driveId, studentId]);
+  useEffect(() => {
+    const observer = new IntersectionObserver(entries => {
+      const visible = entries.filter(entry => entry.isIntersecting).sort((a,b) => b.intersectionRatio-a.intersectionRatio)[0];
+      if (visible) setActiveSection(visible.target.id);
+    }, { rootMargin: "-100px 0px -65% 0px", threshold: [0, .2, .5, 1] });
+    for (const [id] of nav) { const section = document.getElementById(id); if (section) observer.observe(section); }
+    return () => observer.disconnect();
+  }, [bundle]);
   const report = useMemo(
     () =>
       ((bundle?.reports || []) as Report[]).find(
@@ -211,7 +243,9 @@ export default function CandidateReport({
   );
   async function evidence(kind: "transcript" | "integrity-events") {
     if (!report?.session_id) return;
-    setBusy(true);
+    const isTranscript = kind === "transcript";
+    if (isTranscript) { setTranscriptLoading(true); setTranscriptError(""); }
+    else { setIntegrityLoading(true); setIntegrityError(""); }
     try {
       const value = await collegeApi.get<Data>(
         `students/${studentId}/reports/${report.session_id}/${kind}`,
@@ -219,9 +253,11 @@ export default function CandidateReport({
       if (kind === "transcript") setTranscript(value);
       else setIntegrity(value);
     } catch (e) {
-      setError(collegeError(e));
+      if (isTranscript) setTranscriptError(collegeError(e));
+      else setIntegrityError(collegeError(e));
     } finally {
-      setBusy(false);
+      if (isTranscript) setTranscriptLoading(false);
+      else setIntegrityLoading(false);
     }
   }
   async function perform() {
@@ -318,10 +354,11 @@ export default function CandidateReport({
   const comparable = pri.comparable !== false && typeof pri.score === "number";
   return (
     <section className="space-y-6 pb-12 text-slate-900 dark:text-white">
-      <button className={btn} onClick={onBack}>
+      <button className={btn + " report-back"} onClick={onBack}>
         <ArrowLeft size={16} />
         Back to Interview Results
       </button>
+      <style>{"@media print{.report-nav,.report-back,.report-actions{display:none!important}details:not([open])>*:not(summary){display:block!important}article,details{break-inside:avoid}body{color:#111!important;background:#fff!important}}"}</style>
       <header className="flex flex-wrap items-start justify-between gap-4">
         <div>
           <p className="text-sm font-semibold text-indigo-600">
@@ -331,40 +368,39 @@ export default function CandidateReport({
             {show(student.full_name, "Candidate")}
           </h2>
           <p className="mt-2 text-sm text-slate-500">
-            {show(student.roll_number)} · {show(student.department_code)} ·
+            {show(student.roll_number)} · {show(student.program)} · {show(student.department_code)} ·
             Graduation {show(student.graduation_year)}
           </p>
-          <p className="mt-1 text-sm">
-            {drive?.company_name} · {drive?.role_title}
-          </p>
+          <p className="mt-1 text-sm">{drive?.company_name || "Company unavailable"} · {drive?.role_title || "Role unavailable"}</p>
+          {driveError && <p role="alert" className="mt-2 text-sm text-rose-700">Drive details could not be loaded: {driveError} <button className="underline" onClick={() => void load()}>Retry</button></p>}
         </div>
         <div className="text-right text-sm">
-          <span className="rounded-full bg-slate-100 px-3 py-1 font-semibold dark:bg-slate-800">
-            {displayName(show(detail.status, "completed"))}
-          </span>
-          <p className="mt-2 text-slate-500">
-            Completed {stamp(report.completed_at)}
-          </p>
+          <p><strong>Interview completion:</strong> {report.completed_at ? "Completed" : "Incomplete"}</p>
+          <p className="mt-1"><strong>Evaluation:</strong> {displayName(show(detail.status, "not available"))}</p>
+          <p className="mt-1 text-slate-500">Completed {stamp(report.completed_at)}</p>
+          <p className="mt-2"><strong>Student result:</strong> {displayName(show(publication.state, "hidden"))}</p>
         </div>
       </header>
       <nav
-        className="sticky top-0 z-20 flex gap-5 overflow-x-auto border-b bg-white py-3 dark:bg-slate-950"
+        className="report-nav sticky top-0 z-20 flex gap-2 overflow-x-auto border-b bg-white py-3 dark:bg-slate-950 sm:gap-5"
         aria-label="Report sections"
       >
-        {nav.map((item) => (
+        {nav.map(([item, label]) => (
           <a
-            className="whitespace-nowrap text-sm font-semibold text-indigo-700"
+            aria-current={activeSection === item ? "location" : undefined}
+            className={`whitespace-nowrap rounded px-2 py-1 text-sm font-semibold focus-visible:outline focus-visible:outline-2 focus-visible:outline-indigo-600 ${activeSection === item ? "bg-indigo-50 text-indigo-800" : "text-slate-600"}`}
             href={`#${item}`}
             key={item}
           >
-            {displayName(item)}
+            {label}
           </a>
         ))}
       </nav>
       {error && (
-        <p role="alert" className="rounded-xl bg-rose-50 p-4 text-rose-700">
+        <div role="alert" className="flex flex-wrap items-center justify-between gap-3 rounded-xl bg-rose-50 p-4 text-rose-700">
           {error}
-        </p>
+          <button className={btn} onClick={() => void load()}>Retry report</button>
+        </div>
       )}
       {notice && (
         <p
@@ -375,7 +411,7 @@ export default function CandidateReport({
         </p>
       )}
       <section id="summary" className="scroll-mt-20 space-y-4">
-        <h3 className="text-xl font-bold">Summary</h3>
+        <h3 className="text-xl font-bold">Overview</h3>
         <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-5">
           <Metric
             label="Placement Readiness Score"
@@ -455,6 +491,236 @@ export default function CandidateReport({
           </article>
         </div>
       </section>
+      <section id="integrity" className="scroll-mt-20 space-y-4">
+        <div className="flex flex-wrap justify-between gap-3">
+          <div>
+            <h3 className="text-xl font-bold">AI Proctor review</h3>
+            <p className="text-sm text-slate-500">
+              Review cues only. These observations are not proof of misconduct and do not determine placement.
+            </p>
+          </div>
+          <button
+            className={btn}
+            disabled={integrityLoading || !report.session_id}
+            onClick={() => void evidence("integrity-events")}
+          >
+            <ShieldCheck size={16} />
+            {integrityLoading ? "Loading events…" : integrity ? "Reload event timeline" : "Load event timeline"}
+          </button>
+        </div>
+        {integrityError && <div role="alert" className="rounded-xl bg-rose-50 p-3 text-sm text-rose-800">{integrityError}<button className={btn + " ml-3"} onClick={() => void evidence("integrity-events")}>Retry</button></div>}
+        <div className="grid gap-4 sm:grid-cols-3">
+          <Metric
+            label="AI Proctor Score"
+            value={
+              typeof proctor.overall_score === "number"
+                ? `${proctor.overall_score}/100`
+                : "Not available"
+            }
+          />
+          <Metric
+            label="Review status"
+            value={displayName(show(proctor.status))}
+          />
+          <Metric
+            label="Recorded observations"
+            value={proctor.total_events ?? 0}
+          />
+        </div>
+        {proctor.sub_scores != null && (
+          <article className={panel}>
+            <h4 className="font-bold">Integrity sub-scores</h4>
+            <dl className="mt-4 grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+              {Object.entries(proctor.sub_scores as Data).map(
+                ([key, value]) => (
+                  <div key={key}>
+                    <dt className="text-xs uppercase text-slate-500">
+                      {displayName(key)}
+                    </dt>
+                    <dd className="mt-1 text-xl font-semibold">
+                      {show(value)}/100
+                    </dd>
+                  </div>
+                ),
+              )}
+            </dl>
+          </article>
+        )}
+        {integrity && (
+          <article className={panel}>
+            <h4 className="font-bold">Event timeline</h4>
+            <div className="mt-4 space-y-3">
+              {events.length ? (
+                <div className="grid gap-4 lg:grid-cols-[minmax(14rem,0.8fr)_minmax(0,1.2fr)]">
+                  <div className="space-y-2" role="list" aria-label="Proctor observations">
+                    {events.map((event, index) => <button type="button" role="listitem" aria-pressed={activeEvent===index} key={String(event.event_id||index)} onClick={()=>setActiveEvent(index)} className={"w-full rounded-xl border p-3 text-left text-sm focus-visible:outline focus-visible:outline-2 focus-visible:outline-indigo-600 " + (activeEvent===index?"border-indigo-500 bg-indigo-50":"border-slate-200")}>
+                      <strong className="block">{displayName(show(event.event_type || event.type, "Integrity event"))}</strong>
+                      <span className="mt-1 block text-xs text-slate-500">{stamp(event.occurred_at || event.created_at)}</span>
+                    </button>)}
+                  </div>
+                  {events[activeEvent] && <article className="rounded-xl border p-4 text-sm">
+                    <div className="flex flex-wrap items-center justify-between gap-2"><strong>{displayName(show(events[activeEvent].event_type || events[activeEvent].type, "Integrity event"))}</strong><span>{stamp(events[activeEvent].occurred_at || events[activeEvent].created_at)}</span></div>
+                    <p className="mt-3">{eventExplanation(events[activeEvent])}</p>
+                    <p className="mt-4 rounded-lg bg-slate-50 p-3 text-slate-600">No incident photo available. This proctoring event did not persist a camera frame.</p>
+                    <p className="mt-3 text-xs text-slate-500">Severity: {displayName(show(events[activeEvent].severity, "not specified"))}. This is an observation for reviewer context.</p>
+                  </article>}
+                </div>
+              ) : (
+                <p>No proctor observations were recorded.</p>
+              )}
+            </div>
+          </article>
+        )}
+      </section>
+      <section id="evidence" className="scroll-mt-20 space-y-4">
+        <div className="flex flex-wrap justify-between gap-3">
+          <div>
+            <h3 className="text-xl font-bold">Interview answers</h3>
+            <p className="text-sm text-slate-500">
+              Question review and persisted transcript.
+            </p>
+          </div>
+          <button
+            className={btn}
+            disabled={transcriptLoading || !report.session_id}
+            onClick={() => void evidence("transcript")}
+          >
+            <FileText size={16} />
+            {transcriptLoading ? "Loading transcript…" : transcript ? "Reload transcript" : "Load transcript"}
+          </button>
+        </div>
+        {transcriptError && <div role="alert" className="rounded-xl bg-rose-50 p-3 text-sm text-rose-800">{transcriptError}<button className={btn + " ml-3"} onClick={() => void evidence("transcript")}>Retry</button></div>}
+        {reviews.length ? (
+          reviews.map((review, index) => {
+            const turnId = show(review.turn_id, "");
+            return (
+              <details className={panel} key={index}>
+                <summary className="cursor-pointer list-none focus-visible:outline focus-visible:outline-2 focus-visible:outline-indigo-600">
+                <div className="flex justify-between gap-3">
+                  <p className="text-xs font-semibold uppercase text-indigo-600">
+                    {roundRole(review.agent_type || review.track)}
+                  </p>
+                  <span>
+                    {displayName(
+                      show(
+                        review.answer_state ||
+                          review.evidence_status ||
+                          review.status,
+                        "Answered",
+                      ),
+                    )}
+                  </span>
+                </div>
+                <h4 className="mt-2 font-bold">
+                  {show(review.question || review.question_text)}
+                </h4>
+                </summary>
+                <p className="mt-3 whitespace-pre-wrap text-sm">
+                  {show(
+                    review.answer || review.transcript,
+                    "No response text was captured.",
+                  )}
+                </p>
+                {review.strength_feedback != null && (
+                  <p className="mt-3 text-sm">
+                    <strong>What was strong:</strong>{" "}
+                    {show(review.strength_feedback)}
+                  </p>
+                )}
+                {review.improvement_feedback != null && (
+                  <p className="mt-2 text-sm">
+                    <strong>Could improve:</strong>{" "}
+                    {show(review.improvement_feedback)}
+                  </p>
+                )}
+                {review.has_audio === true && turnId && report.session_id && (
+                  <Audio
+                    path={`students/${studentId}/reports/${report.session_id}/turns/${turnId}/audio`}
+                  />
+                )}
+              </details>
+            );
+          })
+        ) : (
+          <p className={panel}>No question review was generated.</p>
+        )}
+        {transcript && (
+          <article className={panel}>
+            <h4 className="font-bold">Transcript</h4>
+            <div className="mt-4 space-y-4">
+              {turns.map((turn, index) => {
+                const turnId = show(turn.turn_id, "");
+                return (
+                  <div
+                    className="border-l-2 border-indigo-200 pl-4"
+                    key={index}
+                  >
+                    <p className="text-xs font-semibold uppercase text-slate-500">
+                      Turn {show(turn.turn_index, String(index + 1))} ·{" "}
+                      {roundRole(turn.agent_type)} ·{" "}
+                      {displayName(show(turn.kind, "Question"))}
+                    </p>
+                    <p className="mt-2 font-semibold">
+                      {show(turn.question_text)}
+                    </p>
+                    <p className="mt-2 whitespace-pre-wrap text-sm">
+                      {show(turn.transcript, "No response text captured.")}
+                    </p>
+                    {turn.has_audio === true && turnId && report.session_id && (
+                      <Audio
+                        path={`students/${studentId}/reports/${report.session_id}/turns/${turnId}/audio`}
+                      />
+                    )}
+                  </div>
+                );
+              })}
+            </div>
+          </article>
+        )}
+      </section>
+      <section id="panel-rounds" className="scroll-mt-20 space-y-4">
+        <h3 className="text-xl font-bold">Rounds</h3>
+        <div className="grid gap-4 lg:grid-cols-2">
+          {rounds.length ? (
+            rounds.map((round, index) => {
+              const incomplete = [
+                "not_reached",
+                "incomplete",
+                "failed",
+              ].includes(show(round.status, "incomplete"));
+              return (
+                <article className={panel} key={index}>
+                  <div className="flex justify-between gap-3">
+                    <div>
+                      <p className="text-xs uppercase text-slate-500">
+                        Round {index + 1}
+                      </p>
+                      <strong>
+                        {roundRole(round.agent_type || round.track, round.interviewer_role)}
+                      </strong>
+                    </div>
+                    <span>
+                      {incomplete
+                        ? "Not Fully Assessed"
+                        : round.sub_score == null
+                          ? displayName(show(round.status))
+                          : `${round.sub_score}/100`}
+                    </span>
+                  </div>
+                  <p className="mt-3 text-sm">
+                    {show(
+                      round.summary || round.evidence,
+                      "No round summary was recorded.",
+                    )}
+                  </p>
+                </article>
+              );
+            })
+          ) : (
+            <p className={panel}>No round-level assessment was recorded.</p>
+          )}
+        </div>
+      </section>
       <section id="competencies" className="scroll-mt-20 space-y-4">
         <h3 className="text-xl font-bold">Competencies</h3>
         <div className="grid gap-4 md:grid-cols-2">
@@ -522,7 +788,7 @@ export default function CandidateReport({
         )}
       </section>
       <section id="role-fit" className="scroll-mt-20 space-y-4">
-        <h3 className="text-xl font-bold">Role Fit</h3>
+        <h3 className="text-xl font-bold">Job fit</h3>
         <article className={panel}>
           <div className="flex justify-between gap-3">
             <div>
@@ -571,243 +837,9 @@ export default function CandidateReport({
           </article>
         </div>
       </section>
-      <section id="panel-rounds" className="scroll-mt-20 space-y-4">
-        <h3 className="text-xl font-bold">Panel Rounds</h3>
-        <div className="grid gap-4 lg:grid-cols-2">
-          {rounds.length ? (
-            rounds.map((round, index) => {
-              const incomplete = [
-                "not_reached",
-                "incomplete",
-                "failed",
-              ].includes(show(round.status, "incomplete"));
-              return (
-                <article className={panel} key={index}>
-                  <div className="flex justify-between gap-3">
-                    <div>
-                      <p className="text-xs uppercase text-slate-500">
-                        Round {index + 1}
-                      </p>
-                      <strong>
-                        {roundRole(round.agent_type || round.track, round.interviewer_role)}
-                      </strong>
-                    </div>
-                    <span>
-                      {incomplete
-                        ? "Not Fully Assessed"
-                        : round.sub_score == null
-                          ? displayName(show(round.status))
-                          : `${round.sub_score}/100`}
-                    </span>
-                  </div>
-                  <p className="mt-3 text-sm">
-                    {show(
-                      round.summary || round.evidence,
-                      "No round summary was recorded.",
-                    )}
-                  </p>
-                </article>
-              );
-            })
-          ) : (
-            <p className={panel}>No round-level assessment was recorded.</p>
-          )}
-        </div>
-      </section>
-      <section id="evidence" className="scroll-mt-20 space-y-4">
-        <div className="flex flex-wrap justify-between gap-3">
-          <div>
-            <h3 className="text-xl font-bold">Evidence</h3>
-            <p className="text-sm text-slate-500">
-              Question review and persisted transcript.
-            </p>
-          </div>
-          <button
-            className={btn}
-            disabled={busy || !report.session_id}
-            onClick={() => void evidence("transcript")}
-          >
-            <FileText size={16} />
-            Load transcript
-          </button>
-        </div>
-        {reviews.length ? (
-          reviews.map((review, index) => {
-            const turnId = show(review.turn_id, "");
-            return (
-              <article className={panel} key={index}>
-                <div className="flex justify-between gap-3">
-                  <p className="text-xs font-semibold uppercase text-indigo-600">
-                    {roundRole(review.agent_type || review.track)}
-                  </p>
-                  <span>
-                    {displayName(
-                      show(
-                        review.answer_state ||
-                          review.evidence_status ||
-                          review.status,
-                        "Answered",
-                      ),
-                    )}
-                  </span>
-                </div>
-                <h4 className="mt-2 font-bold">
-                  {show(review.question || review.question_text)}
-                </h4>
-                <p className="mt-3 whitespace-pre-wrap text-sm">
-                  {show(
-                    review.answer || review.transcript,
-                    "No response text was captured.",
-                  )}
-                </p>
-                {review.strength_feedback != null && (
-                  <p className="mt-3 text-sm">
-                    <strong>What was strong:</strong>{" "}
-                    {show(review.strength_feedback)}
-                  </p>
-                )}
-                {review.improvement_feedback != null && (
-                  <p className="mt-2 text-sm">
-                    <strong>Could improve:</strong>{" "}
-                    {show(review.improvement_feedback)}
-                  </p>
-                )}
-                {review.has_audio === true && turnId && report.session_id && (
-                  <Audio
-                    path={`students/${studentId}/reports/${report.session_id}/turns/${turnId}/audio`}
-                  />
-                )}
-              </article>
-            );
-          })
-        ) : (
-          <p className={panel}>No question review was generated.</p>
-        )}
-        {transcript && (
-          <article className={panel}>
-            <h4 className="font-bold">Transcript</h4>
-            <div className="mt-4 space-y-4">
-              {turns.map((turn, index) => {
-                const turnId = show(turn.turn_id, "");
-                return (
-                  <div
-                    className="border-l-2 border-indigo-200 pl-4"
-                    key={index}
-                  >
-                    <p className="text-xs font-semibold uppercase text-slate-500">
-                      Turn {show(turn.turn_index, String(index + 1))} ·{" "}
-                      {roundRole(turn.agent_type)} ·{" "}
-                      {displayName(show(turn.kind, "Question"))}
-                    </p>
-                    <p className="mt-2 font-semibold">
-                      {show(turn.question_text)}
-                    </p>
-                    <p className="mt-2 whitespace-pre-wrap text-sm">
-                      {show(turn.transcript, "No response text captured.")}
-                    </p>
-                    {turn.has_audio === true && turnId && report.session_id && (
-                      <Audio
-                        path={`students/${studentId}/reports/${report.session_id}/turns/${turnId}/audio`}
-                      />
-                    )}
-                  </div>
-                );
-              })}
-            </div>
-          </article>
-        )}
-      </section>
-      <section id="integrity" className="scroll-mt-20 space-y-4">
-        <div className="flex flex-wrap justify-between gap-3">
-          <div>
-            <h3 className="text-xl font-bold">Integrity / AI Proctoring</h3>
-            <p className="text-sm text-slate-500">
-              Human-review evidence; separate from interview score and PRI.
-            </p>
-          </div>
-          <button
-            className={btn}
-            disabled={busy || !report.session_id}
-            onClick={() => void evidence("integrity-events")}
-          >
-            <ShieldCheck size={16} />
-            Load event timeline
-          </button>
-        </div>
-        <div className="grid gap-4 sm:grid-cols-3">
-          <Metric
-            label="AI Proctor Score"
-            value={
-              typeof proctor.overall_score === "number"
-                ? `${proctor.overall_score}/100`
-                : "Not available"
-            }
-          />
-          <Metric
-            label="Review status"
-            value={displayName(show(proctor.status))}
-          />
-          <Metric
-            label="Recorded observations"
-            value={proctor.total_events ?? 0}
-          />
-        </div>
-        {proctor.sub_scores != null && (
-          <article className={panel}>
-            <h4 className="font-bold">Integrity sub-scores</h4>
-            <dl className="mt-4 grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-              {Object.entries(proctor.sub_scores as Data).map(
-                ([key, value]) => (
-                  <div key={key}>
-                    <dt className="text-xs uppercase text-slate-500">
-                      {displayName(key)}
-                    </dt>
-                    <dd className="mt-1 text-xl font-semibold">
-                      {show(value)}/100
-                    </dd>
-                  </div>
-                ),
-              )}
-            </dl>
-          </article>
-        )}
-        {integrity && (
-          <article className={panel}>
-            <h4 className="font-bold">Event timeline</h4>
-            <div className="mt-4 space-y-3">
-              {events.length ? (
-                events.map((event, index) => (
-                  <div className="rounded-xl border p-3 text-sm" key={index}>
-                    <div className="flex justify-between gap-3">
-                      <strong>
-                        {displayName(
-                          show(
-                            event.event_type || event.type,
-                            "Integrity event",
-                          ),
-                        )}
-                      </strong>
-                      <span>
-                        {stamp(event.occurred_at || event.created_at)}
-                      </span>
-                    </div>
-                    <p className="mt-2">
-                      {show(
-                        event.message || event.reason || event.action,
-                        "Observation recorded.",
-                      )}
-                    </p>
-                  </div>
-                ))
-              ) : (
-                <p>No integrity events were recorded.</p>
-              )}
-            </div>
-          </article>
-        )}
-      </section>
       <section id="decision" className="scroll-mt-20 space-y-4">
-        <h3 className="text-xl font-bold">Decision and Student Result</h3>
+        <h3 className="text-xl font-bold">Decision</h3>
+        {decisionError && <div role="alert" className="rounded-xl bg-rose-50 p-3 text-sm text-rose-800">Decision details could not be loaded: {decisionError}<button className={btn + " ml-3"} onClick={() => void load()}>Retry</button></div>}
         <div className="grid gap-4 lg:grid-cols-2">
           <form
             className={panel}

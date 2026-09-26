@@ -112,7 +112,18 @@ export default function CreateDriveWizard({programs,drive,draftId,collegeTimezon
       const savedKey=typeof saved?.payload?.creationKey==='string'?saved.payload.creationKey:crypto.randomUUID();
       let rows:DriveDraft[]=[];
       if(draftId||saved?.id){
-        try{rows=await collegeApi.get<DriveDraft[]>('drive-drafts',controller.signal);}catch{rows=[];}
+        try{rows=await collegeApi.get<DriveDraft[]>('drive-drafts',controller.signal);}catch(error){
+          if(controller.signal.aborted)return;
+          if(saved?.payload&&(!draftId||saved.id===draftId)){
+            hydrate(saved.payload,saved.payload.step??0);setCreationKey(savedKey);draftIdRef.current=null;
+            setNotice('Could not sync the saved draft. Recovered the local copy.');
+          }else{
+            setFormError(axios.isAxiosError(error)&&error.response?.status===404
+              ?'Drive not found. This saved draft may have been deleted.'
+              :`Could not load this drive draft: ${collegeError(error)}`);
+            setDraftLoaded(true);return;
+          }
+        }
       }
       if(controller.signal.aborted)return;
       const row=rows.find(item=>draftId
@@ -125,7 +136,7 @@ export default function CreateDriveWizard({programs,drive,draftId,collegeTimezon
       }else if(saved?.payload&&(!draftId||saved.id===draftId)){
         hydrate(saved.payload,saved.payload.step??0);setCreationKey(savedKey);draftIdRef.current=null;
         if(saved.id)setNotice('Recovered your saved draft. Syncing it to your account now.');
-      }else if(draftId)setFormError('This draft is no longer available.');
+      }else if(draftId)setFormError('Drive not found. This saved draft may have been deleted.');
       setDraftLoaded(true);
     })();
     return()=>controller.abort();

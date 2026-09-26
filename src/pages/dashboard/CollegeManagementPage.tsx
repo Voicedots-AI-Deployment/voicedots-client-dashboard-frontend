@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
+import axios from "axios";
 import {
   ArrowUpRight,
   BriefcaseBusiness,
@@ -399,7 +400,7 @@ export default function CollegeManagementPage() {
             })
           }
           resumeDraft={(id) => setParams((p) => { p.set("create", "1"); if(id==="local-device")p.delete("draft");else p.set("draft", id); return p; })}
-          deleteDraft={async (id) => { if(id==="local-device"){localStorage.removeItem("voicedots:placement-drive-draft:v2");setDrafts(current=>current.filter(item=>item.id!==id));return;} try { await collegeApi.remove(`drive-drafts/${id}`); setDrafts(current=>current.filter(item=>item.id!==id)); } catch (e) { setError(collegeError(e)); } }}
+          deleteDraft={async (id) => { if(id==="local-device"){localStorage.removeItem("voicedots:placement-drive-draft:v2");setDrafts(current=>current.filter(item=>item.id!==id));return;} try { await collegeApi.remove(`drive-drafts/${id}`); setDrafts(current=>current.filter(item=>item.id!==id)); setError(""); } catch (e) { if (axios.isAxiosError(e) && e.response?.status === 404) { setDrafts(current=>current.filter(item=>item.id!==id)); setError("Drive not found. This draft may already have been deleted."); } else { setError(`Could not delete draft: ${collegeError(e)}`); } } }}
           manage={(id) =>
             setParams((p) => {
               p.set("drive", id);

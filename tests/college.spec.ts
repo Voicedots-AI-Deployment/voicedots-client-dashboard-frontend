@@ -160,13 +160,38 @@ test('custom interviewer appends into an available sequence slot and can start a
   await page.getByLabel('Interview ends date').fill('2027-01-11');
   await page.getByRole('button',{name:'3. Interview roles'}).click();
   await expect(page.getByRole('button',{name:'Remove Talent Acquisition Specialist'})).toBeVisible();
-  for(const role of ['Talent Acquisition Specialist','Senior Domain Specialist','Practical Interviewer','Hiring Manager']) await page.getByRole('button',{name:`Remove ${role}`}).click();
+  for(const role of ['Senior Domain Specialist','Practical Interviewer','Hiring Manager']) await page.getByRole('button',{name:`Remove ${role}`}).click();
   await page.getByLabel(/Add a saved custom interview role/).selectOption('custom-problem');
   await expect(page.getByRole('heading',{name:'Problem Solving Specialist'})).toBeVisible();
+  await expect(page.getByRole('heading',{name:'Talent Acquisition Specialist'})).toBeVisible();
+  await expect(page.getByRole('heading',{name:'Problem Solving Specialist'})).toBeVisible();
+  await page.getByRole('button',{name:'Remove Talent Acquisition Specialist'}).click();
+  await page.getByRole('button',{name:'Remove Problem Solving Specialist'}).click();
+  await expect(page.getByRole('button',{name:/Talent Acquisition Specialist Add this interview role/})).toBeVisible();
+  await page.getByLabel(/Add a saved custom interview role/).selectOption('custom-problem');
   await page.getByRole('button',{name:/Senior Domain Specialist Add this interview role/}).click();
   await expect(page.getByLabel(/Add a saved custom interview role/).locator('option')).toHaveCount(1);
   await expect(page.getByRole('heading',{name:'Problem Solving Specialist'})).toHaveCount(1);
   await expect(page.getByRole('heading',{name:'Senior Domain Specialist'})).toHaveCount(1);
+});
+
+test('candidate interview report separates statuses, loads proctor evidence independently, and never fabricates a photo',async({page})=>{
+  await setup(page,true,{initialPath:'/dashboard/placement-management?drive=drive-1&candidate=student-1'});
+  await page.route('**/v3/college/students/student-1/reports',route=>route.fulfill({json:{student:{full_name:'Asha Rao',roll_number:'CS01',program:'B.Tech',department_code:'CSE',graduation_year:2027},reports:[{drive_id:'drive-1',session_id:'session-1',overall_score:85,readiness:'Interview Ready',completed_at:'2026-09-20T10:00:00Z',detail:{status:'released',placement_readiness:{score:80},question_reviews:[{question:'Explain your project.',answer:'I built it.',has_audio:false}],agent_breakdown:[],requirement_evidence_matrix:[],proctoring_score:{overall_score:92,total_events:1}}}]}}));
+  await page.route('**/v3/college/drives/drive-1',route=>route.fulfill({json:{id:'drive-1',company_name:'Northstar',role_title:'Engineer',status:'active',agent_selection:[]}}));
+  await page.route('**/v3/college/drives/drive-1/candidates/student-1/decision',route=>route.fulfill({json:{decision:{decision:'hold'},publication:{state:'hidden'},history:[]}}));
+  await page.route('**/v3/college/interview-results-settings',route=>route.fulfill({json:{}}));
+  await page.route('**/v3/college/students/student-1/reports/session-1/integrity-events',route=>route.fulfill({json:{events:[{event_id:'event-1',event_type:'tab_hidden',severity:'violation',occurred_at:'2026-09-20T09:30:00Z'}]}}));
+  await expect(page.getByRole('heading',{name:'Asha Rao'})).toBeVisible();
+  await expect(page.locator('p').filter({hasText:'Interview completion:'})).toContainText('Completed');
+  await expect(page.locator('p').filter({hasText:'Student result:'})).toContainText('Hidden');
+  await expect(page.getByRole('navigation',{name:'Report sections'}).getByRole('link')).toHaveCount(7);
+  await page.getByRole('button',{name:'Load event timeline'}).click();
+  await expect(page.getByRole('list',{name:'Proctor observations'})).toContainText('Tab Hidden');
+  await expect(page.getByText(/No incident photo available/)).toBeVisible();
+  const answer=page.getByText('Explain your project.');
+  await expect(answer).toBeVisible();
+  await expect(answer.locator('xpath=ancestor::details')).not.toHaveAttribute('open','');
 });
 
 test('saved company picker opens from its arrow, scrolls large lists, and filters as you type', async ({page})=>{
@@ -361,6 +386,29 @@ test('device-only drive draft stays visible and can be resumed when cloud list i
   await page.getByRole('button',{name:'Continue',exact:true}).click();
   await page.getByRole('button',{name:'1. Drive & company'}).click();
   await expect(page.getByLabel('Company name')).toHaveValue('Offline Employer');
+});
+
+test('draft deletion accepts a bodyless 204 response',async({page})=>{
+  await setup(page,true,{initialPath:'/dashboard/placement-management'});
+  await page.route('**/v3/college/drive-drafts',route=>route.fulfill({json:[{id:'draft-204',step:0,payload:{form:{company_name:'Draft Employer',role_title:'Analyst'}},updated_at:'2026-09-25T10:00:00Z'}]}));
+  await page.route('**/v3/college/drive-drafts/draft-204',route=>route.request().method()==='DELETE'?route.fulfill({status:204}):route.fallback());
+  await expect(page.getByRole('heading',{name:'Draft Employer'})).toBeVisible();
+  await page.getByRole('button',{name:'Delete draft'}).click();
+  await expect(page.getByRole('heading',{name:'Draft Employer'})).toHaveCount(0);
+  await expect(page.getByRole('alert')).toHaveCount(0);
+});
+
+test('a missing draft reports Drive not found while a real delete failure remains visible',async({page})=>{
+  await setup(page,true,{initialPath:'/dashboard/placement-management'});
+  await page.route('**/v3/college/drive-drafts',route=>route.fulfill({json:[{id:'draft-missing',step:0,payload:{form:{company_name:'Stale Employer'}},updated_at:'2026-09-25T10:00:00Z'},{id:'draft-failure',step:0,payload:{form:{company_name:'Failed Employer'}},updated_at:'2026-09-25T10:00:00Z'}]}));
+  await page.route('**/v3/college/drive-drafts/draft-missing',route=>route.fulfill({status:404,json:{detail:'Drive draft not found.'}}));
+  await page.route('**/v3/college/drive-drafts/draft-failure',route=>route.fulfill({status:500,json:{detail:'Database unavailable.'}}));
+  await page.getByRole('heading',{name:'Stale Employer'}).locator('xpath=ancestor::article[1]').getByRole('button',{name:'Delete draft'}).click();
+  await expect(page.getByRole('alert')).toContainText('Drive not found');
+  await expect(page.getByRole('heading',{name:'Stale Employer'})).toHaveCount(0);
+  await page.getByRole('heading',{name:'Failed Employer'}).locator('xpath=ancestor::article[1]').getByRole('button',{name:'Delete draft'}).click();
+  await expect(page.getByRole('alert')).toContainText('Database unavailable');
+  await expect(page.getByRole('heading',{name:'Failed Employer'})).toBeVisible();
 });
 
 test('backend errors preserve the form instead of claiming a successful creation', async ({ page }) => {
