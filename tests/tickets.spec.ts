@@ -45,3 +45,42 @@ test("dashboard charts start without invalid-size warnings", async ({ page }) =>
     await expect(page.getByRole("heading", { name: /overview|dashboard/i }).first()).toBeVisible();
     await expect.poll(() => chartWarnings).toEqual([]);
 });
+
+test("expanded client sidebar is wider on desktop without breaking compact or mobile layouts", async ({ page }) => {
+    await page.addInitScript(() => localStorage.setItem("access_token", "client-session"));
+    await page.route(/\/v[13]\//, async (route) => {
+        const path = new URL(route.request().url()).pathname;
+        if (path === "/v1/users/me") {
+            return route.fulfill({ json: { user_id: "client-1", name: "College Manager", email: "manager@example.edu" } });
+        }
+        return route.fulfill({ json: {} });
+    });
+
+    const sidebar = page.locator("aside").first();
+    for (const width of [1440, 1024]) {
+        await page.setViewportSize({ width, height: 900 });
+        await page.goto("/dashboard/tickets");
+        await expect(page.getByRole("heading", { name: "Support Tickets" })).toBeVisible();
+        const layout = await page.evaluate(() => ({
+            sidebar: document.querySelector("aside")!.getBoundingClientRect().width,
+            pageWidth: document.documentElement.scrollWidth,
+            viewportWidth: window.innerWidth,
+        }));
+        expect(layout.sidebar).toBe(272);
+        expect(layout.pageWidth).toBeLessThanOrEqual(layout.viewportWidth);
+    }
+
+    await page.setViewportSize({ width: 390, height: 844 });
+    await page.goto("/dashboard/tickets");
+    await page.locator("header button").first().click();
+    await expect(sidebar).toHaveClass(/translate-x-0/);
+    await expect.poll(() => sidebar.evaluate(el => el.getBoundingClientRect().left)).toBe(0);
+    const mobile = await page.evaluate(() => ({
+        sidebar: document.querySelector("aside")!.getBoundingClientRect(),
+        pageWidth: document.documentElement.scrollWidth,
+        viewportWidth: window.innerWidth,
+    }));
+    expect(mobile.sidebar.left).toBe(0);
+    expect(mobile.sidebar.width).toBe(288);
+    expect(mobile.pageWidth).toBeLessThanOrEqual(mobile.viewportWidth);
+});

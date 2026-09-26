@@ -78,7 +78,7 @@ export function Sidebar({ isOpen, onClose, isCollapsed }: SidebarProps) {
       />
 
       <aside
-        className={`fixed inset-y-0 start-0 z-[70] transition-all duration-300 transform bg-white border-e border-slate-200 dark:bg-slate-900 dark:border-slate-800 w-72 ${isOpen ? "translate-x-0" : "-translate-x-full"} ${isCollapsed ? "md:w-20" : "md:w-64"} md:translate-x-0 md:sticky md:top-0 md:h-screen md:block`}
+        className={`fixed inset-y-0 start-0 z-[70] transition-all duration-300 transform bg-white border-e border-slate-200 dark:bg-slate-900 dark:border-slate-800 w-72 ${isOpen ? "translate-x-0" : "-translate-x-full"} ${isCollapsed ? "md:w-20" : "md:w-[17rem]"} md:translate-x-0 md:sticky md:top-0 md:h-screen md:block`}
       >
         <div className="flex flex-col h-full py-6">
           <SidebarLogo isCollapsed={isCollapsed} onClose={onClose} />
