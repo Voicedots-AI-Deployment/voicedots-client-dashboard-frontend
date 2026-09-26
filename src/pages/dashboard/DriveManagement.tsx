@@ -165,6 +165,7 @@ function AttemptBadge({ candidate, driveMaxAttempts }: { candidate: Candidate; d
 
 function resumeEvidenceLabel(value?: string) {
   const normalized = String(value || "none").toLowerCase().replace(/[_-]+/g, " ");
+  if (normalized === "interview pending") return "Interview pending";
   if (normalized === "strong" || normalized === "sufficient") return "Strong";
   if (normalized === "limited") return "Limited";
   return "None";
@@ -239,6 +240,7 @@ function CandidateDetails({
   const value = (data && typeof data === "object" ? data : {}) as Data;
   const history = (value.history || value.attempts || []) as Data[];
   const skills = (value.skills || []) as Data[];
+  const atsPending = mode === "ats" && candidate.assignment_status !== "completed";
   return (
     <div className="space-y-4">
       <dl className="grid gap-4 text-sm sm:grid-cols-2 lg:grid-cols-3">
@@ -260,6 +262,10 @@ function CandidateDetails({
         </div>
         {mode === "ats" ? (
           <>
+            <div>
+              <dt className="text-slate-500">Interview status</dt>
+              <dd className="mt-1"><InterviewStatusBadge value={candidate.assignment_status} /></dd>
+            </div>
             <div>
               <dt className="text-slate-500">ATS Fit</dt>
               <dd className="mt-1"><ScoreBadge score={candidate.ats_fit_score} /></dd>
@@ -325,7 +331,7 @@ function CandidateDetails({
           </>
         )}
       </dl>
-      {mode === "ats" && skills.length > 0 && (
+      {mode === "ats" && !atsPending && skills.length > 0 && (
         <div>
           <h4 className="mb-1 font-semibold">JD requirement and resume evidence</h4>
           <p className="mb-3 text-xs text-slate-500">Skills extracted from the job description and matched with the candidate&apos;s resume.</p>
@@ -360,7 +366,7 @@ function CandidateDetails({
           <p className="mt-3 rounded-lg bg-slate-50 px-3 py-2 text-xs text-slate-500 dark:bg-slate-800/60">Resume evidence is based on the quality and coverage of extracted skills, experience, and achievements, not resume length.</p>
         </div>
       )}
-      {mode === "ats" && <ATSResumeFile driveId={driveId} studentId={candidate.student_id} />}
+      {mode === "ats" && !atsPending && <ATSResumeFile driveId={driveId} studentId={candidate.student_id} />}
       {history.length > 0 && (
         <div>
           <h4 className="mb-2 font-semibold">Attempt history</h4>
@@ -2061,13 +2067,7 @@ export default function DriveManagement({
               </section>
             </div>
           )}
-          {!loading && !candidates.length && (
-            <p className={panel}>
-              {tab === "ats"
-                ? `ATS Fit is available only after an interview is completed. No completed interviews match this view.${Number(data?.pending_interview_count || 0) > 0 ? ` ${Number(data?.pending_interview_count)} assigned ${Number(data?.pending_interview_count) === 1 ? "candidate has" : "candidates have"} not completed an interview.` : ""}`
-                : "No candidates found for this view."}
-            </p>
-          )}
+          {!loading && !candidates.length && <p className={panel}>No candidates found for this view.</p>}
           {!!candidates.length && (
             <div id="result-candidate-table" className={`${panel} overflow-x-auto`}>
               <table className="w-full text-left text-sm">
@@ -2089,6 +2089,7 @@ export default function DriveManagement({
                         ? [
                             "Candidate",
                             "Department / Program",
+                            "Interview Status",
                             "ATS Fit",
                             "Mandatory",
                             "Core",
@@ -2177,6 +2178,7 @@ export default function DriveManagement({
                           <td className="p-3">
                             {c.department_code || "—"} / {c.program || "—"}
                           </td>
+                          <td className="p-3"><InterviewStatusBadge value={c.assignment_status} /></td>
                           <td className="p-3">
                             <ScoreBadge score={c.ats_fit_score} />
                           </td>

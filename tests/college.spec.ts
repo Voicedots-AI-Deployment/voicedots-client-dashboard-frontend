@@ -17,6 +17,7 @@ async function setup(page: Page, enabled = true, options: { notFound?: string[];
       '/v3/college/drives': options.driveRows ?? [{ id: 'drive-1', company_name: 'Example Company', role_title: 'Software Engineer', status: 'draft', location: 'Chennai' }],
       '/v3/college/drives/drive-1': options.driveDetails ?? {},
       '/v3/college/students': { items: [], total: 0 },
+      '/v3/college/attendance/setup': { classes: [], students: [], staff: [] },
       '/v3/college/academic-catalog': { programs: [{ code: 'B.Tech', display_name: 'Bachelor of Technology', duration_years: 4, departments: [{ code: 'CSE', display_name: 'Computer Science' },{ code: 'IT', display_name: 'Information Technology' }] }], graduation_years:[2027,2028] },
     };
     return route.fulfill({ json: values[path] || {} });
@@ -457,6 +458,39 @@ test('student roster and academic setup work on a phone', async ({ page }) => {
   await page.screenshot({ path: 'test-results/college-management-mobile.png', fullPage: true });
 });
 
+test('academic setup can rename department codes and delete programs or department mappings',async({page})=>{
+  await setup(page,true,{initialPath:'/dashboard/attendance'});
+  await page.getByRole('button',{name:'Academic setup',exact:true}).click();
+  const program=page.locator('article').filter({has:page.getByRole('heading',{name:'Bachelor of Technology'})});
+  let departmentPayload:Record<string,unknown>={};
+  const mutations:string[]=[];
+  await page.route('**/v3/college/academic-catalog/**',async route=>{
+    const request=route.request();
+    if(request.method()==='POST'){
+      departmentPayload=request.postDataJSON();mutations.push(`POST ${new URL(request.url()).pathname}`);
+      return route.fulfill({json:{status:'saved'}});
+    }
+    if(request.method()==='DELETE'){
+      mutations.push(`DELETE ${new URL(request.url()).pathname}`);
+      return route.fulfill({json:{status:'deleted'}});
+    }
+    return route.fallback();
+  });
+  await program.getByRole('button',{name:'Edit',exact:true}).first().click();
+  const code=page.getByLabel('Department code *');
+  await expect(code).toBeEditable();
+  await code.fill('CSE2');
+  await page.getByLabel('Department name *').fill('Computer Science');
+  await page.getByRole('button',{name:'Save',exact:true}).click();
+  await expect.poll(()=>departmentPayload.code).toBe('CSE2');
+  expect(departmentPayload.current_code).toBe('CSE');
+  page.on('dialog',dialog=>dialog.accept());
+  await program.getByRole('button',{name:'Remove IT from B.Tech'}).click();
+  await program.getByRole('button',{name:'Delete program'}).click();
+  expect(mutations.some(path=>path.includes('/programs/B.Tech/departments/IT'))).toBe(true);
+  expect(mutations.some(path=>path.endsWith('/academic-catalog/programs/B.Tech'))).toBe(true);
+});
+
 test('drive editor handles an invalid stored date without crashing', async ({ page }) => {
   await setup(page, true, { initialPath: '/dashboard/placement-management?drive=drive-1&section=settings' });
   await page.route('**/v3/college/drives/drive-1', route => route.fulfill({json:{
@@ -653,14 +687,27 @@ test('drive UI shows scan-friendly ATS and skills and saves readiness weights', 
   expect(formula).toEqual({interview_readiness:80,resume_readiness:20});
 });
 
-test('ATS Fit explains that only completed interviews are included',async({page})=>{
+test('ATS Fit keeps pending candidates visible without showing scores or the removed warning',async({page})=>{
   await setup(page);
   await page.route('**/v3/college/drives/drive-1',route=>route.fulfill({json:{id:'drive-1',company_name:'Example Company',role_title:'Engineer',status:'active'}}));
-  await page.route('**/v3/college/drives/drive-1/dashboard/**',route=>route.fulfill({json:{candidates:[],total_count:0,pending_interview_count:2}}));
+  await page.route('**/v3/college/drives/drive-1/dashboard/**',route=>route.fulfill({json:{candidates:[{student_id:'s1',full_name:'Pending Student',roll_number:'R1',assignment_status:'invited',ats_fit_score:null,mandatory_coverage:null,core_coverage:null,preferred_coverage:null,resume_evidence:'interview pending'}],total_count:1,pending_interview_count:1}}));
   await page.getByRole('button',{name:'Manage drive',exact:true}).click();
   await page.getByRole('button',{name:'ATS fit',exact:true}).click();
-  await expect(page.getByText(/ATS Fit is available only after an interview is completed/)).toBeVisible();
-  await expect(page.getByText(/2 assigned candidates have not completed an interview/)).toBeVisible();
+  await expect(page.getByRole('row',{name:/Pending Student R1/})).toBeVisible();
+  const row=page.getByRole('row',{name:/Pending Student R1/});
+  await expect(row).toContainText('Invited');
+  await expect(row).toContainText('Not assessed');
+  await expect(row).toContainText('Interview Pending');
+  await expect(page.getByText(/ATS Fit is available only after an interview is completed|assigned candidates have not completed an interview/)).toHaveCount(0);
+  let resumeFileRequested=false;
+  page.on('request',request=>{if(request.url().includes('/resume-file'))resumeFileRequested=true;});
+  await row.getByRole('button',{name:'View details'}).click();
+  const details=page.getByRole('dialog',{name:'ATS fit details for Pending Student'});
+  await expect(details).toBeVisible();
+  await expect(details).toContainText('Interview pending');
+  await expect(details).toContainText('Not assessed');
+  await expect(details.getByText('JD requirement and resume evidence')).toHaveCount(0);
+  expect(resumeFileRequested).toBe(false);
 });
 
 test('drive editor submits an offset-aware interview window in the institution timezone',async({page})=>{
