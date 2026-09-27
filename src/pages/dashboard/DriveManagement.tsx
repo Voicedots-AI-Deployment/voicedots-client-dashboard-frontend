@@ -60,6 +60,7 @@ type Candidate = Data & {
   preparation_status?: string;
   attempt_number?: number;
   max_attempts?: number;
+  submission_id?: string | null;
   assigned_at?: string;
   publication?: { state?: string };
 };
@@ -159,9 +160,11 @@ function compensation(drive?: Drive) {
 function attemptCounts(candidate: Candidate, driveMaxAttempts?: unknown): [number, number] {
   const current = attemptValue(candidate.attempt_number, 1);
   const maximum = attemptValue(candidate.max_attempts ?? driveMaxAttempts, 1);
-  return [candidate.assignment_status === "in_progress" ? Math.max(0, current - 1) : current - 1, maximum];
+  const status = String(candidate.assignment_status || "").toLowerCase();
+  const currentUsed = status === "in_progress" || status === "completed" || status === "expired" && Boolean(candidate.submission_id || candidate.started_at);
+  return [currentUsed ? current : Math.max(0, current - 1), maximum];
 }
-function AttemptBadge({ candidate, driveMaxAttempts }: { candidate: Candidate; driveMaxAttempts?: unknown }) { const [used, allowed] = attemptCounts(candidate, driveMaxAttempts); const tone = used === 0 && candidate.assignment_status !== "in_progress" ? "bg-slate-100 text-slate-700" : used >= allowed ? "bg-rose-100 text-rose-800" : used === allowed - 1 ? "bg-amber-100 text-amber-800" : "bg-blue-100 text-blue-800"; return <span className={`inline-flex rounded-full px-2.5 py-1 text-xs font-semibold ${tone}`}>{used}/{allowed} used{candidate.assignment_status === "in_progress" ? " · in progress" : ""}</span>; }
+function AttemptBadge({ candidate, driveMaxAttempts }: { candidate: Candidate; driveMaxAttempts?: unknown }) { const [used, allowed] = attemptCounts(candidate, driveMaxAttempts); const current = attemptValue(candidate.attempt_number, 1); const status = String(candidate.assignment_status || "").toLowerCase(); const tone = used === 0 ? "bg-slate-100 text-slate-700" : used >= allowed ? "bg-rose-100 text-rose-800" : used === allowed - 1 ? "bg-amber-100 text-amber-800" : "bg-blue-100 text-blue-800"; const label = status === "in_progress" ? `Attempt ${current} of ${allowed} · in progress` : status === "completed" ? `${used}/${allowed} attempts used · completed` : status === "expired" ? `${used}/${allowed} attempts used · expired` : `${used}/${allowed} used · attempt ${current} available`; return <span className={`inline-flex rounded-full px-2.5 py-1 text-xs font-semibold ${tone}`}>{label}</span>; }
 
 function resumeEvidenceLabel(value?: string) {
   const normalized = String(value || "none").toLowerCase().replace(/[_-]+/g, " ");
@@ -1299,17 +1302,12 @@ function LifecycleActions({
 }: {
   drive: Drive;
   busy: boolean;
-  onRequest: (status: "closed" | "cancelled") => void;
+  onRequest: (status: "active" | "closed" | "cancelled") => void;
 }) {
   const status = windowStatus(drive);
-  const target =
-    status === "active" || status === "scheduled"
-      ? "closed"
-      : status === "draft"
-        ? "cancelled"
-        : null;
+  const target = status === "closed" ? "active" : status === "active" || status === "scheduled" ? "closed" : status === "draft" ? "cancelled" : null;
   if (!target) return null;
-  const label = target === "closed" ? "Close drive" : "Cancel drive";
+  const label = target === "active" ? "Activate drive" : target === "closed" ? "Close drive" : "Cancel drive";
   return (
     <button className={btn} disabled={busy} onClick={() => onRequest(target)}>
       {label}
@@ -1351,7 +1349,7 @@ export default function DriveManagement({
   const [departmentOptions, setDepartmentOptions] = useState<string[]>([]);
   const [resultKpis, setResultKpis] = useState({ candidates: 0, completed: 0, incomplete: 0, needsReview: 0, decisionPending: 0, readyToRelease: 0 });
   const [lifecycleRequest, setLifecycleRequest] = useState<
-    "closed" | "cancelled" | "removed" | null
+    "active" | "closed" | "cancelled" | "removed" | null
   >(null);
   const [departmentFilter, setDepartmentFilter] = useState(""),
     [statusFilter, setStatusFilter] = useState(""),
@@ -1505,13 +1503,13 @@ export default function DriveManagement({
       setBusy(false);
     }
   }
-  async function changeLifecycle(status: "closed" | "cancelled") {
+  async function changeLifecycle(status: "active" | "closed" | "cancelled") {
     setBusy(true);
     setError("");
     setNotice("");
     try {
       await collegeApi.save(`drives/${driveId}`, { status }, true);
-      setNotice(`Drive ${status}.`);
+      setNotice(status === "active" ? "Drive activated. Candidate access and attempt limits have been refreshed." : `Drive ${status}.`);
       setVersion((v) => v + 1);
     } catch (e) {
       setError(collegeError(e));
@@ -2385,7 +2383,9 @@ export default function DriveManagement({
             className={`${panel} max-w-md`}
           >
             <h3 id="lifecycle-title" className="text-lg font-bold">
-              {lifecycleRequest === "closed"
+              {lifecycleRequest === "active"
+                ? "Activate"
+                : lifecycleRequest === "closed"
                 ? "Close"
                 : lifecycleRequest === "cancelled"
                   ? "Cancel"
@@ -2395,8 +2395,10 @@ export default function DriveManagement({
             <p className="mt-2 text-sm text-slate-600 dark:text-slate-300">
               {lifecycleRequest === "removed"
                 ? "The drive will be removed from active management. Drives with historical records are archived so completed reports remain preserved."
-                : lifecycleRequest === "closed"
-                  ? "Candidates will no longer be able to start an interview. Completed reports remain available. Closed drives cannot be reactivated; create a new drive if you need to recruit again."
+                : lifecycleRequest === "active"
+                  ? "The drive will be rechecked against current activation requirements. Eligible candidates may continue only within their configured attempt limit; completed interview history remains preserved."
+                  : lifecycleRequest === "closed"
+                  ? "Candidates will no longer be able to start an interview. Completed reports and attempt history remain available. You can activate this drive again while its interview window is still valid."
                   : "Candidates will no longer be able to start an interview. Completed reports remain available."}
             </p>
             <div className="mt-5 flex justify-end gap-3">
@@ -2408,7 +2410,7 @@ export default function DriveManagement({
                 Keep drive
               </button>
               <button
-                className={`${btn} bg-rose-600 text-white`}
+                className={`${btn} ${lifecycleRequest === "active" ? "bg-indigo-600 text-white" : "bg-rose-600 text-white"}`}
                 disabled={busy}
                 onClick={() => {
                   const next = lifecycleRequest;
@@ -2417,8 +2419,8 @@ export default function DriveManagement({
                   else void changeLifecycle(next);
                 }}
               >
-                Confirm{" "}
-                {lifecycleRequest === "closed"
+                {lifecycleRequest === "active" ? "Activate drive" : "Confirm "}
+                {lifecycleRequest === "active" ? "" : lifecycleRequest === "closed"
                   ? "close"
                   : lifecycleRequest === "cancelled"
                     ? "cancel"

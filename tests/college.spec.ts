@@ -30,6 +30,40 @@ async function setup(page: Page, enabled = true, options: { notFound?: string[];
   await page.goto(options.initialPath || '/dashboard/college');
 }
 
+test('closed drive can be activated through a confirmation and saves the active status', async ({ page }) => {
+  await setup(page, true, {
+    initialPath: '/dashboard/placement-management?drive=drive-1',
+    driveRows: [{ id: 'drive-1', company_name: 'Example Company', role_title: 'Software Engineer', status: 'closed', max_attempts: 3 }],
+    driveDetails: { id: 'drive-1', company_name: 'Example Company', role_title: 'Software Engineer', status: 'closed', max_attempts: 3 },
+  });
+  let savedStatus = '';
+  await page.route('**/v3/college/drives/drive-1', async route => {
+    if (route.request().method() !== 'PUT') return route.fallback();
+    savedStatus = route.request().postDataJSON().status;
+    return route.fulfill({ json: { status: 'updated', warnings: [] } });
+  });
+  await expect(page.getByRole('button', { name: 'Activate drive' }).first()).toBeVisible();
+  await page.getByRole('button', { name: 'Activate drive' }).first().click();
+  await expect(page.getByRole('alertdialog')).toContainText('Activate this drive?');
+  await page.getByRole('alertdialog').getByRole('button', { name: 'Activate drive' }).click();
+  await expect(page.getByText(/Drive activated/)).toBeVisible();
+  expect(savedStatus).toBe('active');
+});
+
+test('candidate list shows the current attempt and configured attempt limit', async ({ page }) => {
+  await setup(page, true, {
+    initialPath: '/dashboard/placement-management?drive=drive-1&section=candidates',
+    driveRows: [{ id: 'drive-1', company_name: 'Example Company', role_title: 'Software Engineer', status: 'active', max_attempts: 3 }],
+    driveDetails: { id: 'drive-1', company_name: 'Example Company', role_title: 'Software Engineer', status: 'active', max_attempts: 3 },
+  });
+  await page.route('**/v3/college/drives/drive-1/dashboard/ranking?*', route => route.fulfill({ json: {
+    candidates: [{ student_id: 'student-1', full_name: 'Asha Kumar', roll_number: 'CS2026001', assignment_status: 'in_progress', attempt_number: 2, max_attempts: 3 }],
+    total_count: 1,
+    pagination: { total: 1 },
+  } }));
+  await expect(page.getByText('Attempt 2 of 3 · in progress')).toBeVisible();
+});
+
 test('drive editor remains usable when company profiles return 404', async ({ page }) => {
   const pageErrors: string[] = [];
   page.on('pageerror', error => pageErrors.push(error.message));
