@@ -714,7 +714,7 @@ function DriveSettings({
     ],
   ] as const;
   const driveState = windowStatus(drive);
-  const locked = driveState === "active" || driveState === "closed" || driveState === "cancelled";
+  const locked = Boolean(drive.is_locked) || driveState === "active" || driveState === "closed" || driveState === "cancelled";
   const input = (key: string, label: string, type = "text") => (
     <label className="block text-sm">
       {label}
@@ -1220,6 +1220,7 @@ function DriveSettings({
     );
   return (
     <div className="space-y-4">
+      {drive.is_locked && <p role="status" className="rounded-xl border border-amber-200 bg-amber-50 p-3 text-sm text-amber-800">This drive is locked for editing. Unlock it from the drive list to edit configuration when its lifecycle allows.</p>}
       {warning && (
         <p role="alert" className="rounded-xl bg-amber-50 p-3 text-amber-800">
           {warning}

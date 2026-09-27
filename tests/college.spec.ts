@@ -50,6 +50,44 @@ test('closed drive can be activated through a confirmation and saves the active 
   expect(savedStatus).toBe('active');
 });
 
+test('active drive closes through the persisted lifecycle API and remains closed after refresh', async ({ page }) => {
+  let currentStatus = 'active';
+  await setup(page, true, {
+    initialPath: '/dashboard/placement-management?drive=drive-1',
+    driveRows: [{ id: 'drive-1', company_name: 'Example Company', role_title: 'Software Engineer', status: 'active', max_attempts: 3 }],
+    driveDetails: { id: 'drive-1', company_name: 'Example Company', role_title: 'Software Engineer', status: 'active', max_attempts: 3 },
+  });
+  let savedStatus = '';
+  await page.route('**/v3/college/drives/drive-1', async route => {
+    if (route.request().method() === 'PUT') {
+      savedStatus = route.request().postDataJSON().status;
+      currentStatus = savedStatus;
+      return route.fulfill({ json: { status: 'updated', warnings: [] } });
+    }
+    return route.fulfill({ json: { id: 'drive-1', company_name: 'Example Company', role_title: 'Software Engineer', status: currentStatus, max_attempts: 3 } });
+  });
+  await expect(page.getByRole('button', { name: 'Close drive' }).first()).toBeVisible();
+  await page.getByRole('button', { name: 'Close drive' }).first().click();
+  await expect(page.getByRole('alertdialog')).toContainText('Candidates will no longer be able to start an interview');
+  await page.getByRole('alertdialog').getByRole('button', { name: /Confirm close/ }).click();
+  await expect(page.getByText('Drive closed.')).toBeVisible();
+  expect(savedStatus).toBe('closed');
+  await expect(page.getByRole('button', { name: 'Activate drive' }).first()).toBeVisible();
+});
+
+test('drive card separates eligibility from document readiness and excludes deleted assignments', async ({ page }) => {
+  await setup(page, true, {
+    driveRows: [{ id: 'drive-1', company_name: 'VoiceDot', role_title: 'Software Engineer', status: 'closed', window_start_at: '2026-01-01T00:00:00Z', window_end_at: '2027-01-01T00:00:00Z', latest_snapshot_eligible_count: 2, eligible_with_photo_and_resume_count: 1, assignment_count: 0 }],
+  });
+  const card = page.getByRole('article').filter({ hasText: 'VoiceDot' });
+  await expect(card.getByText('Met drive criteria at last evaluation')).toBeVisible();
+  await expect(card.getByText('2 students')).toBeVisible();
+  await expect(card.getByText('With photo and readable resume')).toBeVisible();
+  await expect(card.getByText('1 student')).toBeVisible();
+  await expect(card.getByText('No students assigned yet.')).toBeVisible();
+  await expect(card.getByText('Closed', { exact: true })).toBeVisible();
+});
+
 test('candidate list shows the current attempt and configured attempt limit', async ({ page }) => {
   await setup(page, true, {
     initialPath: '/dashboard/placement-management?drive=drive-1&section=candidates',
@@ -409,6 +447,7 @@ test('stale cloud draft ID is recovered without a missing-resource request and a
   await page.getByRole('button',{name:'Back to placement drives'}).click();
   await expect(page.getByText('Draft · Step 1 of 6')).toBeVisible();
   await expect(page.getByRole('heading',{name:'Recovered Employer'})).toBeVisible();
+  await expect(page.getByText(/Saved 25\/09\/2026, 15:31 IST/)).toBeVisible();
   await page.getByRole('button',{name:'Continue',exact:true}).click();
   await expect(page.getByLabel('Company name')).toHaveValue('Recovered Employer');
 });
