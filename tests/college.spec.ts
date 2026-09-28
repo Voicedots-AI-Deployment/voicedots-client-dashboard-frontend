@@ -75,15 +75,14 @@ test('active drive closes through the persisted lifecycle API and remains closed
   await expect(page.getByRole('button', { name: 'Activate drive' }).first()).toBeVisible();
 });
 
-test('drive card separates eligibility from document readiness and excludes deleted assignments', async ({ page }) => {
+test('drive card reports eligibility and assigned progress without the misleading document-readiness metric', async ({ page }) => {
   await setup(page, true, {
     driveRows: [{ id: 'drive-1', company_name: 'VoiceDot', role_title: 'Software Engineer', status: 'closed', window_start_at: '2026-01-01T00:00:00Z', window_end_at: '2027-01-01T00:00:00Z', latest_snapshot_eligible_count: 2, eligible_with_photo_and_resume_count: 1, assignment_count: 0 }],
   });
   const card = page.getByRole('article').filter({ hasText: 'VoiceDot' });
   await expect(card.getByText('Met drive criteria at last evaluation')).toBeVisible();
   await expect(card.getByText('2 students')).toBeVisible();
-  await expect(card.getByText('With photo and readable resume')).toBeVisible();
-  await expect(card.getByText('1 student')).toBeVisible();
+  await expect(card.getByText('With photo and readable resume')).toHaveCount(0);
   await expect(card.getByText('No students assigned yet.')).toBeVisible();
   await expect(card.getByText('Closed', { exact: true })).toBeVisible();
 });
@@ -512,15 +511,9 @@ test('student roster and academic setup work on a phone', async ({ page }) => {
     payload = route.request().postDataJSON();
     return route.fulfill({ json: { student_id: 'student-1' } });
   });
-  await page.locator('input[name=password]').fill('StudentSecure123!');
-  await page.locator('input[name=confirm_password]').fill('DifferentSecure123!');
   await page.getByRole('button', { name: 'Save student' }).click();
-  await expect(page.getByRole('alert')).toHaveText('Passwords do not match.');
-  expect(payload).toEqual({});
-  await page.locator('input[name=confirm_password]').fill('StudentSecure123!');
-  await page.getByRole('button', { name: 'Save student' }).click();
-  await expect(page.getByText('Student and login account created.', { exact: false })).toBeVisible();
-  expect(payload.password).toBe('StudentSecure123!');
+  await expect(page.getByText('A secure password setup link will be emailed', { exact: false })).toBeVisible();
+  expect(payload.password).toBeUndefined();
   expect(payload.confirm_password).toBeUndefined();
   expect(payload.photo).toMatch(/^data:image\/jpeg;base64,/);
   expect(payload.program).toBe('B.Tech');
