@@ -615,6 +615,36 @@ function DriveSettings({
     ),
   });
   useEffect(() => {
+    setForm({
+      drive_type: drive.drive_type || "official_placement",
+      company_profile_id: drive.company_profile_id || "",
+      company_name: drive.company_name,
+      company_description: drive.company_description || "",
+      company_website: drive.company_website || "",
+      company_linkedin: drive.company_linkedin || "",
+      role_title: drive.role_title,
+      job_type: drive.job_type || "full_time",
+      location: drive.location || "",
+      salary_type: drive.salary_type || (drive.package_min_lpa != null && drive.package_max_lpa == null ? "fixed" : "range"),
+      salary_min_amount: drive.salary_min_amount ?? (drive.package_min_lpa == null ? "" : drive.package_min_lpa * 100000),
+      salary_max_amount: drive.salary_max_amount ?? (drive.package_max_lpa == null ? "" : drive.package_max_lpa * 100000),
+      salary_currency: drive.salary_currency || drive.package_currency || "INR",
+      salary_period: drive.salary_period || "annual",
+      jd_text: drive.jd_raw_text || "",
+      interview_duration_minutes: drive.interview_duration_minutes || 30,
+      difficulty_tier: drive.difficulty_tier || "intermediate",
+      max_attempts: drive.max_attempts || 1,
+      window_start: wallTimeFromInstant(drive.window_start_at, collegeTimezone),
+      window_end: wallTimeFromInstant(drive.window_end_at, collegeTimezone),
+      min_cgpa: drive.criteria_min_cgpa ?? "",
+      eligible_programs: (drive.criteria_programs || []).join(", "),
+      eligible_departments: (drive.criteria_department_codes || []).join(", "),
+      eligible_graduation_years: (drive.criteria_graduation_years || []).join(", "),
+    });
+    setSelection(drive.agent_selection || []);
+    setRounds(drive.round_configuration || []);
+  }, [drive, collegeTimezone]);
+  useEffect(() => {
     collegeApi
       .get<{ programs: Program[] }>("academic-catalog")
       .then((value) => setCatalogPrograms(value.programs || []))
@@ -713,8 +743,10 @@ function DriveSettings({
       ],
     ],
   ] as const;
-  const driveState = windowStatus(drive);
-  const locked = Boolean(drive.is_locked) || driveState === "active" || driveState === "closed" || driveState === "cancelled";
+  // Lifecycle state and the operational edit lock are separate. An active
+  // drive may still need safe configuration updates (including eligibility),
+  // while closed/cancelled drives remain immutable historical records.
+  const locked = Boolean(drive.is_locked) || drive.status === "closed" || drive.status === "cancelled";
   const input = (key: string, label: string, type = "text") => (
     <label className="block text-sm">
       {label}
@@ -2275,8 +2307,13 @@ export default function DriveManagement({
             setBusy(true);
             setError("");
             try {
-              await collegeApi.save(`drives/${driveId}`, body, true);
-              setNotice("Drive section saved.");
+              const result = await collegeApi.save<{warnings?: string[]}>(`drives/${driveId}`, body, true);
+              const eligibilityChanged = ["min_cgpa", "eligible_departments", "eligible_programs", "eligible_graduation_years"].some(key => key in body);
+              setNotice(result?.warnings?.length
+                ? `Drive section saved. ${result.warnings.join(" ")}`
+                : eligibilityChanged
+                  ? "Eligibility criteria saved and candidate assignments refreshed."
+                  : "Drive section saved.");
               setVersion((v) => v + 1);
             } catch (e) {
               setError(collegeError(e));

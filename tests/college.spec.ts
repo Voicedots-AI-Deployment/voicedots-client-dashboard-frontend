@@ -809,6 +809,33 @@ test('drive editor submits and displays interview windows in IST',async({page})=
   expect(payload.window_end).toBe('2027-01-10T04:30:00.000Z');
 });
 
+test('unlocked active drive allows eligibility edits and sends new departments for reassignment', async ({page}) => {
+  let departments = ['CSE'];
+  await setup(page, true, {
+    initialPath: '/dashboard/placement-management?drive=drive-1&section=settings',
+    driveRows: [{id:'drive-1',company_name:'Example Company',role_title:'Engineer',status:'active'}],
+    driveDetails: {id:'drive-1',company_name:'Example Company',role_title:'Engineer',status:'active',criteria_programs:['B.Tech'],criteria_department_codes:departments,criteria_graduation_years:[2027]},
+  });
+  let savedPayload: Record<string, unknown> | undefined;
+  await page.route('**/v3/college/drives/drive-1', async route => {
+    if (route.request().method() === 'PUT') {
+      savedPayload = route.request().postDataJSON();
+      departments = savedPayload.eligible_departments as string[];
+      return route.fulfill({json:{status:'updated',warnings:[]}});
+    }
+    return route.fulfill({json:{id:'drive-1',company_name:'Example Company',role_title:'Engineer',status:'active',criteria_programs:['B.Tech'],criteria_department_codes:departments,criteria_graduation_years:[2027]}});
+  });
+  const eligibility = page.locator('article').filter({has:page.getByRole('heading',{name:'Eligibility',exact:true})});
+  await eligibility.getByRole('button',{name:'Modify section'}).click();
+  const departmentSelect = page.getByLabel('Departments');
+  await expect(departmentSelect).toBeEnabled();
+  await departmentSelect.selectOption(['CSE','IT']);
+  await page.getByRole('button',{name:'Save this section'}).click();
+  await expect(page.getByText('Eligibility criteria saved and candidate assignments refreshed.')).toBeVisible();
+  expect(savedPayload?.eligible_departments).toEqual(['CSE','IT']);
+  await expect(eligibility).toContainText('CSE, IT');
+});
+
 test('AI preview uses drive role and JD and saves staff edits', async ({ page }) => {
   await setup(page,true,{initialPath:'/dashboard/placement-management'});
   await page.getByRole('button',{name:'Create drive',exact:true}).click();
