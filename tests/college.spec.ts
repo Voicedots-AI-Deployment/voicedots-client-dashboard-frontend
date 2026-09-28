@@ -35,7 +35,7 @@ test('placement staff is routed into the placement-only portal', async ({ page }
   await setup(page, true, { portalRole: 'placement_staff', initialPath: '/dashboard/leads' });
   await expect(page).toHaveURL(/\/dashboard\/placement-management/);
   await expect(page.getByRole('heading', { name: 'Placement management' })).toBeVisible();
-  await expect(page.getByRole('button', { name: 'Placement management', exact: true })).toBeVisible();
+  await expect(page.getByRole('button', { name: 'Placement workspace', exact: true })).toBeVisible();
   await expect(page.getByRole('button', { name: 'Leads', exact: true })).toHaveCount(0);
   await expect(page.getByRole('button', { name: 'Placement team', exact: true })).toHaveCount(0);
 });

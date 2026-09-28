@@ -8,7 +8,7 @@ type AuthContextType = {
   isAuthenticated: boolean;
   isCheckingAuth: boolean;
   user: User | null;
-  login: () => void;
+  login: () => Promise<void>;
   logout: () => void;
   refreshUser: () => Promise<void>;
 };

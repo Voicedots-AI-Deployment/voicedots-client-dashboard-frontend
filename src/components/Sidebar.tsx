@@ -37,7 +37,12 @@ export function Sidebar({ isOpen, onClose, isCollapsed }: SidebarProps) {
   const { enabled: emailEnabled } = useEmailCapabilities();
 
   const navItems: NavItem[] = user?.portal_role === "placement_staff" ? [
-    { id: "college", icon: GraduationCap, label: "Placement management", path: "/dashboard/placement-management" },
+    { id: "college", icon: GraduationCap, label: "Placement workspace", path: "/dashboard/placement-management?view=placements", children: [
+      { id: "drives", label: "Drives & candidates", path: "/dashboard/placement-management?view=placements" },
+      { id: "analytics", label: "Analytics & reports", path: "/dashboard/placement-management?view=analytics" },
+      { id: "agents", label: "Interview agents", path: "/dashboard/placement-management?view=agents" },
+      { id: "settings", label: "Placement settings", path: "/dashboard/placement-management?view=settings" },
+    ] },
   ] : [
     { id: "home", icon: Home, label: "Home", path: "/dashboard" },
     { id: "conversations", icon: MessageSquare, label: "Conversations", path: "/dashboard/conversations" },
@@ -59,7 +64,7 @@ export function Sidebar({ isOpen, onClose, isCollapsed }: SidebarProps) {
   // A group owns its children's routes, which do not all sit under its own path
   // Gmail is entitlement-gated and lives inside Communications.
   const inGroup = (item: NavItem) =>
-    location.pathname.startsWith(item.path) ||
+    location.pathname.startsWith(item.path.split("?")[0]) ||
     !!item.children?.some((c) => location.pathname.startsWith(c.path));
 
   // Groups start open when you're inside them.
@@ -122,7 +127,7 @@ export function Sidebar({ isOpen, onClose, isCollapsed }: SidebarProps) {
                   {expanded && (
                     <div className="mt-1 ms-6 ps-3 border-s border-slate-200 dark:border-slate-800 space-y-1">
                       {item.children!.map((child) => {
-                        const childActive = location.pathname === child.path;
+                        const childActive = location.pathname === child.path.split("?")[0] && new URLSearchParams(location.search).get("view") === new URLSearchParams(child.path.split("?")[1] || "").get("view");
                         return (
                           <button
                             key={child.id}

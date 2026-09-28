@@ -144,7 +144,7 @@ export default function CollegeManagementPage() {
       | "agents"
       | "settings"
       | "staff";
-  const tab = placementStaff && requestedTab !== "placements" ? "placements" : requestedTab,
+  const tab = placementStaff && requestedTab === "staff" ? "placements" : requestedTab,
     driveId = params.get("drive"),
     draftId = params.get("draft"),
     creating = params.get("create") === "1";
@@ -340,7 +340,8 @@ export default function CollegeManagementPage() {
         {(
           [
             ["placements", "Placements"],
-            ...(!placementStaff ? [["analytics", "Analytics"], ["agents", "Interview Agents"], ["settings", "Settings"], ["staff", "Placement team"]] as const : []),
+            ["analytics", "Analytics"], ["agents", "Interview Agents"], ["settings", "Settings"],
+            ...(!placementStaff ? [["staff", "Placement team"]] as const : []),
           ] as const
         ).map(([key, label]) => (
           <button
