@@ -557,6 +557,77 @@ function DepartmentView({ data, onViewReport }: { data: Data; onViewReport?: (st
     </div>
   );
 }
+function EligibilityCheckboxPicker({
+  label,
+  options,
+  selected,
+  onChange,
+  emptyMessage,
+}: {
+  label: string;
+  options: { code: string; display_name: string }[];
+  selected: string[];
+  onChange: (codes: string[]) => void;
+  emptyMessage: string;
+}) {
+  const [query, setQuery] = useState("");
+  const visible = options.filter((option) =>
+    `${option.display_name} ${option.code}`.toLowerCase().includes(query.trim().toLowerCase()),
+  );
+  const selectedSet = new Set(selected);
+  const allVisibleSelected = visible.length > 0 && visible.every((option) => selectedSet.has(option.code));
+
+  function toggle(code: string, checked: boolean) {
+    onChange(checked
+      ? [...new Set([...selected, code])]
+      : selected.filter((value) => value !== code));
+  }
+
+  return (
+    <div role="group" aria-label={label} className="min-w-0 rounded-xl border border-slate-200 bg-white p-3 shadow-sm dark:border-slate-700 dark:bg-slate-900">
+      <div className="flex flex-wrap items-center justify-between gap-2">
+        <h4 className="text-sm font-semibold text-slate-800 dark:text-slate-100">{label}</h4>
+        <span className="rounded-full bg-violet-50 px-2.5 py-1 text-xs font-semibold text-violet-700 dark:bg-violet-950/50 dark:text-violet-200">
+          {selected.length} selected
+        </span>
+      </div>
+      <div className="mt-2 flex flex-wrap items-center gap-2">
+        <label className="sr-only" htmlFor={`eligibility-search-${label.toLowerCase()}`}>Search {label.toLowerCase()}</label>
+        <input
+          id={`eligibility-search-${label.toLowerCase()}`}
+          className="min-w-32 flex-1 rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-sm outline-none transition focus:border-violet-400 focus:ring-2 focus:ring-violet-100 dark:border-slate-700 dark:bg-slate-950"
+          type="search"
+          placeholder={`Search ${label.toLowerCase()}`}
+          value={query}
+          onChange={(event) => setQuery(event.target.value)}
+        />
+        <button type="button" className="rounded-lg border border-slate-200 px-3 py-2 text-xs font-medium text-slate-700 hover:border-violet-300 hover:text-violet-700 dark:border-slate-700 dark:text-slate-200" onClick={() => onChange(allVisibleSelected ? selected.filter((code) => !visible.some((option) => option.code === code)) : [...new Set([...selected, ...visible.map((option) => option.code)])])} disabled={!visible.length}>
+          {allVisibleSelected ? "Unselect visible" : "Select visible"}
+        </button>
+        <button type="button" className="rounded-lg px-2 py-2 text-xs font-medium text-slate-500 hover:text-rose-600 disabled:cursor-not-allowed disabled:opacity-40" onClick={() => onChange([])} disabled={!selected.length}>
+          Clear
+        </button>
+      </div>
+      <div role="group" aria-label={`${label} options`} className="mt-3 grid max-h-52 grid-cols-1 gap-1 overflow-y-auto rounded-lg bg-slate-50 p-2 sm:grid-cols-2 dark:bg-slate-950">
+        {visible.map((option) => (
+          <label key={option.code} className={`flex min-w-0 cursor-pointer items-start gap-2 rounded-lg px-2.5 py-2 text-sm transition hover:bg-white dark:hover:bg-slate-800 ${selectedSet.has(option.code) ? "bg-violet-50/80 dark:bg-violet-950/30" : ""}`}>
+            <input
+              type="checkbox"
+              className="mt-0.5 size-4 shrink-0 accent-violet-600"
+              checked={selectedSet.has(option.code)}
+              onChange={(event) => toggle(option.code, event.target.checked)}
+              aria-label={`${option.display_name} (${option.code})`}
+            />
+            <span className="min-w-0 break-words leading-5">{displayName(option.display_name)} <span className="text-xs text-slate-500">({option.code})</span></span>
+          </label>
+        ))}
+        {!visible.length && <p className="col-span-full px-2 py-5 text-center text-sm text-slate-500">{options.length ? "No matching options." : emptyMessage}</p>}
+      </div>
+      <p className="mt-2 text-xs text-slate-500">Search and tick each item that meets this drive’s criteria.</p>
+    </div>
+  );
+}
+
 function DriveSettings({
   drive,
   save,
@@ -673,6 +744,15 @@ function DriveSettings({
     .filter((department, index, all) => all.findIndex((item) => item.code === department.code) === index);
   const updateEligibilityCodes = (key: "eligible_programs" | "eligible_departments", values: string[]) =>
     setForm((value) => ({ ...value, [key]: values.join(", ") }));
+  const updateEligiblePrograms = (values: string[]) => setForm((value) => {
+    const selectedDepartments = String(value.eligible_departments || "").split(",").map((code) => code.trim()).filter(Boolean);
+    const availableDepartments = new Set(catalogPrograms.filter((program) => values.includes(program.code)).flatMap((program) => program.departments.map((department) => department.code)));
+    return {
+      ...value,
+      eligible_programs: values.join(", "),
+      eligible_departments: selectedDepartments.filter((code) => availableDepartments.has(code)).join(", "),
+    };
+  });
   const sections = [
     [
       "Drive and company",
@@ -1031,20 +1111,20 @@ function DriveSettings({
     ) : title === "Eligibility" ? (
       <>
       {input("min_cgpa", "Minimum CGPA", "number")}
-        <label className="block text-sm">
-          Programs
-          <select className={`${field} mt-1 min-h-24`} multiple value={selectedPrograms} onChange={(event) => updateEligibilityCodes("eligible_programs", Array.from(event.target.selectedOptions, (option) => option.value))}>
-            {catalogPrograms.map((program) => <option key={program.code} value={program.code}>{displayName(program.display_name)} ({program.code})</option>)}
-          </select>
-          <span className="mt-1 block text-xs text-slate-500">Hold Ctrl/Cmd to select multiple.</span>
-        </label>
-        <label className="block text-sm">
-          Departments
-          <select className={`${field} mt-1 min-h-24`} multiple value={String(form.eligible_departments || "").split(",").map((value) => value.trim()).filter(Boolean)} onChange={(event) => updateEligibilityCodes("eligible_departments", Array.from(event.target.selectedOptions, (option) => option.value))}>
-            {departments.map((department) => <option key={department.code} value={department.code}>{displayName(department.display_name)} ({department.code})</option>)}
-          </select>
-          {!selectedPrograms.length && <span className="mt-1 block text-xs text-slate-500">Select a program first.</span>}
-        </label>
+        <EligibilityCheckboxPicker
+          label="Programs"
+          options={catalogPrograms}
+          selected={selectedPrograms}
+          onChange={updateEligiblePrograms}
+          emptyMessage="No academic programs are configured yet."
+        />
+        <EligibilityCheckboxPicker
+          label="Departments"
+          options={departments}
+          selected={String(form.eligible_departments || "").split(",").map((value) => value.trim()).filter(Boolean)}
+          onChange={(values) => updateEligibilityCodes("eligible_departments", values)}
+          emptyMessage={selectedPrograms.length ? "No departments are configured for the selected programs." : "Select a program first."}
+        />
         {input(
           "eligible_graduation_years",
           "Graduation years, comma separated",

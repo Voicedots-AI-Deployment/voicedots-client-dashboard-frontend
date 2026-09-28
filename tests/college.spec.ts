@@ -827,9 +827,12 @@ test('unlocked active drive allows eligibility edits and sends new departments f
   });
   const eligibility = page.locator('article').filter({has:page.getByRole('heading',{name:'Eligibility',exact:true})});
   await eligibility.getByRole('button',{name:'Modify section'}).click();
-  const departmentSelect = page.getByLabel('Departments');
-  await expect(departmentSelect).toBeEnabled();
-  await departmentSelect.selectOption(['CSE','IT']);
+  await page.setViewportSize({width:390,height:844});
+  const departmentPicker = page.getByRole('group',{name:'Departments options'});
+  const informationTechnology = departmentPicker.getByRole('checkbox',{name:'Information Technology (IT)'});
+  await expect(informationTechnology).toBeVisible();
+  await informationTechnology.check();
+  await expect(page.getByRole('group',{name:'Departments',exact:true})).toContainText('2 selected');
   await page.getByRole('button',{name:'Save this section'}).click();
   await expect(page.getByText('Eligibility criteria saved and candidate assignments refreshed.')).toBeVisible();
   expect(savedPayload?.eligible_departments).toEqual(['CSE','IT']);
