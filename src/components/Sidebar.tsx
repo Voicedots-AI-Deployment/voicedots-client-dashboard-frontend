@@ -32,11 +32,13 @@ interface NavItem {
 export function Sidebar({ isOpen, onClose, isCollapsed }: SidebarProps) {
   const navigate = useNavigate();
   const location = useLocation();
-  const { logout } = useAuth();
+  const { logout, user } = useAuth();
   const { access: collegeAccess } = useCollegeAccess();
   const { enabled: emailEnabled } = useEmailCapabilities();
 
-  const navItems: NavItem[] = [
+  const navItems: NavItem[] = user?.portal_role === "placement_staff" ? [
+    { id: "college", icon: GraduationCap, label: "Placement management", path: "/dashboard/placement-management" },
+  ] : [
     { id: "home", icon: Home, label: "Home", path: "/dashboard" },
     { id: "conversations", icon: MessageSquare, label: "Conversations", path: "/dashboard/conversations" },
     { id: "leads", icon: Users, label: "Leads", path: "/dashboard/leads" },

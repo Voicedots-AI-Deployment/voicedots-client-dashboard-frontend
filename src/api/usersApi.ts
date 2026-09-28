@@ -7,6 +7,7 @@ export interface User {
     email: string;
     profile_picture?: string;
     agent_id?: string;
+    portal_role?: "placement_staff";
 }
 
 export interface UserUpdateRequest {

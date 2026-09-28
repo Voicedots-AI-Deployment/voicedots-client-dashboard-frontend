@@ -1,12 +1,18 @@
 import { useState } from "react";
-import { Outlet, useLocation } from "react-router-dom";
+import { Navigate, Outlet, useLocation } from "react-router-dom";
 import { Sidebar } from "@/components/Sidebar";
 import { TopBar } from "@/components/TopBar";
+import { useAuth } from "@/context/AuthContext";
 
 const DashboardLayout = () => {
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
   const [isCollapsed, setIsCollapsed] = useState(false);
   const location = useLocation();
+  const { user } = useAuth();
+
+  if (user?.portal_role === "placement_staff" && !location.pathname.startsWith("/dashboard/placement-management")) {
+    return <Navigate to="/dashboard/placement-management" replace />;
+  }
 
   return (
     <div className="flex min-h-screen bg-gray-50 dark:bg-slate-950">

@@ -3,16 +3,22 @@ import { Eye, EyeOff, AlertCircle } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import authApi from "@/api/authApi";
 import { useAuth } from "@/context/AuthContext";
+import { useSearchParams } from "react-router-dom";
+import { apiClient } from "@/api/apiClient";
 
 const LoginPage = () => {
   const navigate = useNavigate();
   const { login } = useAuth();
+  const [searchParams] = useSearchParams();
+  const setupToken = searchParams.get("setup_token");
 
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [showPassword, setShowPassword] = useState(false);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
+  const [confirmPassword, setConfirmPassword] = useState("");
+  const [setupComplete, setSetupComplete] = useState(false);
 
 
   const handleLogin = async (e: React.FormEvent) => {
@@ -39,6 +45,19 @@ const LoginPage = () => {
     }
   };
 
+  const handlePasswordSetup = async (e: React.FormEvent) => {
+    e.preventDefault(); setError("");
+    if (!setupToken) return;
+    if (password.length < 8) { setError("Choose a password with at least 8 characters."); return; }
+    if (password !== confirmPassword) { setError("The passwords do not match."); return; }
+    setLoading(true);
+    try {
+      await apiClient.post("/v3/auth/password-setup/redeem", { token: setupToken, password });
+      setSetupComplete(true); setPassword(""); setConfirmPassword("");
+    } catch (err: any) { setError(err?.response?.data?.detail || "This setup link is invalid or expired. Ask your Client administrator for a new invitation."); }
+    finally { setLoading(false); }
+  };
+
 
   return (
     <div className="min-h-screen bg-gray-50 dark:bg-slate-900 flex items-center justify-center px-4">
@@ -61,17 +80,24 @@ const LoginPage = () => {
           </h3>
 
           <h1 className="text-3xl font-extrabold text-gray-900 dark:text-white">
-            Admin Portal
+            {setupToken ? "Set up your password" : "Client Portal"}
           </h1>
 
           <p className="mt-1 text-sm text-gray-600 dark:text-gray-400">
-            Secure access for authorized personnel only
+            {setupToken ? "Create a secure password for your placement account." : "Secure access for authorized personnel only"}
           </p>
         </div>
 
         {/* Card */}
         <div className="bg-white dark:bg-slate-800 rounded-2xl shadow-lg border border-gray-200 dark:border-slate-700 px-6 py-8 sm:px-8">
-          <form className="space-y-6" onSubmit={handleLogin}>
+          {setupToken ? <form className="space-y-6" onSubmit={handlePasswordSetup}>
+            {error && <div role="alert" className="rounded-lg border border-red-200 bg-red-50 p-4 text-sm text-red-800">{error}</div>}
+            {setupComplete ? <div role="status" className="space-y-4 text-center"><p className="text-sm text-emerald-700">Password created. You can now sign in.</p><button type="button" className="w-full rounded-lg bg-blue-600 px-4 py-3 text-sm font-semibold text-white" onClick={() => window.location.assign("/login")}>Continue to sign in</button></div> : <>
+              <label className="block text-sm font-medium">New password<input type="password" required minLength={8} maxLength={128} value={password} onChange={e => setPassword(e.target.value)} className="mt-1 w-full rounded-lg border px-4 py-3 text-sm" autoComplete="new-password" /></label>
+              <label className="block text-sm font-medium">Confirm password<input type="password" required minLength={8} maxLength={128} value={confirmPassword} onChange={e => setConfirmPassword(e.target.value)} className="mt-1 w-full rounded-lg border px-4 py-3 text-sm" autoComplete="new-password" /></label>
+              <button type="submit" disabled={loading} className="w-full rounded-lg bg-blue-600 px-4 py-3 text-sm font-semibold text-white disabled:opacity-50">{loading ? "Saving…" : "Set password"}</button>
+            </>}
+          </form> : <form className="space-y-6" onSubmit={handleLogin}>
             {/* Error */}
             {error && (
               <div
@@ -178,7 +204,7 @@ const LoginPage = () => {
                 </span>
               </div>
             </div>
-          </form>
+          </form>}
         </div>
 
         {/* Footer */}

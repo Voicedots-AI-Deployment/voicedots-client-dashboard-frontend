@@ -1,10 +1,11 @@
 import { test, expect, type Page } from '@playwright/test';
-async function setup(page: Page, enabled = true, options: { notFound?: string[]; driveRows?: unknown[]; driveDetails?: unknown; companyProfiles?: unknown[]; initialPath?: string } = {}) {
+async function setup(page: Page, enabled = true, options: { notFound?: string[]; driveRows?: unknown[]; driveDetails?: unknown; companyProfiles?: unknown[]; initialPath?: string; portalRole?: string } = {}) {
   await page.addInitScript(() => localStorage.setItem('access_token', 'test-session'));
   await page.route(/\/v[13]\//, route => {
     const path = new URL(route.request().url()).pathname;
     const values: Record<string, unknown> = {
-      '/v1/users/me': { user_id: 'client-1', name: 'College Manager', email: 'manager@example.edu' },
+      '/v1/users/me': { user_id: 'client-1', name: 'College Manager', email: 'manager@example.edu', ...(options.portalRole ? { portal_role: options.portalRole } : {}) },
+      '/v3/college/staff': { staff: [] },
       '/v3/email/capabilities': { email_enabled: false },
       '/v3/college/roster-options': {batches:['2023-2027'],graduation_years:[2027,2028],statuses:['active']},
       '/v3/college/analytics': {summary:{total_students:0,placed_students:0,students_attended:0,total_attempts:0,completed_attempts:0,repeat_students:0,not_attended:0,participation_rate:0,completion_rate:0,average_duration_minutes:null},by_drive:[],by_program:[],trend:[],scope:'Placement interviews only.'},
@@ -29,6 +30,33 @@ async function setup(page: Page, enabled = true, options: { notFound?: string[];
   });
   await page.goto(options.initialPath || '/dashboard/college');
 }
+
+test('placement staff is routed into the placement-only portal', async ({ page }) => {
+  await setup(page, true, { portalRole: 'placement_staff', initialPath: '/dashboard/leads' });
+  await expect(page).toHaveURL(/\/dashboard\/placement-management/);
+  await expect(page.getByRole('heading', { name: 'Placement management' })).toBeVisible();
+  await expect(page.getByRole('button', { name: 'Placement management', exact: true })).toBeVisible();
+  await expect(page.getByRole('button', { name: 'Leads', exact: true })).toHaveCount(0);
+  await expect(page.getByRole('button', { name: 'Placement team', exact: true })).toHaveCount(0);
+});
+
+test('Client admin can invite placement staff from the placement team section', async ({ page }) => {
+  await setup(page, true, { initialPath: '/dashboard/placement-management' });
+  let invitation: Record<string, unknown> = {};
+  await page.route('**/v3/college/staff', async route => {
+    if (route.request().method() === 'POST') {
+      invitation = route.request().postDataJSON();
+      return route.fulfill({ status: 201, json: { user_id: 'staff-1', status: 'invited', email_queued: true } });
+    }
+    return route.fulfill({ json: { staff: [] } });
+  });
+  await page.getByRole('button', { name: 'Placement team' }).click();
+  await page.getByLabel('Full name').fill('Anita Coordinator');
+  await page.getByLabel('Work email').fill('anita@example.edu');
+  await page.getByRole('button', { name: 'Invite staff' }).click();
+  await expect(page.getByRole('status')).toContainText('24-hour email link');
+  expect(invitation).toEqual({ full_name: 'Anita Coordinator', email: 'anita@example.edu' });
+});
 
 test('closed drive can be activated through a confirmation and saves the active status', async ({ page }) => {
   await setup(page, true, {

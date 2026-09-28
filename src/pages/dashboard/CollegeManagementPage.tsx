@@ -11,6 +11,7 @@ import {
   Users,
 } from "lucide-react";
 import { useSearchParams } from "react-router-dom";
+import { useAuth } from "@/context/AuthContext";
 import {
   collegeApi,
   collegeError,
@@ -128,6 +129,8 @@ const combineDrafts = (remote: unknown): DriveDraftSummary[] => {
 };
 
 export default function CollegeManagementPage() {
+  const { user } = useAuth();
+  const placementStaff = user?.portal_role === "placement_staff";
   const {
     access,
     loading: accessLoading,
@@ -135,11 +138,13 @@ export default function CollegeManagementPage() {
     retry,
   } = useCollegeAccess();
   const [params, setParams] = useSearchParams();
-  const tab = (params.get("view") || "placements") as
+  const requestedTab = (params.get("view") || "placements") as
       | "placements"
       | "analytics"
       | "agents"
-      | "settings",
+      | "settings"
+      | "staff";
+  const tab = placementStaff && requestedTab !== "placements" ? "placements" : requestedTab,
     driveId = params.get("drive"),
     draftId = params.get("draft"),
     creating = params.get("create") === "1";
@@ -335,9 +340,7 @@ export default function CollegeManagementPage() {
         {(
           [
             ["placements", "Placements"],
-            ["analytics", "Analytics"],
-            ["agents", "Interview Agents"],
-            ["settings", "Settings"],
+            ...(!placementStaff ? [["analytics", "Analytics"], ["agents", "Interview Agents"], ["settings", "Settings"], ["staff", "Placement team"]] as const : []),
           ] as const
         ).map(([key, label]) => (
           <button
@@ -362,7 +365,9 @@ export default function CollegeManagementPage() {
           {notice}
         </p>
       )}
-      {tab === "analytics" ? (
+      {tab === "staff" && !placementStaff ? (
+        <PlacementStaffManagement />
+      ) : tab === "analytics" ? (
         <PlacementAnalytics data={analytics} />
       ) : tab === "agents" ? (
         <InterviewAgents />
@@ -421,6 +426,53 @@ export default function CollegeManagementPage() {
       )}
     </div>
   );
+}
+
+type PlacementStaffMember = { user_id: string; name: string; email: string; status: "invited" | "active" | "disabled"; created_at?: string | null };
+
+function PlacementStaffManagement() {
+  const [staff, setStaff] = useState<PlacementStaffMember[]>([]);
+  const [name, setName] = useState("");
+  const [email, setEmail] = useState("");
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState("");
+  const [notice, setNotice] = useState("");
+  const load = async () => {
+    setError("");
+    try { const result = await collegeApi.get<{staff?: PlacementStaffMember[]}>("staff"); setStaff(Array.isArray(result.staff) ? result.staff : []); }
+    catch (e) { setError(collegeError(e)); }
+  };
+  useEffect(() => { void load(); }, []);
+  const invite = async (event: React.FormEvent) => {
+    event.preventDefault(); setBusy(true); setError(""); setNotice("");
+    try {
+      const result = await collegeApi.save<{email_queued?: boolean}>("staff", { full_name: name.trim(), email: email.trim() });
+      setNotice(result.email_queued ? "Invitation sent. The staff member can set a password using the 24-hour email link." : "Staff account created.");
+      setName(""); setEmail(""); await load();
+    } catch (e) { setError(collegeError(e)); }
+    finally { setBusy(false); }
+  };
+  const revoke = async (person: PlacementStaffMember) => {
+    if (!window.confirm(`Revoke placement access for ${person.name}?`)) return;
+    setBusy(true); setError(""); setNotice("");
+    try { await collegeApi.remove(`staff/${person.user_id}`); setNotice("Placement access revoked."); await load(); }
+    catch (e) { setError(collegeError(e)); }
+    finally { setBusy(false); }
+  };
+  return <section className="space-y-5">
+    <header><p className="text-xs font-bold uppercase tracking-[0.16em] text-indigo-600">Access control</p><h2 className="mt-1 text-2xl font-bold">Placement team</h2><p className="mt-1 max-w-2xl text-sm text-slate-500">Invite staff to create and manage drives and to review and release interview reports. Their account cannot access Client leads or communications.</p></header>
+    {notice && <p role="status" className="rounded-xl bg-emerald-50 p-4 text-sm text-emerald-800">{notice}</p>}
+    {error && <p role="alert" className="rounded-xl bg-rose-50 p-4 text-sm text-rose-800">{error}</p>}
+    <form onSubmit={invite} className="grid gap-4 rounded-2xl border border-slate-200 bg-white p-5 sm:grid-cols-[1fr_1fr_auto] sm:items-end dark:border-slate-800 dark:bg-slate-900">
+      <label className="text-sm font-medium">Full name<input required maxLength={150} value={name} onChange={e => setName(e.target.value)} className={input} placeholder="Placement coordinator" /></label>
+      <label className="text-sm font-medium">Work email<input required type="email" value={email} onChange={e => setEmail(e.target.value)} className={input} placeholder="name@institution.edu" /></label>
+      <button className={primary} disabled={busy}>{busy ? "Working…" : "Invite staff"}</button>
+    </form>
+    <div className="overflow-hidden rounded-2xl border border-slate-200 bg-white dark:border-slate-800 dark:bg-slate-900">
+      <div className="flex items-center justify-between border-b p-5 dark:border-slate-800"><div><h3 className="font-semibold">Placement staff access</h3><p className="mt-1 text-sm text-slate-500">{staff.filter(p => p.status !== "disabled").length} active or invited</p></div><button type="button" className={button} disabled={busy} onClick={() => void load()}>Refresh</button></div>
+      {staff.length ? <ul className="divide-y dark:divide-slate-800">{staff.map(person => <li key={person.user_id} className="flex flex-wrap items-center justify-between gap-3 p-5"><div><p className="font-semibold">{person.name}</p><p className="text-sm text-slate-500">{person.email}</p></div><div className="flex items-center gap-3"><span className={`rounded-full px-3 py-1 text-xs font-semibold ${person.status === "active" ? "bg-emerald-50 text-emerald-700" : person.status === "invited" ? "bg-amber-50 text-amber-700" : "bg-slate-100 text-slate-600"}`}>{person.status === "active" ? "Active" : person.status === "invited" ? "Invitation pending" : "Access revoked"}</span>{person.status !== "disabled" && <button className="rounded-lg border border-rose-200 px-3 py-2 text-sm font-semibold text-rose-700 disabled:opacity-50" disabled={busy} onClick={() => void revoke(person)}>Revoke access</button>}</div></li>)}</ul> : <p className="p-8 text-center text-sm text-slate-500">No placement staff have been invited yet.</p>}
+    </div>
+  </section>;
 }
 
 function PlacementLanding({
