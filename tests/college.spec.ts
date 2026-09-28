@@ -509,10 +509,10 @@ test('student roster and academic setup work on a phone', async ({ page }) => {
   await page.route('**/v3/college/students', route => {
     if (route.request().method() !== 'POST') return route.fallback();
     payload = route.request().postDataJSON();
-    return route.fulfill({ json: { student_id: 'student-1' } });
+    return route.fulfill({ json: { student_id: 'student-1', welcome_email_status: 'queued' } });
   });
   await page.getByRole('button', { name: 'Save student' }).click();
-  await expect(page.getByText('A secure password setup link will be emailed', { exact: false })).toBeVisible();
+  await expect(page.getByText('The welcome and password setup email was accepted by the delivery queue', { exact: false })).toBeVisible();
   expect(payload.password).toBeUndefined();
   expect(payload.confirm_password).toBeUndefined();
   expect(payload.photo).toMatch(/^data:image\/jpeg;base64,/);
@@ -522,6 +522,24 @@ test('student roster and academic setup work on a phone', async ({ page }) => {
   await expect(page.getByRole('button', { name: 'Add program', exact: true })).toBeVisible();
   expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(390);
   await page.screenshot({ path: 'test-results/college-management-mobile.png', fullPage: true });
+});
+
+test('student roster reports when the welcome and password setup email was not queued', async ({ page }) => {
+  await setup(page, true, { initialPath: '/dashboard/attendance' });
+  await page.getByRole('button', { name: 'Student roster', exact: true }).click();
+  await page.getByRole('button', { name: 'Add student', exact: true }).click();
+  await page.getByLabel('Full name').fill('Example Student');
+  await page.getByLabel('Roll number').fill('CSE-2027-002');
+  await page.locator('input[name=email]').fill('student-setup@example.edu');
+  await page.locator('input[type=tel]').fill('9876543210');
+  await page.locator('input[name=cgpa]').fill('8.2');
+  await page.getByLabel('Upload photo').setInputFiles({ name: 'student.jpg', mimeType: 'image/jpeg', buffer: Buffer.from('reference-photo') });
+  await page.route('**/v3/college/students', route => route.request().method() === 'POST'
+    ? route.fulfill({ json: { student_id: 'student-2', welcome_email_status: 'not_queued' } })
+    : route.fallback());
+  await page.getByRole('button', { name: 'Save student' }).click();
+  await expect(page.getByRole('alert')).toContainText('email was not queued');
+  await expect(page.getByRole('alert')).toContainText('request a fresh link from student sign-in');
 });
 
 test('academic setup can rename department codes and delete programs or department mappings',async({page})=>{
