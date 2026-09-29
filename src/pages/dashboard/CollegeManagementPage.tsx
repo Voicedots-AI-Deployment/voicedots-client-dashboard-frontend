@@ -23,6 +23,7 @@ import CreateDriveWizard from "./CreateDriveWizard";
 import DriveManagement, { InterviewResultsSettings, ReadinessPolicy } from "./DriveManagement";
 import InterviewAgents from "./InterviewAgents";
 import PlacementAnalytics, { type Analytics } from "./PlacementAnalytics";
+import PlacementCandidates from "./PlacementCandidates";
 import { displayName, formatDateOnly, formatPlacementDateTime, PLACEMENT_TIME_ZONE } from "./placementDisplay";
 
 const card =
@@ -143,8 +144,9 @@ export default function CollegeManagementPage() {
       | "analytics"
       | "agents"
       | "settings"
-      | "staff";
-  const tab = placementStaff && requestedTab === "staff" ? "placements" : requestedTab,
+      | "staff"
+      | "candidates";
+  const tab = (placementStaff && requestedTab === "staff") || (!placementStaff && requestedTab === "candidates") ? "placements" : requestedTab,
     driveId = params.get("drive"),
     draftId = params.get("draft"),
     creating = params.get("create") === "1";
@@ -341,6 +343,7 @@ export default function CollegeManagementPage() {
           [
             ["placements", "Placements"],
             ["analytics", "Analytics"], ["agents", "Interview Agents"], ["settings", "Settings"],
+            ...(placementStaff ? [["candidates", "Candidates"]] as const : []),
             ...(!placementStaff ? [["staff", "Staff roster"]] as const : []),
           ] as const
         ).map(([key, label]) => (
@@ -366,7 +369,9 @@ export default function CollegeManagementPage() {
           {notice}
         </p>
       )}
-      {tab === "staff" && !placementStaff ? (
+      {tab === "candidates" && placementStaff ? (
+        <PlacementCandidates />
+      ) : tab === "staff" && !placementStaff ? (
         <PlacementStaffManagement />
       ) : tab === "analytics" ? (
         <PlacementAnalytics data={analytics} />

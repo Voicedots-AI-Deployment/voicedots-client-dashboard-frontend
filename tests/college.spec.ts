@@ -40,6 +40,21 @@ test('placement staff is routed into the placement-only portal', async ({ page }
   await expect(page.getByRole('button', { name: 'Staff roster', exact: true })).toHaveCount(0);
 });
 
+test('placement staff Candidates section lists all students returned by assigned-group roster scope', async ({ page }) => {
+  await setup(page, true, { portalRole: 'placement_staff', initialPath: '/dashboard/placement-management' });
+  let rosterUrl = '';
+  await page.route(/\/v3\/college\/students(?:\?.*)?$/, route => {
+    rosterUrl = route.request().url();
+    return route.fulfill({ json: { items: [{ id: 'student-1', full_name: 'Scoped Student', roll_number: 'ME-2027-01', email: 'student@example.edu', program: 'B.Tech', department_code: 'MECH', department_display_name: 'Mechanical Engineering', batch_label: '2023-2027', graduation_year: 2027, cgpa: 8.1, status: 'active' }], total: 1, limit: 25, offset: 0 } });
+  });
+  await page.getByRole('button', { name: 'Candidates', exact: true }).click();
+  await expect(page.getByRole('heading', { name: 'Candidates', exact: true })).toBeVisible();
+  await expect(page.getByText('Scoped Student')).toBeVisible();
+  await expect(page.getByText('ME-2027-01 · student@example.edu')).toBeVisible();
+  await expect(page.getByText(/1 student in your assigned groups/)).toBeVisible();
+  expect(new URL(rosterUrl).pathname).toBe('/v3/college/students');
+});
+
 test('Client admin can invite placement staff with multiple checkbox filters in one scope group', async ({ page }) => {
   await setup(page, true, { initialPath: '/dashboard/placement-management' });
   let invitation: Record<string, unknown> = {};
