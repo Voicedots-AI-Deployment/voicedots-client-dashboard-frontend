@@ -77,7 +77,7 @@ test('Client admin can invite placement staff with multiple checkbox filters in 
   await page.getByRole('checkbox', { name: '2027', exact: true }).check();
   await page.getByRole('checkbox', { name: '2028', exact: true }).check();
   await page.getByRole('button', { name: 'Invite staff' }).click();
-  await expect(page.getByRole('status')).toContainText('24-hour email link');
+  await expect(page.getByRole('status')).toContainText('stays available until used or replaced');
   expect(invitation).toEqual({ full_name: 'Anita Coordinator', email: 'anita@example.edu', scope_groups: [
     { program: 'B.Tech', department_code: 'CSE', batch_label: null, graduation_year: 2027 },
     { program: 'B.Tech', department_code: 'CSE', batch_label: null, graduation_year: 2028 },
@@ -634,6 +634,8 @@ test('student roster and academic setup work on a phone', async ({ page }) => {
   });
   await page.getByRole('button', { name: 'Save student' }).click();
   await expect(page.getByText('The welcome and password setup email was accepted by the delivery queue', { exact: false })).toBeVisible();
+  await expect(page.getByText(/single-use setup link remains available until it is used or replaced/i)).toBeVisible();
+  await expect(page.getByText(/24 hours/i)).toHaveCount(0);
   expect(payload.password).toBeUndefined();
   expect(payload.confirm_password).toBeUndefined();
   expect(payload.photo).toMatch(/^data:image\/jpeg;base64,/);
@@ -643,6 +645,18 @@ test('student roster and academic setup work on a phone', async ({ page }) => {
   await expect(page.getByRole('button', { name: 'Add program', exact: true })).toBeVisible();
   expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(390);
   await page.screenshot({ path: 'test-results/college-management-mobile.png', fullPage: true });
+});
+
+test('student email and roll number become read-only after password setup', async ({ page }) => {
+  await setup(page, true, { initialPath: '/dashboard/attendance' });
+  await page.route(/\/v3\/college\/students(?:\?.*)?$/, route => route.request().method() === 'GET'
+    ? route.fulfill({ json: { total: 1, items: [{ id: 'locked-student', full_name: 'Asha Rao', email: 'asha@example.edu', roll_number: 'CS01', program: 'B.Tech', department_code: 'CSE', graduation_year: 2027, cgpa: 8.4, status: 'active', identity_locked: true }] } })
+    : route.fallback());
+  await page.getByRole('button', { name: 'Student roster', exact: true }).click();
+  await page.getByRole('button', { name: 'Edit', exact: true }).click();
+  await expect(page.getByLabel('Email')).toHaveAttribute('readonly', '');
+  await expect(page.getByLabel('Student ID / Roll number')).toHaveAttribute('readonly', '');
+  await expect(page.getByText('Locked after the student completed password setup.')).toHaveCount(2);
 });
 
 test('Student Analysis shows full drive participation, interview performance and report release state', async ({ page }) => {

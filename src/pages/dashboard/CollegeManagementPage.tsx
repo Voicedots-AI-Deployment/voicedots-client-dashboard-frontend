@@ -508,7 +508,7 @@ function PlacementStaffManagement() {
     event.preventDefault(); setBusy(true); setError(""); setNotice("");
     try {
       const result = await collegeApi.save<{email_queued?: boolean}>("staff", { full_name: name.trim(), email: email.trim(), scope_groups: expandScopeGroups(scopeGroups) });
-      setNotice(result.email_queued ? "Invitation sent. The staff member can set a password using the 24-hour email link." : "Staff account created.");
+      setNotice(result.email_queued ? "Invitation sent. The single-use password setup link stays available until used or replaced." : "Staff account created.");
       setName(""); setEmail(""); setScopeGroups([emptyScopeGroup()]); await load();
     } catch (e) { setError(collegeError(e)); }
     finally { setBusy(false); }
