@@ -37,10 +37,10 @@ test('placement staff is routed into the placement-only portal', async ({ page }
   await expect(page.getByRole('heading', { name: 'Placement management' })).toBeVisible();
   await expect(page.getByRole('button', { name: 'Placement workspace', exact: true })).toBeVisible();
   await expect(page.getByRole('button', { name: 'Leads', exact: true })).toHaveCount(0);
-  await expect(page.getByRole('button', { name: 'Placement team', exact: true })).toHaveCount(0);
+  await expect(page.getByRole('button', { name: 'Staff roster', exact: true })).toHaveCount(0);
 });
 
-test('Client admin can invite placement staff from the placement team section', async ({ page }) => {
+test('Client admin can invite placement staff with a specific student group', async ({ page }) => {
   await setup(page, true, { initialPath: '/dashboard/placement-management' });
   let invitation: Record<string, unknown> = {};
   await page.route('**/v3/college/staff', async route => {
@@ -48,14 +48,17 @@ test('Client admin can invite placement staff from the placement team section', 
       invitation = route.request().postDataJSON();
       return route.fulfill({ status: 201, json: { user_id: 'staff-1', status: 'invited', email_queued: true } });
     }
-    return route.fulfill({ json: { staff: [] } });
+    return route.fulfill({ json: { staff: [], options: { programs: [{ code: 'B.Tech', display_name: 'Bachelor of Technology', duration_years: 4, departments: [{ code: 'CSE', display_name: 'Computer Science' }, { code: 'MECH', display_name: 'Mechanical' }] }], graduation_years: [2027, 2028], batches: ['2023-2027'] } } });
   });
-  await page.getByRole('button', { name: 'Placement team' }).click();
+  await page.getByRole('button', { name: 'Staff roster' }).click();
   await page.getByLabel('Full name').fill('Anita Coordinator');
   await page.getByLabel('Work email').fill('anita@example.edu');
+  await page.getByLabel('Program').selectOption('B.Tech');
+  await page.getByLabel('Department').selectOption('MECH');
+  await page.getByLabel('Graduation year').selectOption('2027');
   await page.getByRole('button', { name: 'Invite staff' }).click();
   await expect(page.getByRole('status')).toContainText('24-hour email link');
-  expect(invitation).toEqual({ full_name: 'Anita Coordinator', email: 'anita@example.edu' });
+  expect(invitation).toEqual({ full_name: 'Anita Coordinator', email: 'anita@example.edu', scope_groups: [{ program: 'B.Tech', department_code: 'MECH', batch_label: null, graduation_year: 2027 }] });
 });
 
 test('closed drive can be activated through a confirmation and saves the active status', async ({ page }) => {
@@ -105,7 +108,7 @@ test('active drive closes through the persisted lifecycle API and remains closed
 
 test('drive card reports eligibility and assigned progress without the misleading document-readiness metric', async ({ page }) => {
   await setup(page, true, {
-    driveRows: [{ id: 'drive-1', company_name: 'VoiceDot', role_title: 'Software Engineer', status: 'closed', window_start_at: '2026-01-01T00:00:00Z', window_end_at: '2027-01-01T00:00:00Z', latest_snapshot_eligible_count: 2, eligible_with_photo_and_resume_count: 1, assignment_count: 0 }],
+    driveRows: [{ id: 'drive-1', company_name: 'VoiceDot', role_title: 'Software Engineer', status: 'closed', window_start_at: '2026-01-01T00:00:00Z', window_end_at: '2027-01-01T00:00:00Z', latest_snapshot_eligible_count: 2, eligible_with_photo_and_resume_count: 1, assignment_count: 0, created_by_source: 'placement_staff', created_by_full_name: 'Anita Coordinator' }],
   });
   const card = page.getByRole('article').filter({ hasText: 'VoiceDot' });
   await expect(card.getByText('Met drive criteria at last evaluation')).toBeVisible();
@@ -113,6 +116,8 @@ test('drive card reports eligibility and assigned progress without the misleadin
   await expect(card.getByText('With photo and readable resume')).toHaveCount(0);
   await expect(card.getByText('No students assigned yet.')).toBeVisible();
   await expect(card.getByText('Closed', { exact: true })).toBeVisible();
+  await expect(card.getByText('Staff-created')).toBeVisible();
+  await expect(card.getByText('Created by Anita Coordinator')).toBeVisible();
 });
 
 test('candidate list shows the current attempt and configured attempt limit', async ({ page }) => {

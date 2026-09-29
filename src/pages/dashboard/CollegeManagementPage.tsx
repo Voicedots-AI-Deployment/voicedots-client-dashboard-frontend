@@ -341,7 +341,7 @@ export default function CollegeManagementPage() {
           [
             ["placements", "Placements"],
             ["analytics", "Analytics"], ["agents", "Interview Agents"], ["settings", "Settings"],
-            ...(!placementStaff ? [["staff", "Placement team"]] as const : []),
+            ...(!placementStaff ? [["staff", "Staff roster"]] as const : []),
           ] as const
         ).map(([key, label]) => (
           <button
@@ -429,10 +429,18 @@ export default function CollegeManagementPage() {
   );
 }
 
-type PlacementStaffMember = { user_id: string; name: string; email: string; status: "invited" | "active" | "disabled"; created_at?: string | null };
+type PlacementStaffScopeGroup = { program?: string | null; department_code?: string | null; batch_label?: string | null; graduation_year?: number | null };
+type PlacementStaffOptions = { programs: Program[]; graduation_years: number[]; batches: string[] };
+type PlacementStaffMember = { user_id: string; name: string; email: string; status: "invited" | "active" | "disabled"; created_at?: string | null; scope_groups: PlacementStaffScopeGroup[] };
+const emptyScopeGroup = (): PlacementStaffScopeGroup => ({ program: null, department_code: null, batch_label: null, graduation_year: null });
+const hasCompleteScopeGroups = (groups: PlacementStaffScopeGroup[]) => groups.length > 0 && groups.every(group => Boolean(group.program || group.department_code || group.batch_label || group.graduation_year));
 
 function PlacementStaffManagement() {
   const [staff, setStaff] = useState<PlacementStaffMember[]>([]);
+  const [options, setOptions] = useState<PlacementStaffOptions>({ programs: [], graduation_years: [], batches: [] });
+  const [scopeGroups, setScopeGroups] = useState<PlacementStaffScopeGroup[]>([emptyScopeGroup()]);
+  const [editing, setEditing] = useState<string | null>(null);
+  const [editGroups, setEditGroups] = useState<PlacementStaffScopeGroup[]>([]);
   const [name, setName] = useState("");
   const [email, setEmail] = useState("");
   const [busy, setBusy] = useState(false);
@@ -440,16 +448,28 @@ function PlacementStaffManagement() {
   const [notice, setNotice] = useState("");
   const load = async () => {
     setError("");
-    try { const result = await collegeApi.get<{staff?: PlacementStaffMember[]}>("staff"); setStaff(Array.isArray(result.staff) ? result.staff : []); }
+    try {
+      const result = await collegeApi.get<{staff?: PlacementStaffMember[]; options?: PlacementStaffOptions}>("staff");
+      setStaff(Array.isArray(result.staff) ? result.staff : []);
+      setOptions(result.options || { programs: [], graduation_years: [], batches: [] });
+    }
     catch (e) { setError(collegeError(e)); }
   };
   useEffect(() => { void load(); }, []);
   const invite = async (event: React.FormEvent) => {
     event.preventDefault(); setBusy(true); setError(""); setNotice("");
     try {
-      const result = await collegeApi.save<{email_queued?: boolean}>("staff", { full_name: name.trim(), email: email.trim() });
+      const result = await collegeApi.save<{email_queued?: boolean}>("staff", { full_name: name.trim(), email: email.trim(), scope_groups: scopeGroups });
       setNotice(result.email_queued ? "Invitation sent. The staff member can set a password using the 24-hour email link." : "Staff account created.");
-      setName(""); setEmail(""); await load();
+      setName(""); setEmail(""); setScopeGroups([emptyScopeGroup()]); await load();
+    } catch (e) { setError(collegeError(e)); }
+    finally { setBusy(false); }
+  };
+  const saveScope = async (person: PlacementStaffMember) => {
+    setBusy(true); setError(""); setNotice("");
+    try {
+      await collegeApi.save(`staff/${person.user_id}`, { scope_groups: editGroups }, true);
+      setNotice(`Student access updated for ${person.name}.`); setEditing(null); await load();
     } catch (e) { setError(collegeError(e)); }
     finally { setBusy(false); }
   };
@@ -461,18 +481,43 @@ function PlacementStaffManagement() {
     finally { setBusy(false); }
   };
   return <section className="space-y-5">
-    <header><p className="text-xs font-bold uppercase tracking-[0.16em] text-indigo-600">Access control</p><h2 className="mt-1 text-2xl font-bold">Placement team</h2><p className="mt-1 max-w-2xl text-sm text-slate-500">Invite staff to create and manage drives and to review and release interview reports. Their account cannot access Client leads or communications.</p></header>
+    <header><p className="text-xs font-bold uppercase tracking-[0.16em] text-indigo-600">Placement access</p><h2 className="mt-1 text-2xl font-bold">Staff roster</h2><p className="mt-1 max-w-2xl text-sm text-slate-500">Invite placement staff and assign the student groups they can manage. Staff can work only with students in their assigned groups and cannot access Client leads or communications.</p></header>
     {notice && <p role="status" className="rounded-xl bg-emerald-50 p-4 text-sm text-emerald-800">{notice}</p>}
     {error && <p role="alert" className="rounded-xl bg-rose-50 p-4 text-sm text-rose-800">{error}</p>}
-    <form onSubmit={invite} className="grid gap-4 rounded-2xl border border-slate-200 bg-white p-5 sm:grid-cols-[1fr_1fr_auto] sm:items-end dark:border-slate-800 dark:bg-slate-900">
-      <label className="text-sm font-medium">Full name<input required maxLength={150} value={name} onChange={e => setName(e.target.value)} className={input} placeholder="Placement coordinator" /></label>
-      <label className="text-sm font-medium">Work email<input required type="email" value={email} onChange={e => setEmail(e.target.value)} className={input} placeholder="name@institution.edu" /></label>
-      <button className={primary} disabled={busy}>{busy ? "Working…" : "Invite staff"}</button>
+    <form onSubmit={invite} className="space-y-4 rounded-2xl border border-slate-200 bg-white p-5 dark:border-slate-800 dark:bg-slate-900">
+      <div className="grid gap-4 sm:grid-cols-2">
+        <label className="text-sm font-medium">Full name<input required maxLength={150} value={name} onChange={e => setName(e.target.value)} className={input} placeholder="Placement coordinator" /></label>
+        <label className="text-sm font-medium">Work email<input required type="email" value={email} onChange={e => setEmail(e.target.value)} className={input} placeholder="name@institution.edu" /></label>
+      </div>
+      <StaffScopeEditor groups={scopeGroups} setGroups={setScopeGroups} options={options} />
+      <div className="flex justify-end"><button className={primary} disabled={busy || !hasCompleteScopeGroups(scopeGroups)}>{busy ? "Working…" : "Invite staff"}</button></div>
     </form>
     <div className="overflow-hidden rounded-2xl border border-slate-200 bg-white dark:border-slate-800 dark:bg-slate-900">
       <div className="flex items-center justify-between border-b p-5 dark:border-slate-800"><div><h3 className="font-semibold">Placement staff access</h3><p className="mt-1 text-sm text-slate-500">{staff.filter(p => p.status !== "disabled").length} active or invited</p></div><button type="button" className={button} disabled={busy} onClick={() => void load()}>Refresh</button></div>
-      {staff.length ? <ul className="divide-y dark:divide-slate-800">{staff.map(person => <li key={person.user_id} className="flex flex-wrap items-center justify-between gap-3 p-5"><div><p className="font-semibold">{person.name}</p><p className="text-sm text-slate-500">{person.email}</p></div><div className="flex items-center gap-3"><span className={`rounded-full px-3 py-1 text-xs font-semibold ${person.status === "active" ? "bg-emerald-50 text-emerald-700" : person.status === "invited" ? "bg-amber-50 text-amber-700" : "bg-slate-100 text-slate-600"}`}>{person.status === "active" ? "Active" : person.status === "invited" ? "Invitation pending" : "Access revoked"}</span>{person.status !== "disabled" && <button className="rounded-lg border border-rose-200 px-3 py-2 text-sm font-semibold text-rose-700 disabled:opacity-50" disabled={busy} onClick={() => void revoke(person)}>Revoke access</button>}</div></li>)}</ul> : <p className="p-8 text-center text-sm text-slate-500">No placement staff have been invited yet.</p>}
+      {staff.length ? <ul className="divide-y dark:divide-slate-800">{staff.map(person => <li key={person.user_id} className="space-y-3 p-5">
+        <div className="flex flex-wrap items-start justify-between gap-3"><div><p className="font-semibold">{person.name}</p><p className="text-sm text-slate-500">{person.email}</p><p className="mt-2 text-xs text-slate-500">{person.scope_groups?.length ? `${person.scope_groups.length} assigned student group${person.scope_groups.length === 1 ? "" : "s"}` : "No student groups assigned"}</p></div><div className="flex flex-wrap items-center gap-2"><span className={`rounded-full px-3 py-1 text-xs font-semibold ${person.status === "active" ? "bg-emerald-50 text-emerald-700" : person.status === "invited" ? "bg-amber-50 text-amber-700" : "bg-slate-100 text-slate-600"}`}>{person.status === "active" ? "Active" : person.status === "invited" ? "Invitation pending" : "Access revoked"}</span>{person.status !== "disabled" && <><button className={button} disabled={busy} onClick={() => { setEditing(editing === person.user_id ? null : person.user_id); setEditGroups(person.scope_groups?.length ? person.scope_groups.map(group => ({ ...group })) : [emptyScopeGroup()]); }}>Edit student access</button><button className="rounded-lg border border-rose-200 px-3 py-2 text-sm font-semibold text-rose-700 disabled:opacity-50" disabled={busy} onClick={() => void revoke(person)}>Revoke access</button></>}</div></div>
+        {editing === person.user_id && <div className="rounded-xl border border-indigo-100 bg-indigo-50/40 p-4 dark:border-indigo-900 dark:bg-indigo-950/20"><StaffScopeEditor groups={editGroups} setGroups={setEditGroups} options={options} /><div className="mt-3 flex justify-end gap-2"><button type="button" className={button} onClick={() => setEditing(null)}>Cancel</button><button type="button" className={primary} disabled={busy || !hasCompleteScopeGroups(editGroups)} onClick={() => void saveScope(person)}>{busy ? "Saving…" : "Save student access"}</button></div></div>}
+      </li>)}</ul> : <p className="p-8 text-center text-sm text-slate-500">No placement staff have been invited yet.</p>}
     </div>
+  </section>;
+}
+
+function StaffScopeEditor({ groups, setGroups, options }: { groups: PlacementStaffScopeGroup[]; setGroups: React.Dispatch<React.SetStateAction<PlacementStaffScopeGroup[]>>; options: PlacementStaffOptions }) {
+  const setField = (index: number, field: keyof PlacementStaffScopeGroup, value: string) => setGroups(current => current.map((group, i) => i === index ? { ...group, [field]: field === "graduation_year" ? (value ? Number(value) : null) : value || null } : group));
+  const selectClass = `${input} mt-1`;
+  return <section className="space-y-3" aria-label="Student access groups">
+    <div className="flex flex-wrap items-end justify-between gap-2"><div><h3 className="text-sm font-semibold">Student access groups</h3><p className="mt-1 text-xs text-slate-500">Groups are alternatives. Filters within a group are combined, so staff see students matching at least one group. Each group needs at least one filter.</p></div><button type="button" className={button} onClick={() => setGroups(current => [...current, emptyScopeGroup()])}>Add group</button></div>
+    {groups.map((group, index) => {
+      const selectedProgram = options.programs.find(program => program.code === group.program);
+      const departments = selectedProgram?.departments || options.programs.flatMap(program => program.departments).filter((department, i, all) => all.findIndex(item => item.code === department.code) === i);
+      return <div className="grid gap-3 rounded-xl border border-slate-200 p-3 sm:grid-cols-2 xl:grid-cols-[1.1fr_1.1fr_1fr_0.8fr_auto] dark:border-slate-700" key={index}>
+        <label className="text-xs font-medium text-slate-600">Program<select className={selectClass} value={group.program || ""} onChange={event => { const program = event.target.value; setGroups(current => current.map((item, i) => i === index ? { ...item, program: program || null, department_code: program && item.department_code && !options.programs.find(p => p.code === program)?.departments.some(d => d.code === item.department_code) ? null : item.department_code } : item)); }}><option value="">Any program</option>{options.programs.map(program => <option key={program.code} value={program.code}>{program.display_name}</option>)}</select></label>
+        <label className="text-xs font-medium text-slate-600">Department<select className={selectClass} value={group.department_code || ""} onChange={event => setField(index, "department_code", event.target.value)}><option value="">Any department</option>{departments.map(department => <option key={department.code} value={department.code}>{department.display_name}</option>)}</select></label>
+        <label className="text-xs font-medium text-slate-600">Batch<select className={selectClass} value={group.batch_label || ""} onChange={event => setField(index, "batch_label", event.target.value)}><option value="">Any batch</option>{options.batches.map(batch => <option key={batch} value={batch}>{batch}</option>)}</select></label>
+        <label className="text-xs font-medium text-slate-600">Graduation year<select className={selectClass} value={group.graduation_year || ""} onChange={event => setField(index, "graduation_year", event.target.value)}><option value="">Any year</option>{options.graduation_years.map(year => <option key={year} value={year}>{year}</option>)}</select></label>
+        <button type="button" className="self-end rounded-lg border border-rose-200 px-3 py-2.5 text-xs font-semibold text-rose-700 disabled:opacity-50" disabled={groups.length <= 1} onClick={() => setGroups(current => current.filter((_, i) => i !== index))}>Remove</button>
+      </div>;
+    })}
   </section>;
 }
 
@@ -700,10 +745,11 @@ function DriveCard({
       <div className="flex items-start justify-between gap-4">
         <div className="min-w-0">
           <p className="text-xs font-semibold uppercase tracking-[0.14em] text-indigo-600">
-            {readable(drive.drive_type || "official_placement")}
+            {readable(drive.drive_type || "official_placement")} · {drive.created_by_source === "placement_staff" ? "Staff-created" : "Client/admin official"}
           </p>
           <h3 className="mt-2 break-words text-xl font-bold">{drive.company_name}</h3>
           <p className="mt-1 text-sm text-slate-600">{drive.role_title}</p>
+          {drive.created_by_full_name && <p className="mt-1 text-xs text-slate-500">Created by {drive.created_by_full_name}</p>}
         </div>
         <div className="flex shrink-0 flex-wrap justify-end gap-2">
           <span className={`rounded-full px-3 py-1 text-xs font-semibold ${statusTone}`}>{readable(currentStatus)}</span>
