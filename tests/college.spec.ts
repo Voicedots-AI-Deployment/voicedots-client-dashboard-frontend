@@ -174,6 +174,34 @@ test('Staff roster refresh forces a new request and updates the visible list', a
   expect(requests).toBeGreaterThanOrEqual(2);
 });
 
+test('Staff roster downloads its spreadsheet template and imports staff with result details', async ({ page }) => {
+  await setup(page, true, { initialPath: '/dashboard/placement-management' });
+  await page.getByRole('button', { name: 'Staff roster' }).click();
+  await page.getByText('Import staff from CSV or Excel').click();
+
+  await page.route('**/v3/college/staff/template?format=csv', route => route.fulfill({
+    status: 200,
+    contentType: 'text/csv',
+    headers: { 'content-disposition': 'attachment; filename="staff-import-template.csv"' },
+    body: 'full_name,email,program,department_code,batch_label,graduation_year\n',
+  }));
+  const download = page.waitForEvent('download');
+  await page.getByRole('button', { name: 'Download CSV template' }).click();
+  expect((await download).suggestedFilename()).toBe('staff-import-template.csv');
+
+  await page.route('**/v3/college/staff/upload', route => route.fulfill({ json: {
+    staff_invited: 1, emails_queued: 1, errors_count: 0,
+    invited: [{ name: 'Alex Morgan', email: 'alex@example.edu' }], errors: [],
+  } }));
+  await page.getByLabel('Staff import file').setInputFiles({
+    name: 'staff.csv', mimeType: 'text/csv',
+    buffer: Buffer.from('full_name,email,program,department_code,batch_label,graduation_year\nAlex Morgan,alex@example.edu,BTECH,CSE,2022-2026,2026\n'),
+  });
+  await page.getByRole('button', { name: 'Import staff' }).click();
+  await expect(page.getByText('1 staff invited · 1 setup emails queued · 0 errors')).toBeVisible();
+  await expect(page.getByText('Invited Alex Morgan (alex@example.edu)')).toBeVisible();
+});
+
 test('Removing placement staff revokes access and removes them from the roster', async ({ page }) => {
   await setup(page, true, { initialPath: '/dashboard/placement-management' });
   let present = true;

@@ -24,6 +24,7 @@ import DriveManagement, { InterviewResultsSettings, ReadinessPolicy } from "./Dr
 import InterviewAgents from "./InterviewAgents";
 import PlacementAnalytics, { type Analytics } from "./PlacementAnalytics";
 import PlacementCandidates from "./PlacementCandidates";
+import StaffImport from "./StaffImport";
 import { displayName, formatDateOnly, formatPlacementDateTime, PLACEMENT_TIME_ZONE } from "./placementDisplay";
 
 const card =
@@ -549,6 +550,7 @@ function PlacementStaffManagement() {
     {notice && <p role="status" className="rounded-xl bg-emerald-50 p-4 text-sm text-emerald-800">{notice}</p>}
     {error && <p role="alert" className="rounded-xl bg-rose-50 p-4 text-sm text-rose-800">{error}</p>}
     {!options.programs.length && !options.graduation_years.length && !options.batches.length && <p role="status" className="rounded-xl bg-amber-50 p-4 text-sm text-amber-800">No academic filters are available yet. Add programs and student academic details in Academic Setup and the Student Roster, then refresh this section.</p>}
+    <StaffImport onComplete={() => void load(true)} />
     <form onSubmit={invite} className="space-y-4 rounded-2xl border border-slate-200 bg-white p-5 dark:border-slate-800 dark:bg-slate-900">
       <div className="grid gap-4 sm:grid-cols-2">
         <label className="text-sm font-medium">Full name<input required maxLength={150} value={name} onChange={e => setName(e.target.value)} className={input} placeholder="Placement coordinator" /></label>
