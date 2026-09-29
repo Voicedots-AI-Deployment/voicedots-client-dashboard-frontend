@@ -570,6 +570,35 @@ test('student roster and academic setup work on a phone', async ({ page }) => {
   await page.screenshot({ path: 'test-results/college-management-mobile.png', fullPage: true });
 });
 
+test('Student Analysis shows full drive participation, interview performance and report release state', async ({ page }) => {
+  await page.setViewportSize({ width: 390, height: 844 });
+  await setup(page, true, { initialPath: '/dashboard/attendance' });
+  await page.route(/\/v3\/college\/students(?:\?.*)?$/, route => route.request().method() === 'GET'
+    ? route.fulfill({ json: { total: 1, items: [{ id: 'student-1', full_name: 'Asha Rao', email: 'asha@example.edu', roll_number: 'CS01', program: 'B.Tech', department_code: 'CSE', graduation_year: 2027, cgpa: 8.4, status: 'active' }] } })
+    : route.fallback());
+  await page.route('**/v3/college/students/student-1/reports', route => route.fulfill({ json: {
+    student: { full_name: 'Asha Rao', roll_number: 'CS01' },
+    drives: [
+      { assignment_id: 'a1', drive_id: 'd1', company_name: 'Northstar', role_title: 'Data Scientist', assignment_status: 'completed', evaluation_status: 'released', released_to_student_at: '2026-09-20T10:00:00Z', completed_at: '2026-09-20T09:00:00Z', preparation_status: 'ready' },
+      { assignment_id: 'a2', drive_id: 'd2', company_name: 'Orbit', role_title: 'Software Engineer', assignment_status: 'invited', evaluation_status: null, preparation_status: 'not_started' },
+    ],
+    reports: [{ source: 'drive', label: 'Northstar — Data Scientist', assignment_id: 'a1', drive_id: 'd1', session_id: 's1', completed_at: '2026-09-20T09:00:00Z', overall_score: 86, readiness: 'Interview Ready', detail: { question_reviews: [{ question: 'How did you evaluate the model?', answer: 'Used stratified cross-validation.' }], placement_readiness: { score: 82 } } }],
+  } }));
+  await page.getByRole('button', { name: 'Student roster', exact: true }).click();
+  await page.getByRole('button', { name: 'Analysis' }).click();
+  const dialog = page.getByRole('dialog', { name: 'Student Analysis' });
+  await expect(dialog).toBeVisible();
+  await expect(dialog.getByText('Drive participations')).toBeVisible();
+  await expect(dialog.getByText('Interviews taken')).toBeVisible();
+  await expect(dialog.getByText('Reports released')).toBeVisible();
+  await expect(dialog.getByText('Northstar · Data Scientist')).toBeVisible();
+  await expect(dialog.getByText('Orbit · Software Engineer')).toBeVisible();
+  await expect(dialog.getByText('Invited')).toBeVisible();
+  await dialog.getByText('Northstar — Data Scientist').click();
+  await expect(dialog.getByText('Used stratified cross-validation.')).toBeVisible();
+  expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(390);
+});
+
 test('student roster reports when the welcome and password setup email was not queued', async ({ page }) => {
   await setup(page, true, { initialPath: '/dashboard/attendance' });
   await page.getByRole('button', { name: 'Student roster', exact: true }).click();
