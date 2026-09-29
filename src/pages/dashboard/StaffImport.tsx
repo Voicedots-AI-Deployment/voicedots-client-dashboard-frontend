@@ -47,7 +47,7 @@ export default function StaffImport({ onComplete }: { onComplete: () => void }) 
   return <details className="rounded-2xl border border-slate-200 bg-white p-5 dark:border-slate-800 dark:bg-slate-900">
     <summary className="cursor-pointer font-semibold">Import staff from CSV or Excel</summary>
     <div className="mt-4 space-y-4">
-      <p className="text-sm text-slate-500">Download a template and fill in the Staff sheet. Each row assigns one access group; repeat a staff member’s name and email to give them multiple groups. Use program and department codes from Academic Setup. Each staff member receives one invitation.</p>
+      <p className="text-sm text-slate-500">Download a template and fill in the Staff sheet. Each row assigns one access group; repeat a staff member’s name and email to give them multiple groups. Use program and department names or codes from Academic Setup. Each staff member receives one invitation.</p>
       <div className="flex flex-wrap gap-3">
         <button type="button" className="rounded-lg border px-3 py-2 text-sm" onClick={() => void download('csv')}>Download CSV template</button>
         <button type="button" className="rounded-lg border px-3 py-2 text-sm" onClick={() => void download('xlsx')}>Download Excel template</button>
