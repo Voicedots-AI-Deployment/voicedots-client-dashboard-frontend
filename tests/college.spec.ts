@@ -582,7 +582,7 @@ test('Student Analysis shows full drive participation, interview performance and
       { assignment_id: 'a1', drive_id: 'd1', company_name: 'Northstar', role_title: 'Data Scientist', assignment_status: 'completed', evaluation_status: 'released', released_to_student_at: '2026-09-20T10:00:00Z', completed_at: '2026-09-20T09:00:00Z', preparation_status: 'ready' },
       { assignment_id: 'a2', drive_id: 'd2', company_name: 'Orbit', role_title: 'Software Engineer', assignment_status: 'invited', evaluation_status: null, preparation_status: 'not_started' },
     ],
-    reports: [{ source: 'drive', label: 'Northstar — Data Scientist', assignment_id: 'a1', drive_id: 'd1', session_id: 's1', completed_at: '2026-09-20T09:00:00Z', overall_score: 86, readiness: 'Interview Ready', detail: { question_reviews: [{ question: 'How did you evaluate the model?', answer: 'Used stratified cross-validation.' }], placement_readiness: { score: 82 } } }],
+    reports: [{ source: 'drive', label: 'Northstar — Data Scientist', assignment_id: 'a1', drive_id: 'd1', session_id: 's1', completed_at: '2026-09-20T09:00:00Z', overall_score: 86, readiness: 'Interview Ready', detail: { agent_breakdown: [{ agent_type: 'hr', status: 'complete', sub_score: 72, readiness: 'Approaching Ready', dimensions: [{ dimension: 'communication', band: 3 }] }, { agent_type: 'domain', status: 'not_reached', sub_score: null, readiness: null, dimensions: [] }], question_reviews: [{ question: 'How did you evaluate the model?', answer: 'Used stratified cross-validation.' }], placement_readiness: { score: 82 } } }],
   } }));
   await page.getByRole('button', { name: 'Student roster', exact: true }).click();
   await page.getByRole('button', { name: 'Analysis' }).click();
@@ -595,6 +595,12 @@ test('Student Analysis shows full drive participation, interview performance and
   await expect(dialog.getByText('Orbit · Software Engineer')).toBeVisible();
   await expect(dialog.getByText('Invited')).toBeVisible();
   await dialog.getByText('Northstar — Data Scientist').click();
+  await expect(dialog.getByText('Talent Acquisition Specialist')).toBeVisible();
+  await expect(dialog.getByText('72 / 100')).toBeVisible();
+  await expect(dialog.getByText('Communication')).toBeVisible();
+  await expect(dialog.getByText('Band 3 / 4')).toBeVisible();
+  await expect(dialog.getByText('Not Reached', { exact: true })).toBeVisible();
+  await expect(dialog.getByText('Assessment —')).toHaveCount(0);
   await expect(dialog.getByText('Used stratified cross-validation.')).toBeVisible();
   expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(390);
 });
