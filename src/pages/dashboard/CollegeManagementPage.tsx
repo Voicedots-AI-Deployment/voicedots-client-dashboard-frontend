@@ -451,7 +451,27 @@ function PlacementStaffManagement() {
     try {
       const result = await collegeApi.get<{staff?: PlacementStaffMember[]; options?: PlacementStaffOptions}>("staff");
       setStaff(Array.isArray(result.staff) ? result.staff : []);
-      setOptions(result.options || { programs: [], graduation_years: [], batches: [] });
+      let nextOptions = result.options || { programs: [], graduation_years: [], batches: [] };
+      // Keep the roster editor usable when a deployment is rolling through a
+      // mixed Client/Student API version. These are the same canonical option
+      // endpoints used by drive setup and the student roster.
+      const [catalogResult, rosterResult] = await Promise.allSettled([
+        collegeApi.get<{ programs?: Program[]; graduation_years?: number[] }>("academic-catalog"),
+        collegeApi.get<{ batches?: string[]; graduation_years?: number[] }>("roster-options"),
+      ]);
+      if ((!Array.isArray(nextOptions.programs) || !nextOptions.programs.length) && catalogResult.status === "fulfilled") {
+        nextOptions.programs = catalogResult.value.programs || [];
+      }
+      if ((!Array.isArray(nextOptions.graduation_years) || !nextOptions.graduation_years.length) && catalogResult.status === "fulfilled") {
+        nextOptions.graduation_years = catalogResult.value.graduation_years || [];
+      }
+      if ((!Array.isArray(nextOptions.batches) || !nextOptions.batches.length) && rosterResult.status === "fulfilled") {
+        nextOptions.batches = rosterResult.value.batches || [];
+      }
+      if (!nextOptions.graduation_years.length && rosterResult.status === "fulfilled") {
+        nextOptions.graduation_years = rosterResult.value.graduation_years || [];
+      }
+      setOptions(nextOptions);
     }
     catch (e) { setError(collegeError(e)); }
   };
@@ -484,6 +504,7 @@ function PlacementStaffManagement() {
     <header><p className="text-xs font-bold uppercase tracking-[0.16em] text-indigo-600">Placement access</p><h2 className="mt-1 text-2xl font-bold">Staff roster</h2><p className="mt-1 max-w-2xl text-sm text-slate-500">Invite placement staff and assign the student groups they can manage. Staff can work only with students in their assigned groups and cannot access Client leads or communications.</p></header>
     {notice && <p role="status" className="rounded-xl bg-emerald-50 p-4 text-sm text-emerald-800">{notice}</p>}
     {error && <p role="alert" className="rounded-xl bg-rose-50 p-4 text-sm text-rose-800">{error}</p>}
+    {!options.programs.length && !options.graduation_years.length && !options.batches.length && <p role="status" className="rounded-xl bg-amber-50 p-4 text-sm text-amber-800">No academic filters are available yet. Add programs and student academic details in Academic Setup and the Student Roster, then refresh this section.</p>}
     <form onSubmit={invite} className="space-y-4 rounded-2xl border border-slate-200 bg-white p-5 dark:border-slate-800 dark:bg-slate-900">
       <div className="grid gap-4 sm:grid-cols-2">
         <label className="text-sm font-medium">Full name<input required maxLength={150} value={name} onChange={e => setName(e.target.value)} className={input} placeholder="Placement coordinator" /></label>
@@ -509,7 +530,8 @@ function StaffScopeEditor({ groups, setGroups, options }: { groups: PlacementSta
     <div className="flex flex-wrap items-end justify-between gap-2"><div><h3 className="text-sm font-semibold">Student access groups</h3><p className="mt-1 text-xs text-slate-500">Groups are alternatives. Filters within a group are combined, so staff see students matching at least one group. Each group needs at least one filter.</p></div><button type="button" className={button} onClick={() => setGroups(current => [...current, emptyScopeGroup()])}>Add group</button></div>
     {groups.map((group, index) => {
       const selectedProgram = options.programs.find(program => program.code === group.program);
-      const departments = selectedProgram?.departments || options.programs.flatMap(program => program.departments).filter((department, i, all) => all.findIndex(item => item.code === department.code) === i);
+      const programDepartments = selectedProgram?.departments || [];
+      const departments = programDepartments.length ? programDepartments : options.programs.flatMap(program => program.departments).filter((department, i, all) => all.findIndex(item => item.code === department.code) === i);
       return <div className="grid gap-3 rounded-xl border border-slate-200 p-3 sm:grid-cols-2 xl:grid-cols-[1.1fr_1.1fr_1fr_0.8fr_auto] dark:border-slate-700" key={index}>
         <label className="text-xs font-medium text-slate-600">Program<select className={selectClass} value={group.program || ""} onChange={event => { const program = event.target.value; setGroups(current => current.map((item, i) => i === index ? { ...item, program: program || null, department_code: program && item.department_code && !options.programs.find(p => p.code === program)?.departments.some(d => d.code === item.department_code) ? null : item.department_code } : item)); }}><option value="">Any program</option>{options.programs.map(program => <option key={program.code} value={program.code}>{program.display_name}</option>)}</select></label>
         <label className="text-xs font-medium text-slate-600">Department<select className={selectClass} value={group.department_code || ""} onChange={event => setField(index, "department_code", event.target.value)}><option value="">Any department</option>{departments.map(department => <option key={department.code} value={department.code}>{department.display_name}</option>)}</select></label>

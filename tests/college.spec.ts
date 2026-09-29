@@ -61,6 +61,19 @@ test('Client admin can invite placement staff with a specific student group', as
   expect(invitation).toEqual({ full_name: 'Anita Coordinator', email: 'anita@example.edu', scope_groups: [{ program: 'B.Tech', department_code: 'MECH', batch_label: null, graduation_year: 2027 }] });
 });
 
+test('Staff roster selectors use the academic and roster catalogs when staff options are empty', async ({ page }) => {
+  await setup(page, true, { initialPath: '/dashboard/placement-management' });
+  await page.route('**/v3/college/staff', route => route.fulfill({ json: {
+    staff: [], options: { programs: [], graduation_years: [], batches: [] },
+  } }));
+  await page.getByRole('button', { name: 'Staff roster' }).click();
+  await expect(page.getByLabel('Program').locator('option')).toHaveCount(2);
+  await page.getByLabel('Program').selectOption('B.Tech');
+  await expect(page.getByLabel('Department').locator('option')).toContainText(['Any department', 'Computer Science', 'Information Technology']);
+  await expect(page.getByLabel('Batch').locator('option')).toContainText(['Any batch', '2023-2027']);
+  await expect(page.getByLabel('Graduation year').locator('option')).toContainText(['Any year', '2027', '2028']);
+});
+
 test('closed drive can be activated through a confirmation and saves the active status', async ({ page }) => {
   await setup(page, true, {
     initialPath: '/dashboard/placement-management?drive=drive-1',
