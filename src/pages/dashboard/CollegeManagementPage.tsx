@@ -430,27 +430,49 @@ export default function CollegeManagementPage() {
 }
 
 type PlacementStaffScopeGroup = { program?: string | null; department_code?: string | null; batch_label?: string | null; graduation_year?: number | null };
+type StaffScopeSelection = { programs: string[]; department_codes: string[]; batch_labels: string[]; graduation_years: number[] };
 type PlacementStaffOptions = { programs: Program[]; graduation_years: number[]; batches: string[] };
 type PlacementStaffMember = { user_id: string; name: string; email: string; status: "invited" | "active" | "disabled"; created_at?: string | null; scope_groups: PlacementStaffScopeGroup[] };
-const emptyScopeGroup = (): PlacementStaffScopeGroup => ({ program: null, department_code: null, batch_label: null, graduation_year: null });
-const hasCompleteScopeGroups = (groups: PlacementStaffScopeGroup[]) => groups.length > 0 && groups.every(group => Boolean(group.program || group.department_code || group.batch_label || group.graduation_year));
+const emptyScopeGroup = (): StaffScopeSelection => ({ programs: [], department_codes: [], batch_labels: [], graduation_years: [] });
+const selectionFromScopeGroup = (group: PlacementStaffScopeGroup): StaffScopeSelection => ({
+  programs: group.program ? [group.program] : [],
+  department_codes: group.department_code ? [group.department_code] : [],
+  batch_labels: group.batch_label ? [group.batch_label] : [],
+  graduation_years: group.graduation_year ? [group.graduation_year] : [],
+});
+const expandScopeGroups = (groups: StaffScopeSelection[]): PlacementStaffScopeGroup[] => groups.flatMap(group => {
+  const programs = group.programs.length ? group.programs : [null];
+  const departments = group.department_codes.length ? group.department_codes : [null];
+  const batches = group.batch_labels.length ? group.batch_labels : [null];
+  const years = group.graduation_years.length ? group.graduation_years : [null];
+  return programs.flatMap(program => departments.flatMap(department_code => batches.flatMap(batch_label => years.map(graduation_year => ({
+    program, department_code, batch_label, graduation_year,
+  })))));
+});
+const hasCompleteScopeGroups = (groups: StaffScopeSelection[]) => groups.length > 0 && groups.every(group => Boolean(group.programs.length || group.department_codes.length || group.batch_labels.length || group.graduation_years.length));
+const hasSupportedScopeGroupCount = (groups: StaffScopeSelection[]) => expandScopeGroups(groups).length <= 100;
 
 function PlacementStaffManagement() {
   const [staff, setStaff] = useState<PlacementStaffMember[]>([]);
   const [options, setOptions] = useState<PlacementStaffOptions>({ programs: [], graduation_years: [], batches: [] });
-  const [scopeGroups, setScopeGroups] = useState<PlacementStaffScopeGroup[]>([emptyScopeGroup()]);
+  const [scopeGroups, setScopeGroups] = useState<StaffScopeSelection[]>([emptyScopeGroup()]);
   const [editing, setEditing] = useState<string | null>(null);
-  const [editGroups, setEditGroups] = useState<PlacementStaffScopeGroup[]>([]);
+  const [editGroups, setEditGroups] = useState<StaffScopeSelection[]>([]);
   const [name, setName] = useState("");
   const [email, setEmail] = useState("");
   const [busy, setBusy] = useState(false);
+  const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState("");
   const [notice, setNotice] = useState("");
-  const load = async () => {
+  const load = async (forceRefresh = false) => {
+    if (forceRefresh) setRefreshing(true);
     setError("");
     try {
-      const result = await collegeApi.get<{staff?: PlacementStaffMember[]; options?: PlacementStaffOptions}>("staff");
-      setStaff(Array.isArray(result.staff) ? result.staff : []);
+      // Cache-bust explicit refreshes so an intermediary cannot return an old roster.
+      const result = await collegeApi.get<{staff?: PlacementStaffMember[]; options?: PlacementStaffOptions}>(forceRefresh ? `staff?refresh=${Date.now()}` : "staff");
+      // Removed members stay recorded server-side for audit/history, but are no
+      // longer shown in the active access roster.
+      setStaff(Array.isArray(result.staff) ? result.staff.filter(person => person.status !== "disabled") : []);
       let nextOptions = result.options || { programs: [], graduation_years: [], batches: [] };
       // Keep the roster editor usable when a deployment is rolling through a
       // mixed Client/Student API version. These are the same canonical option
@@ -474,12 +496,13 @@ function PlacementStaffManagement() {
       setOptions(nextOptions);
     }
     catch (e) { setError(collegeError(e)); }
+    finally { if (forceRefresh) setRefreshing(false); }
   };
   useEffect(() => { void load(); }, []);
   const invite = async (event: React.FormEvent) => {
     event.preventDefault(); setBusy(true); setError(""); setNotice("");
     try {
-      const result = await collegeApi.save<{email_queued?: boolean}>("staff", { full_name: name.trim(), email: email.trim(), scope_groups: scopeGroups });
+      const result = await collegeApi.save<{email_queued?: boolean}>("staff", { full_name: name.trim(), email: email.trim(), scope_groups: expandScopeGroups(scopeGroups) });
       setNotice(result.email_queued ? "Invitation sent. The staff member can set a password using the 24-hour email link." : "Staff account created.");
       setName(""); setEmail(""); setScopeGroups([emptyScopeGroup()]); await load();
     } catch (e) { setError(collegeError(e)); }
@@ -488,15 +511,15 @@ function PlacementStaffManagement() {
   const saveScope = async (person: PlacementStaffMember) => {
     setBusy(true); setError(""); setNotice("");
     try {
-      await collegeApi.save(`staff/${person.user_id}`, { scope_groups: editGroups }, true);
+      await collegeApi.save(`staff/${person.user_id}`, { scope_groups: expandScopeGroups(editGroups) }, true);
       setNotice(`Student access updated for ${person.name}.`); setEditing(null); await load();
     } catch (e) { setError(collegeError(e)); }
     finally { setBusy(false); }
   };
   const revoke = async (person: PlacementStaffMember) => {
-    if (!window.confirm(`Revoke placement access for ${person.name}?`)) return;
+    if (!window.confirm(`Remove ${person.name} from the placement staff roster? Their placement login will be revoked. Historical drive and report records will be retained.`)) return;
     setBusy(true); setError(""); setNotice("");
-    try { await collegeApi.remove(`staff/${person.user_id}`); setNotice("Placement access revoked."); await load(); }
+    try { await collegeApi.remove(`staff/${person.user_id}`); setStaff(current => current.filter(item => item.user_id !== person.user_id)); setNotice(`${person.name} was removed from the placement staff roster.`); await load(); }
     catch (e) { setError(collegeError(e)); }
     finally { setBusy(false); }
   };
@@ -511,36 +534,51 @@ function PlacementStaffManagement() {
         <label className="text-sm font-medium">Work email<input required type="email" value={email} onChange={e => setEmail(e.target.value)} className={input} placeholder="name@institution.edu" /></label>
       </div>
       <StaffScopeEditor groups={scopeGroups} setGroups={setScopeGroups} options={options} />
-      <div className="flex justify-end"><button className={primary} disabled={busy || !hasCompleteScopeGroups(scopeGroups)}>{busy ? "Working…" : "Invite staff"}</button></div>
+      {hasCompleteScopeGroups(scopeGroups) && !hasSupportedScopeGroupCount(scopeGroups) && <p role="alert" className="text-sm text-rose-700">These selections create more than 100 access rules. Reduce the selected values; a staff member can have at most 100 rules.</p>}
+      <div className="flex justify-end"><button className={primary} disabled={busy || !hasCompleteScopeGroups(scopeGroups) || !hasSupportedScopeGroupCount(scopeGroups)}>{busy ? "Working…" : "Invite staff"}</button></div>
     </form>
     <div className="overflow-hidden rounded-2xl border border-slate-200 bg-white dark:border-slate-800 dark:bg-slate-900">
-      <div className="flex items-center justify-between border-b p-5 dark:border-slate-800"><div><h3 className="font-semibold">Placement staff access</h3><p className="mt-1 text-sm text-slate-500">{staff.filter(p => p.status !== "disabled").length} active or invited</p></div><button type="button" className={button} disabled={busy} onClick={() => void load()}>Refresh</button></div>
+      <div className="flex items-center justify-between border-b p-5 dark:border-slate-800"><div><h3 className="font-semibold">Placement staff access</h3><p className="mt-1 text-sm text-slate-500">{staff.filter(p => p.status !== "disabled").length} active or invited</p></div><button type="button" className={button} disabled={busy || refreshing} onClick={() => void load(true)} aria-label={refreshing ? "Refreshing staff" : "Refresh staff roster"}><RefreshCw size={16} className={refreshing ? "animate-spin" : ""} />{refreshing ? "Refreshing…" : "Refresh"}</button></div>
       {staff.length ? <ul className="divide-y dark:divide-slate-800">{staff.map(person => <li key={person.user_id} className="space-y-3 p-5">
-        <div className="flex flex-wrap items-start justify-between gap-3"><div><p className="font-semibold">{person.name}</p><p className="text-sm text-slate-500">{person.email}</p><p className="mt-2 text-xs text-slate-500">{person.scope_groups?.length ? `${person.scope_groups.length} assigned student group${person.scope_groups.length === 1 ? "" : "s"}` : "No student groups assigned"}</p></div><div className="flex flex-wrap items-center gap-2"><span className={`rounded-full px-3 py-1 text-xs font-semibold ${person.status === "active" ? "bg-emerald-50 text-emerald-700" : person.status === "invited" ? "bg-amber-50 text-amber-700" : "bg-slate-100 text-slate-600"}`}>{person.status === "active" ? "Active" : person.status === "invited" ? "Invitation pending" : "Access revoked"}</span>{person.status !== "disabled" && <><button className={button} disabled={busy} onClick={() => { setEditing(editing === person.user_id ? null : person.user_id); setEditGroups(person.scope_groups?.length ? person.scope_groups.map(group => ({ ...group })) : [emptyScopeGroup()]); }}>Edit student access</button><button className="rounded-lg border border-rose-200 px-3 py-2 text-sm font-semibold text-rose-700 disabled:opacity-50" disabled={busy} onClick={() => void revoke(person)}>Revoke access</button></>}</div></div>
-        {editing === person.user_id && <div className="rounded-xl border border-indigo-100 bg-indigo-50/40 p-4 dark:border-indigo-900 dark:bg-indigo-950/20"><StaffScopeEditor groups={editGroups} setGroups={setEditGroups} options={options} /><div className="mt-3 flex justify-end gap-2"><button type="button" className={button} onClick={() => setEditing(null)}>Cancel</button><button type="button" className={primary} disabled={busy || !hasCompleteScopeGroups(editGroups)} onClick={() => void saveScope(person)}>{busy ? "Saving…" : "Save student access"}</button></div></div>}
+        <div className="flex flex-wrap items-start justify-between gap-3"><div><p className="font-semibold">{person.name}</p><p className="text-sm text-slate-500">{person.email}</p><p className="mt-2 text-xs text-slate-500">{person.scope_groups?.length ? `${person.scope_groups.length} assigned student group${person.scope_groups.length === 1 ? "" : "s"}` : "No student groups assigned"}</p></div><div className="flex flex-wrap items-center gap-2"><span className={`rounded-full px-3 py-1 text-xs font-semibold ${person.status === "active" ? "bg-emerald-50 text-emerald-700" : "bg-amber-50 text-amber-700"}`}>{person.status === "active" ? "Active" : "Invitation pending"}</span><button className={button} disabled={busy} onClick={() => { setEditing(editing === person.user_id ? null : person.user_id); setEditGroups(person.scope_groups?.length ? person.scope_groups.map(selectionFromScopeGroup) : [emptyScopeGroup()]); }}>Edit student access</button><button className="rounded-lg border border-rose-200 px-3 py-2 text-sm font-semibold text-rose-700 disabled:opacity-50" disabled={busy} onClick={() => void revoke(person)}>Remove staff</button></div></div>
+        {editing === person.user_id && <div className="rounded-xl border border-indigo-100 bg-indigo-50/40 p-4 dark:border-indigo-900 dark:bg-indigo-950/20"><StaffScopeEditor groups={editGroups} setGroups={setEditGroups} options={options} />{hasCompleteScopeGroups(editGroups) && !hasSupportedScopeGroupCount(editGroups) && <p role="alert" className="mt-3 text-sm text-rose-700">These selections create more than 100 access rules. Reduce the selected values; a staff member can have at most 100 rules.</p>}<div className="mt-3 flex justify-end gap-2"><button type="button" className={button} onClick={() => setEditing(null)}>Cancel</button><button type="button" className={primary} disabled={busy || !hasCompleteScopeGroups(editGroups) || !hasSupportedScopeGroupCount(editGroups)} onClick={() => void saveScope(person)}>{busy ? "Saving…" : "Save student access"}</button></div></div>}
       </li>)}</ul> : <p className="p-8 text-center text-sm text-slate-500">No placement staff have been invited yet.</p>}
     </div>
   </section>;
 }
 
-function StaffScopeEditor({ groups, setGroups, options }: { groups: PlacementStaffScopeGroup[]; setGroups: React.Dispatch<React.SetStateAction<PlacementStaffScopeGroup[]>>; options: PlacementStaffOptions }) {
-  const setField = (index: number, field: keyof PlacementStaffScopeGroup, value: string) => setGroups(current => current.map((group, i) => i === index ? { ...group, [field]: field === "graduation_year" ? (value ? Number(value) : null) : value || null } : group));
-  const selectClass = `${input} mt-1`;
+function StaffScopeEditor({ groups, setGroups, options }: { groups: StaffScopeSelection[]; setGroups: React.Dispatch<React.SetStateAction<StaffScopeSelection[]>>; options: PlacementStaffOptions }) {
+  const setField = <K extends keyof StaffScopeSelection>(index: number, field: K, value: StaffScopeSelection[K]) => setGroups(current => current.map((group, i) => i === index ? { ...group, [field]: value } : group));
   return <section className="space-y-3" aria-label="Student access groups">
-    <div className="flex flex-wrap items-end justify-between gap-2"><div><h3 className="text-sm font-semibold">Student access groups</h3><p className="mt-1 text-xs text-slate-500">Groups are alternatives. Filters within a group are combined, so staff see students matching at least one group. Each group needs at least one filter.</p></div><button type="button" className={button} onClick={() => setGroups(current => [...current, emptyScopeGroup()])}>Add group</button></div>
+    <div className="flex flex-wrap items-end justify-between gap-2"><div><h3 className="text-sm font-semibold">Student access groups</h3><p className="mt-1 text-xs text-slate-500">Groups are alternatives. Within each group, selected values in a filter are alternatives and different filters are combined. Each group needs at least one filter.</p></div><button type="button" className={button} onClick={() => setGroups(current => [...current, emptyScopeGroup()])}>Add group</button></div>
     {groups.map((group, index) => {
-      const selectedProgram = options.programs.find(program => program.code === group.program);
-      const programDepartments = selectedProgram?.departments || [];
-      const departments = programDepartments.length ? programDepartments : options.programs.flatMap(program => program.departments).filter((department, i, all) => all.findIndex(item => item.code === department.code) === i);
+      const selectedPrograms = options.programs.filter(program => group.programs.includes(program.code));
+      const programDepartments = selectedPrograms.flatMap(program => program.departments);
+      const departments = (programDepartments.length ? programDepartments : options.programs.flatMap(program => program.departments)).filter((department, i, all) => all.findIndex(item => item.code === department.code) === i);
       return <div className="grid gap-3 rounded-xl border border-slate-200 p-3 sm:grid-cols-2 xl:grid-cols-[1.1fr_1.1fr_1fr_0.8fr_auto] dark:border-slate-700" key={index}>
-        <label className="text-xs font-medium text-slate-600">Program<select className={selectClass} value={group.program || ""} onChange={event => { const program = event.target.value; setGroups(current => current.map((item, i) => i === index ? { ...item, program: program || null, department_code: program && item.department_code && !options.programs.find(p => p.code === program)?.departments.some(d => d.code === item.department_code) ? null : item.department_code } : item)); }}><option value="">Any program</option>{options.programs.map(program => <option key={program.code} value={program.code}>{program.display_name}</option>)}</select></label>
-        <label className="text-xs font-medium text-slate-600">Department<select className={selectClass} value={group.department_code || ""} onChange={event => setField(index, "department_code", event.target.value)}><option value="">Any department</option>{departments.map(department => <option key={department.code} value={department.code}>{department.display_name}</option>)}</select></label>
-        <label className="text-xs font-medium text-slate-600">Batch<select className={selectClass} value={group.batch_label || ""} onChange={event => setField(index, "batch_label", event.target.value)}><option value="">Any batch</option>{options.batches.map(batch => <option key={batch} value={batch}>{batch}</option>)}</select></label>
-        <label className="text-xs font-medium text-slate-600">Graduation year<select className={selectClass} value={group.graduation_year || ""} onChange={event => setField(index, "graduation_year", event.target.value)}><option value="">Any year</option>{options.graduation_years.map(year => <option key={year} value={year}>{year}</option>)}</select></label>
+        <ScopeMultiSelect label="Program" anyLabel="Any program" options={options.programs.map(program => ({ value: program.code, label: program.display_name }))} values={group.programs} onChange={values => { const validDepartments = options.programs.filter(program => values.includes(program.code)).flatMap(program => program.departments.map(department => department.code)); setGroups(current => current.map((item, i) => i === index ? { ...item, programs: values, department_codes: item.department_codes.filter(code => !values.length || validDepartments.includes(code)) } : item)); }} />
+        <ScopeMultiSelect label="Department" anyLabel="Any department" options={departments.map(department => ({ value: department.code, label: department.display_name }))} values={group.department_codes} onChange={values => setField(index, "department_codes", values)} />
+        <ScopeMultiSelect label="Batch" anyLabel="Any batch" options={options.batches.map(batch => ({ value: batch, label: batch }))} values={group.batch_labels} onChange={values => setField(index, "batch_labels", values)} />
+        <ScopeMultiSelect label="Graduation year" anyLabel="Any year" options={options.graduation_years.map(year => ({ value: String(year), label: String(year) }))} values={group.graduation_years.map(String)} onChange={values => setField(index, "graduation_years", values.map(Number))} />
         <button type="button" className="self-end rounded-lg border border-rose-200 px-3 py-2.5 text-xs font-semibold text-rose-700 disabled:opacity-50" disabled={groups.length <= 1} onClick={() => setGroups(current => current.filter((_, i) => i !== index))}>Remove</button>
       </div>;
     })}
   </section>;
+}
+
+function ScopeMultiSelect({ label, anyLabel, options, values, onChange }: { label: string; anyLabel: string; options: { value: string; label: string }[]; values: string[]; onChange: (values: string[]) => void }) {
+  const summary = !values.length ? anyLabel : values.length === 1 ? options.find(option => option.value === values[0])?.label || values[0] : `${values.length} selected`;
+  return <fieldset className="min-w-0 text-xs font-medium text-slate-600">
+    <legend>{label}</legend>
+    <details name="staff-scope-select" className="group relative mt-1">
+      <summary aria-label={label} className={`${input} flex min-h-[42px] cursor-pointer list-none items-center justify-between gap-2 pr-3 text-sm font-normal text-slate-800 [&::-webkit-details-marker]:hidden dark:text-slate-100`}><span className="truncate">{summary}</span><span aria-hidden="true" className="text-slate-400">⌄</span></summary>
+      <div className="mt-1 max-h-40 w-full min-w-56 overflow-auto rounded-xl border border-slate-200 bg-white p-2 shadow-sm dark:border-slate-700 dark:bg-slate-900">
+        <p className="px-2 py-1.5 text-[11px] font-normal text-slate-500">Leave all unchecked for {anyLabel.toLowerCase()}.</p>
+        {options.length ? options.map(option => <label key={option.value} className="flex cursor-pointer items-center gap-2 rounded-lg px-2 py-2 text-xs font-normal hover:bg-indigo-50 dark:hover:bg-slate-800"><input type="checkbox" checked={values.includes(option.value)} onChange={event => onChange(event.target.checked ? [...values, option.value] : values.filter(value => value !== option.value))} /><span>{option.label}</span></label>) : <p className="px-2 py-2 text-xs font-normal text-slate-500">No options available.</p>}
+        {values.length > 0 && <button type="button" className="m-2 text-xs font-semibold text-indigo-600" onClick={() => onChange([])}>Clear selection</button>}
+      </div>
+    </details>
+  </fieldset>;
 }
 
 function PlacementLanding({

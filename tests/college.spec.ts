@@ -40,7 +40,7 @@ test('placement staff is routed into the placement-only portal', async ({ page }
   await expect(page.getByRole('button', { name: 'Staff roster', exact: true })).toHaveCount(0);
 });
 
-test('Client admin can invite placement staff with a specific student group', async ({ page }) => {
+test('Client admin can invite placement staff with multiple checkbox filters in one scope group', async ({ page }) => {
   await setup(page, true, { initialPath: '/dashboard/placement-management' });
   let invitation: Record<string, unknown> = {};
   await page.route('**/v3/college/staff', async route => {
@@ -53,12 +53,22 @@ test('Client admin can invite placement staff with a specific student group', as
   await page.getByRole('button', { name: 'Staff roster' }).click();
   await page.getByLabel('Full name').fill('Anita Coordinator');
   await page.getByLabel('Work email').fill('anita@example.edu');
-  await page.getByLabel('Program').selectOption('B.Tech');
-  await page.getByLabel('Department').selectOption('MECH');
-  await page.getByLabel('Graduation year').selectOption('2027');
+  await page.getByText('Any program', { exact: true }).click();
+  await page.getByRole('checkbox', { name: 'Bachelor of Technology' }).check();
+  await page.getByText('Any department', { exact: true }).click();
+  await page.getByRole('checkbox', { name: 'Computer Science' }).check();
+  await page.getByRole('checkbox', { name: 'Mechanical' }).check();
+  await page.getByText('Any year', { exact: true }).click();
+  await page.getByRole('checkbox', { name: '2027', exact: true }).check();
+  await page.getByRole('checkbox', { name: '2028', exact: true }).check();
   await page.getByRole('button', { name: 'Invite staff' }).click();
   await expect(page.getByRole('status')).toContainText('24-hour email link');
-  expect(invitation).toEqual({ full_name: 'Anita Coordinator', email: 'anita@example.edu', scope_groups: [{ program: 'B.Tech', department_code: 'MECH', batch_label: null, graduation_year: 2027 }] });
+  expect(invitation).toEqual({ full_name: 'Anita Coordinator', email: 'anita@example.edu', scope_groups: [
+    { program: 'B.Tech', department_code: 'CSE', batch_label: null, graduation_year: 2027 },
+    { program: 'B.Tech', department_code: 'CSE', batch_label: null, graduation_year: 2028 },
+    { program: 'B.Tech', department_code: 'MECH', batch_label: null, graduation_year: 2027 },
+    { program: 'B.Tech', department_code: 'MECH', batch_label: null, graduation_year: 2028 },
+  ] });
 });
 
 test('Staff roster selectors use the academic and roster catalogs when staff options are empty', async ({ page }) => {
@@ -67,11 +77,53 @@ test('Staff roster selectors use the academic and roster catalogs when staff opt
     staff: [], options: { programs: [], graduation_years: [], batches: [] },
   } }));
   await page.getByRole('button', { name: 'Staff roster' }).click();
-  await expect(page.getByLabel('Program').locator('option')).toHaveCount(2);
-  await page.getByLabel('Program').selectOption('B.Tech');
-  await expect(page.getByLabel('Department').locator('option')).toContainText(['Any department', 'Computer Science', 'Information Technology']);
-  await expect(page.getByLabel('Batch').locator('option')).toContainText(['Any batch', '2023-2027']);
-  await expect(page.getByLabel('Graduation year').locator('option')).toContainText(['Any year', '2027', '2028']);
+  await page.getByText('Any program', { exact: true }).click();
+  await expect(page.getByRole('checkbox', { name: 'Bachelor of Technology' })).toBeVisible();
+  await page.getByRole('checkbox', { name: 'Bachelor of Technology' }).check();
+  await page.getByText('Any department', { exact: true }).click();
+  await expect(page.getByRole('checkbox', { name: 'Computer Science' })).toBeVisible();
+  await expect(page.getByRole('checkbox', { name: 'Information Technology' })).toBeVisible();
+  await page.getByText('Any batch', { exact: true }).click();
+  await expect(page.getByRole('checkbox', { name: '2023-2027' })).toBeVisible();
+  await page.getByText('Any year', { exact: true }).click();
+  await expect(page.getByRole('checkbox', { name: '2027', exact: true })).toBeVisible();
+  await expect(page.getByRole('checkbox', { name: '2028', exact: true })).toBeVisible();
+});
+
+test('Staff roster refresh forces a new request and updates the visible list', async ({ page }) => {
+  await setup(page, true, { initialPath: '/dashboard/placement-management' });
+  let requests = 0;
+  await page.route(/staff/, route => {
+    requests += 1;
+    const name = requests <= 2 ? 'First staff member' : 'Updated staff member';
+    return route.fulfill({ json: { staff: [{ user_id: 'staff-1', name, email: 'staff@example.edu', status: 'active', scope_groups: [{ program: 'B.Tech' }] }], options: { programs: [], graduation_years: [], batches: [] } } });
+  });
+  await page.getByRole('button', { name: 'Staff roster' }).click();
+  await expect(page.getByText('First staff member')).toBeVisible();
+  await page.getByRole('button', { name: 'Refresh staff roster' }).click();
+  await expect(page.getByText('Updated staff member')).toBeVisible();
+  expect(requests).toBeGreaterThanOrEqual(2);
+});
+
+test('Removing placement staff revokes access and removes them from the roster', async ({ page }) => {
+  await setup(page, true, { initialPath: '/dashboard/placement-management' });
+  let present = true;
+  await page.route(/staff/, route => {
+    if (route.request().method() === 'DELETE') {
+      present = false;
+      return route.fulfill({ json: { status: 'disabled' } });
+    }
+    return route.fulfill({ json: {
+      staff: present ? [{ user_id: 'staff-1', name: 'Former staff member', email: 'former@example.edu', status: 'active', scope_groups: [{ program: 'B.Tech' }] }] : [],
+      options: { programs: [], graduation_years: [], batches: [] },
+    } });
+  });
+  await page.getByRole('button', { name: 'Staff roster' }).click();
+  await expect(page.getByText('Former staff member')).toBeVisible();
+  page.once('dialog', dialog => dialog.accept());
+  await page.getByRole('button', { name: 'Remove staff' }).click();
+  await expect(page.getByText(/was removed from the placement staff roster/)).toBeVisible();
+  await expect(page.getByText('Former staff member', { exact: true })).toHaveCount(0);
 });
 
 test('closed drive can be activated through a confirmation and saves the active status', async ({ page }) => {
