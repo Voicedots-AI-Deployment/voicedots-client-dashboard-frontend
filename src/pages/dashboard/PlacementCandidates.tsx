@@ -15,7 +15,8 @@ type PlacementCandidate = {
   cgpa?: number | null;
   status: string;
 };
-type RosterResponse = { items?: PlacementCandidate[]; total?: number; limit?: number; offset?: number };
+type AssignedGroup = { program?: string | null; department_code?: string | null; batch_label?: string | null; graduation_year?: number | null };
+type RosterResponse = { items?: PlacementCandidate[]; total?: number; limit?: number; offset?: number; assigned_groups?: AssignedGroup[] };
 
 const pageSize = 25;
 const field = "w-full rounded-xl border border-slate-300 bg-white px-3 py-2.5 text-sm outline-indigo-500 dark:border-slate-700 dark:bg-slate-900";
@@ -24,6 +25,7 @@ const button = "inline-flex items-center justify-center gap-2 rounded-xl border 
 export default function PlacementCandidates() {
   const [students, setStudents] = useState<PlacementCandidate[]>([]);
   const [total, setTotal] = useState(0);
+  const [assignedGroups, setAssignedGroups] = useState<AssignedGroup[]>([]);
   const [offset, setOffset] = useState(0);
   const [search, setSearch] = useState("");
   const [appliedSearch, setAppliedSearch] = useState("");
@@ -42,6 +44,7 @@ export default function PlacementCandidates() {
         if (controller.signal.aborted) return;
         setStudents(Array.isArray(result.items) ? result.items : []);
         setTotal(Number.isFinite(result.total) ? Number(result.total) : 0);
+        setAssignedGroups(Array.isArray(result.assigned_groups) ? result.assigned_groups : []);
       })
       .catch(reason => { if (!controller.signal.aborted) setError(collegeError(reason)); })
       .finally(() => { if (!controller.signal.aborted) setLoading(false); });
@@ -60,6 +63,15 @@ export default function PlacementCandidates() {
       <h2 id="placement-candidates-heading" className="mt-1 text-2xl font-bold">Candidates</h2>
       <p className="mt-1 max-w-3xl text-sm text-slate-500">Students in the academic groups assigned to you by your Client. This list includes all students in your groups, whether or not they currently match a placement drive.</p>
     </header>
+
+    {assignedGroups.length > 0 && <section aria-label="Your assigned student groups" className="flex flex-wrap items-center gap-2 rounded-2xl border border-indigo-100 bg-indigo-50/60 p-4 dark:border-indigo-900 dark:bg-indigo-950/20">
+      <span className="mr-1 text-xs font-semibold uppercase tracking-wide text-indigo-700 dark:text-indigo-300">Assigned groups</span>
+      {assignedGroups.map((group, index) => {
+        const details = [group.program, group.department_code, group.batch_label, group.graduation_year ? `Class of ${group.graduation_year}` : null].filter(Boolean);
+        return <span key={`${details.join("-")}-${index}`} className="rounded-full border border-indigo-200 bg-white px-3 py-1 text-xs font-medium text-slate-700 dark:border-indigo-800 dark:bg-slate-900 dark:text-slate-200">{details.join(" · ")}</span>;
+      })}
+      {!total && <p className="basis-full pt-1 text-xs text-slate-600 dark:text-slate-300">No current students match these exact filters. Ask your Client to check the program, department, batch and graduation year combination.</p>}
+    </section>}
 
     <form onSubmit={submitSearch} className="flex flex-wrap items-end gap-3 rounded-2xl border border-slate-200 bg-white p-4 dark:border-slate-800 dark:bg-slate-900">
       <label className="min-w-56 flex-1 text-sm font-medium">Search assigned students<input className={`${field} mt-1`} value={search} onChange={event => setSearch(event.target.value)} placeholder="Name, student ID or email" /></label>

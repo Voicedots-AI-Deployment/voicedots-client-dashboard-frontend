@@ -1,6 +1,6 @@
 import { useState } from "react";
 import {
-  GraduationCap, Home, MessageSquare, Settings, LogOut, Users, Radio, ChevronDown, BookOpen, TicketCheck,
+  BarChart3, BriefcaseBusiness, GraduationCap, Home, MessageSquare, Mic, Settings, LogOut, Users, Radio, ChevronDown, BookOpen, TicketCheck,
 } from "lucide-react";
 import { useNavigate, useLocation } from "react-router-dom";
 import authApi from "@/api/authApi";
@@ -37,12 +37,11 @@ export function Sidebar({ isOpen, onClose, isCollapsed }: SidebarProps) {
   const { enabled: emailEnabled } = useEmailCapabilities();
 
   const navItems: NavItem[] = user?.portal_role === "placement_staff" ? [
-    { id: "college", icon: GraduationCap, label: "Placement workspace", path: "/dashboard/placement-management?view=placements", children: [
-      { id: "drives", label: "Drives & candidates", path: "/dashboard/placement-management?view=placements" },
-      { id: "analytics", label: "Analytics & reports", path: "/dashboard/placement-management?view=analytics" },
-      { id: "agents", label: "Interview agents", path: "/dashboard/placement-management?view=agents" },
-      { id: "settings", label: "Placement settings", path: "/dashboard/placement-management?view=settings" },
-    ] },
+    { id: "drives", icon: BriefcaseBusiness, label: "Placement drives", path: "/dashboard/placement-management?view=placements" },
+    { id: "candidates", icon: Users, label: "Candidates", path: "/dashboard/placement-management?view=candidates" },
+    { id: "analytics", icon: BarChart3, label: "Analytics & reports", path: "/dashboard/placement-management?view=analytics" },
+    { id: "agents", icon: Mic, label: "Interview agents", path: "/dashboard/placement-management?view=agents" },
+    { id: "placement-settings", icon: Settings, label: "Placement settings", path: "/dashboard/placement-management?view=settings" },
   ] : [
     { id: "home", icon: Home, label: "Home", path: "/dashboard" },
     { id: "conversations", icon: MessageSquare, label: "Conversations", path: "/dashboard/conversations" },
@@ -63,9 +62,14 @@ export function Sidebar({ isOpen, onClose, isCollapsed }: SidebarProps) {
 
   // A group owns its children's routes, which do not all sit under its own path
   // Gmail is entitlement-gated and lives inside Communications.
+  const matchesRoute = (path: string) => {
+    const [pathname, query = ""] = path.split("?");
+    if (location.pathname !== pathname) return false;
+    const view = new URLSearchParams(query).get("view");
+    return view ? (new URLSearchParams(location.search).get("view") || "placements") === view : true;
+  };
   const inGroup = (item: NavItem) =>
-    location.pathname.startsWith(item.path.split("?")[0]) ||
-    !!item.children?.some((c) => location.pathname.startsWith(c.path));
+    matchesRoute(item.path) || !!item.children?.some((child) => matchesRoute(child.path));
 
   // Groups start open when you're inside them.
   const [openGroups, setOpenGroups] = useState<Record<string, boolean>>(() =>

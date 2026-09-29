@@ -436,7 +436,8 @@ export default function CollegeManagementPage() {
 
 type PlacementStaffScopeGroup = { program?: string | null; department_code?: string | null; batch_label?: string | null; graduation_year?: number | null };
 type StaffScopeSelection = { programs: string[]; department_codes: string[]; batch_labels: string[]; graduation_years: number[] };
-type PlacementStaffOptions = { programs: Program[]; graduation_years: number[]; batches: string[] };
+type StudentCohort = { program: string; department_code: string; batch_label: string | null; graduation_year: number | null; student_count: number };
+type PlacementStaffOptions = { programs: Program[]; graduation_years: number[]; batches: string[]; student_groups?: StudentCohort[] };
 type PlacementStaffMember = { user_id: string; name: string; email: string; status: "invited" | "active" | "disabled"; created_at?: string | null; scope_groups: PlacementStaffScopeGroup[] };
 const emptyScopeGroup = (): StaffScopeSelection => ({ programs: [], department_codes: [], batch_labels: [], graduation_years: [] });
 const selectionFromScopeGroup = (group: PlacementStaffScopeGroup): StaffScopeSelection => ({
@@ -456,6 +457,19 @@ const expandScopeGroups = (groups: StaffScopeSelection[]): PlacementStaffScopeGr
 });
 const hasCompleteScopeGroups = (groups: StaffScopeSelection[]) => groups.length > 0 && groups.every(group => Boolean(group.programs.length || group.department_codes.length || group.batch_labels.length || group.graduation_years.length));
 const hasSupportedScopeGroupCount = (groups: StaffScopeSelection[]) => expandScopeGroups(groups).length <= 100;
+const currentStudentsInScope = (groups: PlacementStaffScopeGroup[] | undefined, cohorts: StudentCohort[] | undefined) => {
+  if (!cohorts) return null;
+  const matched = new Map<string, number>();
+  for (const group of groups || []) for (const cohort of cohorts) {
+    if ((group.program == null || group.program === cohort.program) &&
+        (group.department_code == null || group.department_code === cohort.department_code) &&
+        (group.batch_label == null || group.batch_label === cohort.batch_label) &&
+        (group.graduation_year == null || group.graduation_year === cohort.graduation_year)) {
+      matched.set(`${cohort.program}|${cohort.department_code}|${cohort.batch_label}|${cohort.graduation_year}`, cohort.student_count);
+    }
+  }
+  return [...matched.values()].reduce((total, count) => total + count, 0);
+};
 
 function PlacementStaffManagement() {
   const [staff, setStaff] = useState<PlacementStaffMember[]>([]);
@@ -507,8 +521,10 @@ function PlacementStaffManagement() {
   const invite = async (event: React.FormEvent) => {
     event.preventDefault(); setBusy(true); setError(""); setNotice("");
     try {
-      const result = await collegeApi.save<{email_queued?: boolean}>("staff", { full_name: name.trim(), email: email.trim(), scope_groups: expandScopeGroups(scopeGroups) });
-      setNotice(result.email_queued ? "Invitation sent. The single-use password setup link stays available until used or replaced." : "Staff account created.");
+      const result = await collegeApi.save<{email_queued?: boolean;restored?:boolean}>("staff", { full_name: name.trim(), email: email.trim(), scope_groups: expandScopeGroups(scopeGroups) });
+      setNotice(result.restored
+        ? "Previous placement access restored, assigned groups updated, and a new password setup email sent."
+        : result.email_queued ? "Invitation sent. The single-use password setup link stays available until used or replaced." : "Staff account created.");
       setName(""); setEmail(""); setScopeGroups([emptyScopeGroup()]); await load();
     } catch (e) { setError(collegeError(e)); }
     finally { setBusy(false); }
@@ -545,7 +561,7 @@ function PlacementStaffManagement() {
     <div className="overflow-hidden rounded-2xl border border-slate-200 bg-white dark:border-slate-800 dark:bg-slate-900">
       <div className="flex items-center justify-between border-b p-5 dark:border-slate-800"><div><h3 className="font-semibold">Placement staff access</h3><p className="mt-1 text-sm text-slate-500">{staff.filter(p => p.status !== "disabled").length} active or invited</p></div><button type="button" className={button} disabled={busy || refreshing} onClick={() => void load(true)} aria-label={refreshing ? "Refreshing staff" : "Refresh staff roster"}><RefreshCw size={16} className={refreshing ? "animate-spin" : ""} />{refreshing ? "Refreshing…" : "Refresh"}</button></div>
       {staff.length ? <ul className="divide-y dark:divide-slate-800">{staff.map(person => <li key={person.user_id} className="space-y-3 p-5">
-        <div className="flex flex-wrap items-start justify-between gap-3"><div><p className="font-semibold">{person.name}</p><p className="text-sm text-slate-500">{person.email}</p><p className="mt-2 text-xs text-slate-500">{person.scope_groups?.length ? `${person.scope_groups.length} assigned student group${person.scope_groups.length === 1 ? "" : "s"}` : "No student groups assigned"}</p></div><div className="flex flex-wrap items-center gap-2"><span className={`rounded-full px-3 py-1 text-xs font-semibold ${person.status === "active" ? "bg-emerald-50 text-emerald-700" : "bg-amber-50 text-amber-700"}`}>{person.status === "active" ? "Active" : "Invitation pending"}</span><button className={button} disabled={busy} onClick={() => { setEditing(editing === person.user_id ? null : person.user_id); setEditGroups(person.scope_groups?.length ? person.scope_groups.map(selectionFromScopeGroup) : [emptyScopeGroup()]); }}>Edit student access</button><button className="rounded-lg border border-rose-200 px-3 py-2 text-sm font-semibold text-rose-700 disabled:opacity-50" disabled={busy} onClick={() => void revoke(person)}>Remove staff</button></div></div>
+        <div className="flex flex-wrap items-start justify-between gap-3"><div><p className="font-semibold">{person.name}</p><p className="text-sm text-slate-500">{person.email}</p>{(() => { const matchCount = currentStudentsInScope(person.scope_groups, options.student_groups); return <p className={`mt-2 text-xs ${matchCount === 0 ? "text-amber-700" : "text-slate-500"}`}>{person.scope_groups?.length ? `${person.scope_groups.length} assigned student group${person.scope_groups.length === 1 ? "" : "s"}` : "No student groups assigned"}{matchCount !== null ? matchCount === 0 ? " · currently matches no students" : ` · ${matchCount} current students` : ""}</p>; })()}</div><div className="flex flex-wrap items-center gap-2"><span className={`rounded-full px-3 py-1 text-xs font-semibold ${person.status === "active" ? "bg-emerald-50 text-emerald-700" : "bg-amber-50 text-amber-700"}`}>{person.status === "active" ? "Active" : "Invitation pending"}</span><button className={button} disabled={busy} onClick={() => { setEditing(editing === person.user_id ? null : person.user_id); setEditGroups(person.scope_groups?.length ? person.scope_groups.map(selectionFromScopeGroup) : [emptyScopeGroup()]); }}>Edit student access</button><button className="rounded-lg border border-rose-200 px-3 py-2 text-sm font-semibold text-rose-700 disabled:opacity-50" disabled={busy} onClick={() => void revoke(person)}>Remove staff</button></div></div>
         {editing === person.user_id && <div className="rounded-xl border border-indigo-100 bg-indigo-50/40 p-4 dark:border-indigo-900 dark:bg-indigo-950/20"><StaffScopeEditor groups={editGroups} setGroups={setEditGroups} options={options} />{hasCompleteScopeGroups(editGroups) && !hasSupportedScopeGroupCount(editGroups) && <p role="alert" className="mt-3 text-sm text-rose-700">These selections create more than 100 access rules. Reduce the selected values; a staff member can have at most 100 rules.</p>}<div className="mt-3 flex justify-end gap-2"><button type="button" className={button} onClick={() => setEditing(null)}>Cancel</button><button type="button" className={primary} disabled={busy || !hasCompleteScopeGroups(editGroups) || !hasSupportedScopeGroupCount(editGroups)} onClick={() => void saveScope(person)}>{busy ? "Saving…" : "Save student access"}</button></div></div>}
       </li>)}</ul> : <p className="p-8 text-center text-sm text-slate-500">No placement staff have been invited yet.</p>}
     </div>
@@ -554,18 +570,31 @@ function PlacementStaffManagement() {
 
 function StaffScopeEditor({ groups, setGroups, options }: { groups: StaffScopeSelection[]; setGroups: React.Dispatch<React.SetStateAction<StaffScopeSelection[]>>; options: PlacementStaffOptions }) {
   const setField = <K extends keyof StaffScopeSelection>(index: number, field: K, value: StaffScopeSelection[K]) => setGroups(current => current.map((group, i) => i === index ? { ...group, [field]: value } : group));
+  const matchingCohorts = (group: StaffScopeSelection, ignore?: keyof StaffScopeSelection) => (options.student_groups || []).filter(cohort =>
+    (ignore === "programs" || !group.programs.length || group.programs.includes(cohort.program)) &&
+    (ignore === "department_codes" || !group.department_codes.length || group.department_codes.includes(cohort.department_code)) &&
+    (ignore === "batch_labels" || !group.batch_labels.length || cohort.batch_label !== null && group.batch_labels.includes(cohort.batch_label)) &&
+    (ignore === "graduation_years" || !group.graduation_years.length || cohort.graduation_year !== null && group.graduation_years.includes(cohort.graduation_year)),
+  );
   return <section className="space-y-3" aria-label="Student access groups">
     <div className="flex flex-wrap items-end justify-between gap-2"><div><h3 className="text-sm font-semibold">Student access groups</h3><p className="mt-1 text-xs text-slate-500">Groups are alternatives. Within each group, selected values in a filter are alternatives and different filters are combined. Each group needs at least one filter.</p></div><button type="button" className={button} onClick={() => setGroups(current => [...current, emptyScopeGroup()])}>Add group</button></div>
     {groups.map((group, index) => {
       const selectedPrograms = options.programs.filter(program => group.programs.includes(program.code));
       const programDepartments = selectedPrograms.flatMap(program => program.departments);
       const departments = (programDepartments.length ? programDepartments : options.programs.flatMap(program => program.departments)).filter((department, i, all) => all.findIndex(item => item.code === department.code) === i);
+      const cohorts = options.student_groups || [];
+      const batchRows = cohorts.length ? matchingCohorts(group, "batch_labels") : [];
+      const yearRows = cohorts.length ? matchingCohorts(group, "graduation_years") : [];
+      const batchOptions = cohorts.length ? [...new Set(batchRows.flatMap(row => row.batch_label ? [row.batch_label] : []))] : options.batches;
+      const yearOptions = cohorts.length ? [...new Set(yearRows.flatMap(row => row.graduation_year ? [row.graduation_year] : []))].sort((a,b) => a-b) : options.graduation_years;
+      const matchingCount = cohorts.length ? matchingCohorts(group).reduce((sum, row) => sum + row.student_count, 0) : null;
       return <div className="grid gap-3 rounded-xl border border-slate-200 p-3 sm:grid-cols-2 xl:grid-cols-[1.1fr_1.1fr_1fr_0.8fr_auto] dark:border-slate-700" key={index}>
-        <ScopeMultiSelect label="Program" anyLabel="Any program" options={options.programs.map(program => ({ value: program.code, label: program.display_name }))} values={group.programs} onChange={values => { const validDepartments = options.programs.filter(program => values.includes(program.code)).flatMap(program => program.departments.map(department => department.code)); setGroups(current => current.map((item, i) => i === index ? { ...item, programs: values, department_codes: values.length ? item.department_codes.filter(code => validDepartments.includes(code)) : [] } : item)); }} />
-        {group.programs.length > 0 && <ScopeMultiSelect label="Department" anyLabel="Any department" options={departments.map(department => ({ value: department.code, label: department.display_name }))} values={group.department_codes} onChange={values => setField(index, "department_codes", values)} />}
-        <ScopeMultiSelect label="Batch" anyLabel="Any batch" options={options.batches.map(batch => ({ value: batch, label: batch }))} values={group.batch_labels} onChange={values => setField(index, "batch_labels", values)} />
-        <ScopeMultiSelect label="Graduation year" anyLabel="Any year" options={options.graduation_years.map(year => ({ value: String(year), label: String(year) }))} values={group.graduation_years.map(String)} onChange={values => setField(index, "graduation_years", values.map(Number))} />
+        <ScopeMultiSelect label="Program" anyLabel="Any program" options={options.programs.map(program => ({ value: program.code, label: program.display_name }))} values={group.programs} onChange={values => { const validDepartments = options.programs.filter(program => values.includes(program.code)).flatMap(program => program.departments.map(department => department.code)); setGroups(current => current.map((item, i) => i === index ? { ...item, programs: values, department_codes: values.length ? item.department_codes.filter(code => validDepartments.includes(code)) : [], batch_labels: [], graduation_years: [] } : item)); }} />
+        {group.programs.length > 0 && <ScopeMultiSelect label="Department" anyLabel="Any department" options={departments.map(department => ({ value: department.code, label: department.display_name }))} values={group.department_codes} onChange={values => setGroups(current => current.map((item, i) => i === index ? { ...item, department_codes: values, batch_labels: [], graduation_years: [] } : item))} />}
+        <ScopeMultiSelect label="Batch" anyLabel="Any batch" options={batchOptions.map(batch => ({ value: batch, label: batch }))} values={group.batch_labels} onChange={values => setGroups(current => current.map((item, i) => i === index ? { ...item, batch_labels: values, graduation_years: [] } : item))} />
+        <ScopeMultiSelect label="Graduation year" anyLabel="Any year" options={yearOptions.map(year => ({ value: String(year), label: String(year) }))} values={group.graduation_years.map(String)} onChange={values => setField(index, "graduation_years", values.map(Number))} />
         <button type="button" className="self-end rounded-lg border border-rose-200 px-3 py-2.5 text-xs font-semibold text-rose-700 disabled:opacity-50" disabled={groups.length <= 1} onClick={() => setGroups(current => current.filter((_, i) => i !== index))}>Remove</button>
+        {matchingCount !== null && <p className={`text-xs sm:col-span-2 xl:col-span-5 ${matchingCount ? "text-emerald-700" : "text-amber-700"}`} role={matchingCount ? undefined : "status"}>{matchingCount ? `${matchingCount} current student${matchingCount === 1 ? "" : "s"} match this group.` : "No current students match this exact combination. Choose a batch and graduation year shown for the selected program and department, or clear a filter."}</p>}
       </div>;
     })}
   </section>;
