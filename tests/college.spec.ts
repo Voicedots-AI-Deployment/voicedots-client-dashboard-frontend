@@ -77,12 +77,20 @@ test('Staff roster selectors use the academic and roster catalogs when staff opt
     staff: [], options: { programs: [], graduation_years: [], batches: [] },
   } }));
   await page.getByRole('button', { name: 'Staff roster' }).click();
+  await expect(page.getByText('Any department', { exact: true })).toHaveCount(0);
   await page.getByText('Any program', { exact: true }).click();
   await expect(page.getByRole('checkbox', { name: 'Bachelor of Technology' })).toBeVisible();
   await page.getByRole('checkbox', { name: 'Bachelor of Technology' }).check();
   await page.getByText('Any department', { exact: true }).click();
   await expect(page.getByRole('checkbox', { name: 'Computer Science' })).toBeVisible();
   await expect(page.getByRole('checkbox', { name: 'Information Technology' })).toBeVisible();
+  await page.getByRole('checkbox', { name: 'Computer Science' }).check();
+  await page.getByRole('group', { name: 'Program' }).locator('summary').click();
+  await page.getByRole('checkbox', { name: 'Bachelor of Technology' }).uncheck();
+  await expect(page.getByText('Any department', { exact: true })).toHaveCount(0);
+  await page.getByRole('checkbox', { name: 'Bachelor of Technology' }).check();
+  await page.getByText('Any department', { exact: true }).click();
+  await expect(page.getByRole('checkbox', { name: 'Computer Science' })).not.toBeChecked();
   await page.getByText('Any batch', { exact: true }).click();
   await expect(page.getByRole('checkbox', { name: '2023-2027' })).toBeVisible();
   await page.getByText('Any year', { exact: true }).click();
