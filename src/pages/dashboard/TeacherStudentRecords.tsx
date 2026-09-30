@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useState, type FormEvent } from 'react';
 import { collegeApi, collegeError, type Program } from '@/api/collegeApi';
 
-type Student = { id:string; full_name:string; roll_number:string; email:string; phone:string; program:string; department_code:string; graduation_year:number; cgpa:number; date_of_birth?:string|null; status:string };
+type Student = { id:string; full_name:string; roll_number:string; email:string; phone:string|null; program:string; department_code:string; graduation_year:number; cgpa:number; date_of_birth?:string|null; status:string };
 type Payment = { id:string; amount:number; paid_on:string; reference:string; note:string };
 type Mark = { id:string; subject:string; exam:string; semester:number|null; score:number; maximum:number; exam_date:string };
 type Records = { total_fee:number; amount_paid:number; balance:number; currency:string; payments:Payment[]; marks:Mark[]; fee_history:{ previous_total:number; new_total:number; changed_at:string }[] };
@@ -60,7 +60,7 @@ export default function TeacherStudentRecords() {
       if (editing === 'new') {
         await collegeApi.save(`${base}/students`,{
           full_name:String(values.get('full_name')||'').trim(),roll_number:String(values.get('roll_number')||'').trim(),
-          email:String(values.get('email')||'').trim(),phone:String(values.get('phone')||'').trim(),
+          email:String(values.get('email')||'').trim(),phone:String(values.get('phone')||'').trim()||null,
           program,department_code:department,batch_label:String(values.get('batch_label')||'').trim()||null,cgpa:Number(values.get('cgpa')),
           graduation_year:Number(values.get('graduation_year')),date_of_birth:values.get('date_of_birth')||null,
           status:'active',
@@ -68,7 +68,7 @@ export default function TeacherStudentRecords() {
         setNotice('Student added. Open their record to enter fees, payments and marks.');
       } else if (editing) {
         await collegeApi.save(`${base}/students/${editing.id}`,{
-          full_name:String(values.get('full_name')||'').trim(),phone:String(values.get('phone')||'').trim(),
+          full_name:String(values.get('full_name')||'').trim(),phone:String(values.get('phone')||'').trim()||null,
           cgpa:Number(values.get('cgpa')),graduation_year:Number(values.get('graduation_year')),
           date_of_birth:values.get('date_of_birth')||null,status:values.get('status'),
         },true);
@@ -133,7 +133,7 @@ export default function TeacherStudentRecords() {
         {field('Full name *','full_name','text',editing==='new'?'':editing.full_name)}
         {editing==='new' && field('Roll number *','roll_number')}
         {editing==='new' && field('Email *','email','email')}
-        {field('Registered mobile number *','phone','tel',editing==='new'?'':editing.phone)}
+        {field('Registered mobile number (optional)','phone','tel',editing==='new'?'':editing.phone||'',false)}<p className="self-end text-xs text-slate-500">Leave blank if unavailable. Phone calls can only find this student after a number is added.</p>
         {editing==='new' && <><label className="text-sm">Program *<select className={input} value={program} required onChange={e=>{setProgram(e.target.value);setDepartment(catalog.programs.find(p=>p.code===e.target.value)?.departments[0]?.code||'')}}>{catalog.programs.map(p=><option key={p.code} value={p.code}>{p.display_name}</option>)}</select></label><label className="text-sm">Department *<select className={input} value={department} required onChange={e=>setDepartment(e.target.value)}>{currentProgram?.departments.map(d=><option key={d.code} value={d.code}>{d.display_name}</option>)}</select></label></>}
         {editing==='new' && field('Batch label (if assigned)','batch_label','text','',false)}
         {field('Graduation year *','graduation_year','number',editing==='new'?new Date().getFullYear()+1:editing.graduation_year)}
