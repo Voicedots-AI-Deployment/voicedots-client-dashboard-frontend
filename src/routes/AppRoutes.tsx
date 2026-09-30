@@ -90,7 +90,7 @@ const AppRoutes = () => {
           <Route path="college" element={<Navigate to="/dashboard/placement-management" replace />} />
           <Route path="placement-management" element={<CollegeManagementPage />} />
           <Route path="attendance" element={<AttendanceView />} />
-          <Route path="attendance/teacher" element={<Navigate to="/dashboard/attendance" replace />} />
+          <Route path="attendance/teacher" element={<TeacherStudentRecords />} />
 
           {/* SETTINGS */}
           <Route path="settings" element={<SettingsPage />} />
