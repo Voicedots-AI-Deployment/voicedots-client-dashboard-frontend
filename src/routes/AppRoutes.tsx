@@ -1,12 +1,13 @@
 import { Routes, Route, Navigate } from "react-router-dom";
 import { lazy, Suspense } from "react";
+import { useAuth } from "@/context/AuthContext";
 import AuthLayout from "../layouts/AuthLayout";
 import DashboardLayout from "../layouts/DashboardLayout";
 import ProtectedRoute from "@/routes/ProtectedRoute";
 import EmailFeatureGuard from "@/routes/EmailFeatureGuard";
 
 const AttendancePage = lazy(() => import("@/pages/dashboard/AttendancePage"));
-const TeacherAttendancePage = lazy(() => import("@/pages/dashboard/TeacherAttendancePage"));
+const TeacherStudentRecords = lazy(() => import("@/pages/dashboard/TeacherStudentRecords"));
 const CollegeManagementPage = lazy(() => import("@/pages/dashboard/CollegeManagementPage"));
 const LoginPage = lazy(() => import("../pages/LoginPage"));
 const HomePage = lazy(() => import("@/pages/dashboard/HomePage").then((module) => ({ default: module.HomePage })));
@@ -28,6 +29,11 @@ const EmailSettingsPage = lazy(() => import("@/pages/dashboard/email/EmailWorksp
 
 const PageLoader = () => <div className="flex min-h-48 items-center justify-center text-sm font-medium text-slate-500">Loading…</div>;
 
+const AttendanceView = () => {
+  const { user } = useAuth();
+  return user?.portal_role === "placement_staff" ? <TeacherStudentRecords /> : <AttendancePage />;
+};
+
 const AppRoutes = () => {
   return (
     <Suspense fallback={<PageLoader />}><Routes>
@@ -38,9 +44,6 @@ const AppRoutes = () => {
       <Route element={<AuthLayout />}>
         <Route path="/login" element={<LoginPage />} />
       </Route>
-
-      {/* Staff use face verification in the widget, independent of client-admin login. */}
-      <Route path="/dashboard/attendance/teacher" element={<TeacherAttendancePage />} />
 
       {/* PROTECTED ROUTES */}
       <Route element={<ProtectedRoute />}>
@@ -86,7 +89,8 @@ const AppRoutes = () => {
 
           <Route path="college" element={<Navigate to="/dashboard/placement-management" replace />} />
           <Route path="placement-management" element={<CollegeManagementPage />} />
-          <Route path="attendance" element={<AttendancePage />} />
+          <Route path="attendance" element={<AttendanceView />} />
+          <Route path="attendance/teacher" element={<Navigate to="/dashboard/attendance" replace />} />
 
           {/* SETTINGS */}
           <Route path="settings" element={<SettingsPage />} />

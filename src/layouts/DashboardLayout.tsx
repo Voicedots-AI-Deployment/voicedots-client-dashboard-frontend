@@ -10,7 +10,7 @@ const DashboardLayout = () => {
   const location = useLocation();
   const { user } = useAuth();
 
-  if (user?.portal_role === "placement_staff" && !location.pathname.startsWith("/dashboard/placement-management")) {
+  if (user?.portal_role === "placement_staff" && !location.pathname.startsWith("/dashboard/placement-management") && !location.pathname.startsWith("/dashboard/attendance")) {
     return <Navigate to="/dashboard/placement-management" replace />;
   }
 

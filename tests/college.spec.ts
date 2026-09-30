@@ -693,7 +693,7 @@ test('backend errors preserve the form instead of claiming a successful creation
 test('student roster and academic setup work on a phone', async ({ page }) => {
   await page.setViewportSize({ width: 390, height: 844 });
   await setup(page, true, { initialPath: '/dashboard/attendance' });
-  await page.getByRole('button', { name: 'Student roster', exact: true }).click();
+  await page.getByRole('button', { name: 'Student Roster', exact: true }).click();
   await page.getByRole('button', { name: 'Add student', exact: true }).click();
   await page.getByLabel('Full name').fill('Example Student');
   await page.getByLabel('Roll number').fill('CSE-2027-001');
@@ -701,6 +701,7 @@ test('student roster and academic setup work on a phone', async ({ page }) => {
   await page.locator('input[type=tel]').fill('9876543210');
   await page.locator('input[name=cgpa]').fill('8.2');
   await page.getByLabel('Upload photo').setInputFiles({ name: 'student.jpg', mimeType: 'image/jpeg', buffer: Buffer.from('reference-photo') });
+  await page.getByLabel(/Department */).selectOption('CSE');
   let payload: Record<string, unknown> = {};
   await page.route('**/v3/college/students', route => {
     if (route.request().method() !== 'POST') return route.fallback();
@@ -727,7 +728,7 @@ test('student email and roll number become read-only after password setup', asyn
   await page.route(/\/v3\/college\/students(?:\?.*)?$/, route => route.request().method() === 'GET'
     ? route.fulfill({ json: { total: 1, items: [{ id: 'locked-student', full_name: 'Asha Rao', email: 'asha@example.edu', roll_number: 'CS01', program: 'B.Tech', department_code: 'CSE', graduation_year: 2027, cgpa: 8.4, status: 'active', identity_locked: true }] } })
     : route.fallback());
-  await page.getByRole('button', { name: 'Student roster', exact: true }).click();
+  await page.getByRole('button', { name: 'Student Roster', exact: true }).click();
   await page.getByRole('button', { name: 'Edit', exact: true }).click();
   await expect(page.getByLabel('Email')).toHaveAttribute('readonly', '');
   await expect(page.getByLabel('Student ID / Roll number')).toHaveAttribute('readonly', '');
@@ -748,7 +749,7 @@ test('Student Analysis shows full drive participation, interview performance and
     ],
     reports: [{ source: 'drive', label: 'Northstar — Data Scientist', assignment_id: 'a1', drive_id: 'd1', session_id: 's1', completed_at: '2026-09-20T09:00:00Z', overall_score: 86, readiness: 'Interview Ready', detail: { agent_breakdown: [{ agent_type: 'hr', status: 'complete', sub_score: 72, readiness: 'Approaching Ready', dimensions: [{ dimension: 'communication', band: 3 }] }, { agent_type: 'domain', status: 'not_reached', sub_score: null, readiness: null, dimensions: [] }], question_reviews: [{ question: 'How did you evaluate the model?', answer: 'Used stratified cross-validation.' }], placement_readiness: { score: 82 } } }],
   } }));
-  await page.getByRole('button', { name: 'Student roster', exact: true }).click();
+  await page.getByRole('button', { name: 'Student Roster', exact: true }).click();
   await page.getByRole('button', { name: 'Analysis' }).click();
   const dialog = page.getByRole('dialog', { name: 'Student Analysis' });
   await expect(dialog).toBeVisible();
@@ -771,7 +772,7 @@ test('Student Analysis shows full drive participation, interview performance and
 
 test('student roster reports when the welcome and password setup email was not queued', async ({ page }) => {
   await setup(page, true, { initialPath: '/dashboard/attendance' });
-  await page.getByRole('button', { name: 'Student roster', exact: true }).click();
+  await page.getByRole('button', { name: 'Student Roster', exact: true }).click();
   await page.getByRole('button', { name: 'Add student', exact: true }).click();
   await page.getByLabel('Full name').fill('Example Student');
   await page.getByLabel('Roll number').fill('CSE-2027-002');
@@ -779,6 +780,7 @@ test('student roster reports when the welcome and password setup email was not q
   await page.locator('input[type=tel]').fill('9876543210');
   await page.locator('input[name=cgpa]').fill('8.2');
   await page.getByLabel('Upload photo').setInputFiles({ name: 'student.jpg', mimeType: 'image/jpeg', buffer: Buffer.from('reference-photo') });
+  await page.getByLabel(/Department */).selectOption('CSE');
   await page.route('**/v3/college/students', route => route.request().method() === 'POST'
     ? route.fulfill({ json: { student_id: 'student-2', welcome_email_status: 'not_queued' } })
     : route.fallback());
@@ -834,7 +836,7 @@ test('drive editor handles an invalid stored date without crashing', async ({ pa
 
 test('roster filters reach the server and clear without leaving stale selections', async ({page})=>{
  await setup(page,true,{initialPath:'/dashboard/attendance'});
- await page.getByRole('button',{name:'Student roster',exact:true}).click();
+ await page.getByRole('button',{name:'Student Roster',exact:true}).click();
  const response=page.waitForRequest(r=>{const url=new URL(r.url());return url.pathname.endsWith('/v3/college/students')&&url.searchParams.get('program')==='B.Tech'});
  await page.getByRole('combobox',{name:'Filter by program'}).selectOption('B.Tech');
  await response;
@@ -859,7 +861,7 @@ test('analytics has honest empty data and fits a mobile viewport',async ({page})
 test('roster imports a workbook and offers a downloadable CSV template',async({page})=>{
  await setup(page,true,{initialPath:'/dashboard/attendance'});await page.route('**/v3/college/students/upload',async route=>{expect(route.request().headers()['content-type']).toContain('multipart/form-data; boundary=');expect(route.request().postDataBuffer()?.toString()).toContain('roster.csv');return route.fulfill({json:{records_created:2,records_updated:1,records_processed:3,errors_count:1,errors_sample:['Students row 5: Email is required'],warnings_count:0,warnings_sample:[]}})});
  await page.route('**/v3/college/students/template?format=csv',route=>route.fulfill({contentType:'text/csv',body:'roll_number,full_name,email\r\n'}));
- await page.getByRole('button',{name:'Student roster',exact:true}).click();await page.getByText('Import students from CSV or Excel',{exact:true}).click();const downloaded=page.waitForEvent('download');await page.getByRole('button',{name:'Download CSV template'}).click();expect((await downloaded).suggestedFilename()).toBe('student-import-template.csv');await page.getByLabel('Student import file').setInputFiles({name:'roster.csv',mimeType:'text/csv',buffer:Buffer.from('roll_number,full_name,email\n001,Asha,asha@example.com')});await page.getByRole('button',{name:'Import students',exact:true}).click();await expect(page.getByText('2 created · 1 updated · 1 errors · 0 warnings')).toBeVisible();await expect(page.getByText('Students row 5: Email is required')).toBeVisible();
+ await page.getByRole('button',{name:'Student Roster',exact:true}).click();await page.getByText('Import students from CSV or Excel',{exact:true}).click();const downloaded=page.waitForEvent('download');await page.getByRole('button',{name:'Download CSV template'}).click();expect((await downloaded).suggestedFilename()).toBe('student-import-template.csv');await page.getByLabel('Student import file').setInputFiles({name:'roster.csv',mimeType:'text/csv',buffer:Buffer.from('roll_number,full_name,email\n001,Asha,asha@example.com')});await page.getByRole('button',{name:'Import students',exact:true}).click();await expect(page.getByText('2 created · 1 updated · 1 errors · 0 warnings')).toBeVisible();await expect(page.getByText('Students row 5: Email is required')).toBeVisible();
 });
 
 for (const existing of [true, false]) {
@@ -877,7 +879,7 @@ for (const existing of [true, false]) {
    if(route.request().method()==='POST') { photo=route.request().postDataJSON().photo;saves++;return route.fulfill({json:{saved:true}}); }
    return route.fulfill({status:photo?200:404,json:photo?{photo}:{detail:'No photo enrolled.'}});
   });
-  await page.getByRole('button',{name:'Student roster',exact:true}).click();
+  await page.getByRole('button',{name:'Student Roster',exact:true}).click();
   await page.getByRole('button',{name:'Edit',exact:true}).click();
   const dialog=page.getByRole('dialog');
   if(existing) await expect(dialog.getByAltText('Example Student verification reference')).toBeVisible();
@@ -1120,7 +1122,7 @@ test('AI preview uses drive role and JD and saves staff edits', async ({ page })
 
 test('student roster creates a student without requiring a verification photo', async ({ page }) => {
   await setup(page, true, { initialPath: '/dashboard/attendance' });
-  await page.getByRole('button', { name: 'Student roster', exact: true }).click();
+  await page.getByRole('button', { name: 'Student Roster', exact: true }).click();
   await page.getByRole('button', { name: 'Add student', exact: true }).click();
   const dialog = page.getByRole('dialog');
   await expect(dialog.getByRole('button', { name: 'Save student' })).toBeEnabled();
