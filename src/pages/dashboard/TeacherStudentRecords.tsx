@@ -88,6 +88,29 @@ export default function TeacherStudentRecords() {
     } catch (e) { setError(collegeError(e)); }
     finally { setBusy(false); }
   };
+  const downloadBulkTemplate = async () => {
+    setError('');
+    try {
+      const blob = await collegeApi.file(`${base}/students/template`);
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement('a'); link.href = url; link.download = 'student-bulk-update.xlsx'; link.click();
+      window.setTimeout(() => URL.revokeObjectURL(url), 1000);
+    } catch (cause) { setError(collegeError(cause)); }
+  };
+  const uploadBulk = async (event:FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+    const form = event.currentTarget;
+    const file = new FormData(form).get('file');
+    if (!(file instanceof File) || !file.size) { setError('Choose an Excel workbook first.'); return; }
+    setBusy(true); setError(''); setNotice('');
+    try {
+      const result = await collegeApi.upload<{ rows_processed:number; students_updated:number; fee_totals_updated:number }>(`${base}/students/upload`, file);
+      setNotice(`Processed ${result.rows_processed} rows: ${result.students_updated} students and ${result.fee_totals_updated} fee totals updated.`);
+      form.reset(); await refresh();
+      if (selected) setRecords(await collegeApi.get<Records>(`${base}/students/${selected.id}/records`));
+    } catch (cause) { setError(collegeError(cause)); }
+    finally { setBusy(false); }
+  };
   const currentProgram = catalog.programs.find(item => item.code === program);
   const field = (label:string,name:string,type='text',value?:string|number,required=true) => <label className="text-sm">{label}<input className={input} name={name} type={type} step={type==='number'?'any':undefined} required={required} defaultValue={value} /></label>;
 
@@ -97,6 +120,11 @@ export default function TeacherStudentRecords() {
     {notice && <p role="status" className="rounded-xl bg-emerald-50 p-4 text-sm text-emerald-700">{notice}</p>}
     <section className={card}>
       <div className="flex flex-wrap items-center justify-between gap-3"><div><h2 className="text-lg font-semibold">Students</h2><p className="text-xs text-slate-500">Assigned departments: {catalog.departments.join(', ') || 'none'}</p></div><button className={primary} disabled={!catalog.departments.length || busy} onClick={openNew}>Add student</button></div>
+      <form className="mt-4 rounded-xl border border-dashed border-slate-300 p-4 dark:border-slate-700" onSubmit={e=>void uploadBulk(e)}>
+        <h3 className="font-semibold">Bulk update students from Excel</h3>
+        <p className="mt-1 text-xs text-slate-500">Use roll numbers to update existing students. Blank cells keep their current values. You can update details and total fees; payments and marks stay as they are. The entire file is rejected if any row is invalid.</p>
+        <div className="mt-3 flex flex-wrap items-end gap-3"><button type="button" className={button} onClick={()=>void downloadBulkTemplate()}>Download Excel template</button><label className="text-sm">Choose completed workbook<input className={input} type="file" name="file" accept=".xlsx" required /></label><button className={primary} disabled={busy}>{busy?'Uploading…':'Update from Excel'}</button></div>
+      </form>
       {!editing && !selected && <><label className="mt-4 block text-sm">Search by name or roll number<input className={input} value={search} onChange={e=>{setSearch(e.target.value);setOffset(0)}} /></label>
         <div className="mt-4 overflow-x-auto"><table className="w-full text-left text-sm"><thead><tr className="border-b border-slate-200"><th className="p-2">Roll no.</th><th className="p-2">Name</th><th className="p-2">Department</th><th className="p-2">Actions</th></tr></thead><tbody>{students.map(student=><tr className="border-b border-slate-100 dark:border-slate-800" key={student.id}><td className="p-2">{student.roll_number}</td><td className="p-2">{student.full_name}</td><td className="p-2">{student.department_code}</td><td className="p-2"><div className="flex gap-2"><button className={button} onClick={()=>{setEditing(student);setProgram(student.program);setDepartment(student.department_code)}}>Edit</button><button className={button} onClick={()=>void loadRecords(student)}>Fees & marks</button></div></td></tr>)}</tbody></table></div>
         {!students.length && <p className="mt-4 text-sm text-slate-500">No students found.</p>}
