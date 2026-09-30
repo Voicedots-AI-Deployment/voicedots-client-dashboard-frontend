@@ -58,86 +58,73 @@ test('placement staff Candidates section lists all students returned by assigned
   expect(new URL(rosterUrl).pathname).toBe('/v3/college/students');
 });
 
-test('Client admin can invite placement staff with multiple checkbox filters in one scope group', async ({ page }) => {
-  await setup(page, true, { initialPath: '/dashboard/placement-management' });
+test('Institution Management separates staff invitations from access configuration', async ({ page }) => {
+  await setup(page, true, { initialPath: '/dashboard/attendance' });
   let invitation: Record<string, unknown> = {};
   await page.route('**/v3/college/staff', async route => {
-    if (route.request().method() === 'POST') {
-      invitation = route.request().postDataJSON();
-      return route.fulfill({ status: 201, json: { user_id: 'staff-1', status: 'invited', email_queued: true } });
-    }
-    return route.fulfill({ json: { staff: [], options: { programs: [{ code: 'B.Tech', display_name: 'Bachelor of Technology', duration_years: 4, departments: [{ code: 'CSE', display_name: 'Computer Science' }, { code: 'MECH', display_name: 'Mechanical' }] }], graduation_years: [2027, 2028], batches: ['2023-2027'] } } });
+    if (route.request().method() === 'POST') { invitation = route.request().postDataJSON(); return route.fulfill({ status: 201, json: { user_id: 'staff-1', status: 'invited', email_queued: true } }); }
+    return route.fulfill({ json: { staff: [], options: { programs: [], graduation_years: [], batches: [] } } });
   });
-  await page.getByRole('button', { name: 'Staff roster' }).click();
+  await expect(page.getByRole('heading', { name: 'Institution Management' })).toBeVisible();
+  const tabs = page.getByRole('navigation', { name: 'Attendance sections' });
+  await expect(tabs.getByRole('button').nth(0)).toHaveText('Student Roster');
+  await expect(tabs.getByRole('button').nth(1)).toHaveText('Staff Roster');
+  await expect(tabs.getByRole('button').nth(2)).toHaveText('Access Control');
+  await tabs.getByRole('button', { name: 'Staff Roster' }).click();
   await page.getByLabel('Full name').fill('Anita Coordinator');
   await page.getByLabel('Work email').fill('anita@example.edu');
-  await page.getByText('Any program', { exact: true }).click();
-  await page.getByRole('checkbox', { name: 'Bachelor of Technology' }).check();
-  await page.getByText('Any department', { exact: true }).click();
-  await page.getByRole('checkbox', { name: 'Computer Science' }).check();
-  await page.getByRole('checkbox', { name: 'Mechanical' }).check();
-  await page.getByText('Any year', { exact: true }).click();
-  await page.getByRole('checkbox', { name: '2027', exact: true }).check();
-  await page.getByRole('checkbox', { name: '2028', exact: true }).check();
   await page.getByRole('button', { name: 'Invite staff' }).click();
-  await expect(page.getByRole('status')).toContainText('stays available until used or replaced');
-  expect(invitation).toEqual({ full_name: 'Anita Coordinator', email: 'anita@example.edu', scope_groups: [
-    { program: 'B.Tech', department_code: 'CSE', batch_label: null, graduation_year: 2027 },
-    { program: 'B.Tech', department_code: 'CSE', batch_label: null, graduation_year: 2028 },
-    { program: 'B.Tech', department_code: 'MECH', batch_label: null, graduation_year: 2027 },
-    { program: 'B.Tech', department_code: 'MECH', batch_label: null, graduation_year: 2028 },
-  ] });
+  await expect(page.getByRole('status')).toContainText('Invitation sent');
+  expect(invitation).toEqual({ full_name: 'Anita Coordinator', email: 'anita@example.edu', scope_groups: [] });
 });
 
-test('staff scope choices follow real program, department, batch and year combinations', async ({ page }) => {
-  await setup(page, true, { initialPath: '/dashboard/placement-management' });
-  await page.route('**/v3/college/staff', route => route.fulfill({ json: {
-    staff: [], options: {
-      programs: [{ code: 'B.Tech', display_name: 'Bachelor of Technology', duration_years: 4, departments: [{ code: 'CSE', display_name: 'Computer Science' }, { code: 'ME', display_name: 'Mechanical' }] }],
-      graduation_years: [2025, 2026, 2027], batches: ['2021-2025', '2022-2026', '2023-2027'],
-      student_groups: [
-        { program: 'B.Tech', department_code: 'CSE', batch_label: '2023-2027', graduation_year: 2027, student_count: 5 },
-        { program: 'B.Tech', department_code: 'ME', batch_label: '2021-2025', graduation_year: 2025, student_count: 1 },
-      ],
-    },
-  } }));
-  await page.getByRole('button', { name: 'Staff roster' }).click();
+test('Access Control uses academic catalogs and restricts departments to selected programs', async ({ page }) => {
+  await setup(page, true, { initialPath: '/dashboard/attendance' });
+  let saved: Record<string, unknown> = {};
+  await page.route('**/v3/college/staff**', route => {
+    if (route.request().method() === 'PUT') { saved = route.request().postDataJSON(); return route.fulfill({ json: { updated: true } }); }
+    return route.fulfill({ json: { staff: [{ user_id: 'staff-1', name: 'Anita', email: 'anita@example.edu', status: 'active', scope_groups: [] }], options: { programs: [], graduation_years: [], batches: [], student_groups: [] } } });
+  });
+  const tabs = page.getByRole('navigation', { name: 'Attendance sections' });
+  await tabs.getByRole('button', { name: 'Access Control' }).click();
+  await page.getByRole('button', { name: 'Manage access' }).click();
+  await expect(page.getByText('Any program', { exact: true })).toBeVisible();
   await page.getByText('Any program', { exact: true }).click();
   await page.getByRole('checkbox', { name: 'Bachelor of Technology' }).check();
   await page.getByText('Any department', { exact: true }).click();
+  await expect(page.getByRole('checkbox', { name: 'Computer Science' })).toBeVisible();
+  await expect(page.getByRole('checkbox', { name: 'Information Technology' })).toBeVisible();
   await page.getByRole('checkbox', { name: 'Computer Science' }).check();
   await page.getByText('Any batch', { exact: true }).click();
   await expect(page.getByRole('checkbox', { name: '2023-2027' })).toBeVisible();
-  await expect(page.getByRole('checkbox', { name: '2022-2026' })).toHaveCount(0);
   await page.getByRole('checkbox', { name: '2023-2027' }).check();
   await page.getByText('Any year', { exact: true }).click();
-  await expect(page.getByRole('checkbox', { name: '2027', exact: true })).toBeVisible();
-  await expect(page.getByRole('checkbox', { name: '2026', exact: true })).toHaveCount(0);
   await page.getByRole('checkbox', { name: '2027', exact: true }).check();
-  await expect(page.getByText('5 current students match this group.')).toBeVisible();
+  await page.getByRole('button', { name: 'Save Access' }).click();
+  await expect(page.getByRole('status')).toContainText('Student access updated');
+  expect(saved.scope_groups).toEqual([{ program: 'B.Tech', department_code: 'CSE', batch_label: '2023-2027', graduation_year: 2027 }]);
 });
 
 test('restoring a previously revoked staff account reports the renewed invitation', async ({ page }) => {
-  await setup(page, true, { initialPath: '/dashboard/placement-management' });
+  await setup(page, true, { initialPath: '/dashboard/attendance' });
   await page.route('**/v3/college/staff', route => {
     if (route.request().method() === 'POST') return route.fulfill({ status: 201, json: { user_id: 'staff-1', status: 'invited', email_queued: true, restored: true } });
     return route.fulfill({ json: { staff: [], options: { programs: [{ code: 'B.Tech', display_name: 'Bachelor of Technology', duration_years: 4, departments: [] }], graduation_years: [], batches: [] } } });
   });
-  await page.getByRole('button', { name: 'Staff roster' }).click();
+  await page.getByRole('navigation', { name: 'Attendance sections' }).getByRole('button', { name: 'Staff Roster' }).click();
   await page.getByLabel('Full name').fill('Former coordinator');
   await page.getByLabel('Work email').fill('former@example.edu');
-  await page.getByText('Any program', { exact: true }).click();
-  await page.getByRole('checkbox', { name: 'Bachelor of Technology' }).check();
   await page.getByRole('button', { name: 'Invite staff' }).click();
   await expect(page.getByRole('status')).toContainText('Previous placement access restored');
 });
 
 test('Staff roster selectors use the academic and roster catalogs when staff options are empty', async ({ page }) => {
-  await setup(page, true, { initialPath: '/dashboard/placement-management' });
+  await setup(page, true, { initialPath: '/dashboard/attendance' });
   await page.route('**/v3/college/staff', route => route.fulfill({ json: {
-    staff: [], options: { programs: [], graduation_years: [], batches: [] },
+    staff: [{ user_id: 's1', name: 'Staff', email: 'staff@example.edu', status: 'active', scope_groups: [] }], options: { programs: [], graduation_years: [], batches: [] },
   } }));
-  await page.getByRole('button', { name: 'Staff roster' }).click();
+  await page.getByRole('navigation', { name: 'Attendance sections' }).getByRole('button', { name: 'Access Control' }).click();
+  await page.getByRole('button', { name: 'Manage access' }).click();
   await expect(page.getByText('Any department', { exact: true })).toHaveCount(0);
   await page.getByText('Any program', { exact: true }).click();
   await expect(page.getByRole('checkbox', { name: 'Bachelor of Technology' })).toBeVisible();
@@ -160,14 +147,14 @@ test('Staff roster selectors use the academic and roster catalogs when staff opt
 });
 
 test('Staff roster refresh forces a new request and updates the visible list', async ({ page }) => {
-  await setup(page, true, { initialPath: '/dashboard/placement-management' });
+  await setup(page, true, { initialPath: '/dashboard/attendance' });
   let requests = 0;
   await page.route(/staff/, route => {
     requests += 1;
     const name = requests <= 2 ? 'First staff member' : 'Updated staff member';
     return route.fulfill({ json: { staff: [{ user_id: 'staff-1', name, email: 'staff@example.edu', status: 'active', scope_groups: [{ program: 'B.Tech' }] }], options: { programs: [], graduation_years: [], batches: [] } } });
   });
-  await page.getByRole('button', { name: 'Staff roster' }).click();
+  await page.getByRole('navigation', { name: 'Attendance sections' }).getByRole('button', { name: 'Staff Roster' }).click();
   await expect(page.getByText('First staff member')).toBeVisible();
   await page.getByRole('button', { name: 'Refresh staff roster' }).click();
   await expect(page.getByText('Updated staff member')).toBeVisible();
@@ -175,8 +162,8 @@ test('Staff roster refresh forces a new request and updates the visible list', a
 });
 
 test('Staff roster downloads its spreadsheet template and imports staff with result details', async ({ page }) => {
-  await setup(page, true, { initialPath: '/dashboard/placement-management' });
-  await page.getByRole('button', { name: 'Staff roster' }).click();
+  await setup(page, true, { initialPath: '/dashboard/attendance' });
+  await page.getByRole('navigation', { name: 'Attendance sections' }).getByRole('button', { name: 'Staff Roster' }).click();
   await page.getByText('Import staff from CSV or Excel').click();
 
   await page.route('**/v3/college/staff/template?format=csv', route => route.fulfill({
@@ -203,7 +190,7 @@ test('Staff roster downloads its spreadsheet template and imports staff with res
 });
 
 test('Removing placement staff revokes access and removes them from the roster', async ({ page }) => {
-  await setup(page, true, { initialPath: '/dashboard/placement-management' });
+  await setup(page, true, { initialPath: '/dashboard/attendance' });
   let present = true;
   await page.route(/staff/, route => {
     if (route.request().method() === 'DELETE') {
@@ -215,7 +202,7 @@ test('Removing placement staff revokes access and removes them from the roster',
       options: { programs: [], graduation_years: [], batches: [] },
     } });
   });
-  await page.getByRole('button', { name: 'Staff roster' }).click();
+  await page.getByRole('navigation', { name: 'Attendance sections' }).getByRole('button', { name: 'Staff Roster' }).click();
   await expect(page.getByText('Former staff member')).toBeVisible();
   page.once('dialog', dialog => dialog.accept());
   await page.getByRole('button', { name: 'Remove staff' }).click();
@@ -1153,4 +1140,14 @@ test('student roster creates a student without requiring a verification photo', 
   await dialog.getByRole('button', { name: 'Save student' }).click();
   await expect(page.getByText('The welcome and password setup email was accepted by the delivery queue', { exact: false })).toBeVisible();
   expect(payload.photo || '').toBe('');
+});
+
+test('Student Roster exposes the photo permission during add and edit flows', async ({ page }) => {
+  await setup(page, true, { initialPath: '/dashboard/attendance' });
+  await page.getByRole('button', { name: 'Add student' }).click();
+  const permission = page.getByRole('checkbox', { name: /Allow student to upload profile photo/ });
+  await expect(permission).not.toBeChecked();
+  await expect(page.getByText(/If enabled, the student can upload or capture/)).toBeVisible();
+  await permission.check();
+  await expect(permission).toBeChecked();
 });

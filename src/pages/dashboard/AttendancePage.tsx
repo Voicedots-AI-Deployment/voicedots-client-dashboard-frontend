@@ -3,6 +3,7 @@ import { Camera, Check, Mic, Plus, RefreshCw, Upload, Users, X } from 'lucide-re
 import { collegeApi, collegeError, type Program } from '../../api/collegeApi';
 import { useCollegeAccess } from '../../hooks/useCollegeAccess';
 import { AcademicSetup, StudentRoster } from './InstitutionData';
+import { PlacementStaffManagement } from './CollegeManagementPage';
 
 type Student = { id: string; full_name: string; roll_number: string; has_photo: boolean; department_code: string };
 type Staff = { id: string; full_name: string; email: string; employee_code: string; active: boolean; has_photo: boolean; class_ids: string[] };
@@ -82,7 +83,7 @@ export function PhotoEditor({ kind, person, done, close, inline = false }: { kin
 export default function AttendancePage() {
   const { access, loading: accessLoading, error: accessError } = useCollegeAccess();
   const [setup, setSetup] = useState<Setup>({ staff: [], students: [], classes: [] });
-  const [tab, setTab] = useState<'attendance' | 'students' | 'academic' | 'classes' | 'staff' | 'teacher'>('attendance');
+  const [tab, setTab] = useState<'students' | 'placement-staff' | 'access-control' | 'attendance' | 'academic' | 'classes' | 'staff' | 'teacher'>('students');
   const [programs,setPrograms]=useState<Program[]>([]);
   const [error, setError] = useState('');
   const [notice, setNotice] = useState('');
@@ -143,8 +144,8 @@ export default function AttendancePage() {
   const counts = (status: Mark) => Object.values(marks).filter(m => m === status).length;
   const selectedStaff = staffEdit && staffEdit !== 'new' ? staffEdit : null;
   return <div className="space-y-6 text-slate-900 dark:text-white">
-    <header><p className="text-sm font-medium text-indigo-600">{access.college_name}</p><h1 className="mt-2 text-3xl font-bold">Attendance & staff</h1><p className="mt-2 text-sm text-slate-500">Manage attendance and the institution records shared with placements.</p></header>
-    <nav className="flex flex-wrap gap-2 border-b border-slate-200 pb-3 dark:border-slate-800" aria-label="Attendance sections">{(['attendance','students','academic','classes','staff'] as const).map(t => <button key={t} className={tab === t ? primary : button} onClick={() => { setTab(t); setError(''); setNotice(''); }} aria-pressed={tab === t}>{({ attendance:'Attendance register',students:'Student roster',academic:'Academic setup',classes:'Classes',staff:'Staff & access' })[t]}</button>)}{access.college_id === 'b3a441b0-d120-4b92-a4f1-2cc2a4a29f5e' && <button className={tab === 'teacher' ? primary : button} onClick={() => setTab('teacher')} aria-pressed={tab === 'teacher'}>Teacher student records</button>}</nav>
+    <header><p className="text-sm font-medium text-indigo-600">{access.college_name}</p><h1 className="mt-2 text-3xl font-bold">Institution Management</h1><p className="mt-2 text-sm text-slate-500">Manage student and placement staff rosters, student access, academic setup, and attendance.</p></header>
+    <nav className="flex flex-wrap gap-2 border-b border-slate-200 pb-3 dark:border-slate-800" aria-label="Attendance sections">{(['students','placement-staff','access-control','attendance','academic','classes','staff'] as const).map(t => <button key={t} className={tab === t ? primary : button} onClick={() => { setTab(t); setError(''); setNotice(''); }} aria-pressed={tab === t}>{({ students:'Student Roster','placement-staff':'Staff Roster','access-control':'Access Control',attendance:'Attendance register',academic:'Academic setup',classes:'Classes',staff:'Attendance staff' })[t]}</button>)}{access.college_id === 'b3a441b0-d120-4b92-a4f1-2cc2a4a29f5e' && <button className={tab === 'teacher' ? primary : button} onClick={() => setTab('teacher')} aria-pressed={tab === 'teacher'}>Teacher student records</button>}</nav>
     {error && <p role="alert" className="rounded-xl bg-red-50 p-4 text-sm text-red-700">{error}</p>}
     {notice && <p role="status" className="rounded-xl bg-emerald-50 p-4 text-sm text-emerald-700">{notice}</p>}
     {tab === 'attendance' && <>
@@ -158,9 +159,9 @@ export default function AttendancePage() {
       </section>}
     </>}
     {tab === 'teacher' && access.college_id === 'b3a441b0-d120-4b92-a4f1-2cc2a4a29f5e' && <section className={card}><h2 className="text-lg font-semibold">Department teacher records</h2><p className="mt-2 text-sm text-slate-500">Assigned teachers verify their face to add students and manage fees, payments and marks in the same student database used by live calls.</p><a className={`${primary} mt-4`} href="/dashboard/attendance/teacher">Open teacher workspace</a><p className="mt-3 text-xs text-slate-500">Share this link with assigned teachers. They do not need a client administrator account.</p></section>}
-    {tab === 'students' && (
-      <StudentRoster programs={programs} onChanged={()=>void refresh()}/>
-    )}
+    {tab === 'students' && <StudentRoster programs={programs} onChanged={()=>void refresh()}/>}
+    {tab === 'placement-staff' && <PlacementStaffManagement mode="roster"/>}
+    {tab === 'access-control' && <PlacementStaffManagement mode="access"/>}
     {tab === 'academic' && (
       <AcademicSetup programs={programs} refresh={()=>void refresh()}/>
     )}
