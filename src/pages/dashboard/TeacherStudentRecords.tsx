@@ -82,7 +82,8 @@ export default function TeacherStudentRecords() {
         setNotice('Student added. Open their record to enter fees, payments and semester marks.');
       } else if (selected) {
         const changes = {
-          full_name:String(values.get('full_name')||'').trim(),phone:String(values.get('phone')||'').trim()||null,
+          full_name:String(values.get('full_name')||'').trim(),email:String(values.get('email')||'').trim(),
+          phone:String(values.get('phone')||'').trim()||null,
           cgpa:Number(values.get('cgpa')),graduation_year:Number(values.get('graduation_year')),
           date_of_birth:String(values.get('date_of_birth')||'')||null,status:String(values.get('status')),
         };
@@ -177,9 +178,10 @@ export default function TeacherStudentRecords() {
         {([['personal','Personal details'],['fees','Fees & payments'],['marks','Semester marks & results']] as const).map(([value,label])=><button key={value} type="button" role="tab" aria-selected={tab===value} className={tab===value?primary:button} onClick={()=>{setTab(value);setError('')}}>{label}</button>)}
       </div>
       {tab==='personal' && <div role="tabpanel" className="mt-5">
-        <div className="grid gap-3 rounded-xl bg-slate-50 p-4 text-sm dark:bg-slate-800 sm:grid-cols-3"><div><span className="text-slate-500">Roll number</span><p>{selected.roll_number}</p></div><div><span className="text-slate-500">Email</span><p>{selected.email}</p></div><div><span className="text-slate-500">Program / department</span><p>{selected.program} / {selected.department_code}</p></div></div>
+        <div className="grid gap-3 rounded-xl bg-slate-50 p-4 text-sm dark:bg-slate-800 sm:grid-cols-2"><div><span className="text-slate-500">Roll number</span><p>{selected.roll_number}</p></div><div><span className="text-slate-500">Program / department</span><p>{selected.program} / {selected.department_code}</p></div></div>
         <form key={selected.id} className="mt-5 space-y-4" onSubmit={e=>void saveStudent(e)}><div className="grid gap-4 sm:grid-cols-2">
           {field('Full name *','full_name','text',selected.full_name)}
+          {field('Email *','email','email',selected.email)}
           <div>{field('Registered mobile number (optional)','phone','tel',selected.phone||'',false)}<p className="mt-1 text-xs text-slate-500">Leave blank if unavailable. Calls can only find this student after a number is added.</p></div>
           {field('Graduation year *','graduation_year','number',selected.graduation_year)}
           {field('CGPA *','cgpa','number',selected.cgpa)}
