@@ -364,8 +364,22 @@ test('drive form uses the client API and does not supply a college identity', as
   });
   await page.getByRole('button',{name:'Create drive',exact:true}).click();
   await driveFields(page);
+  await page.getByRole('button',{name:'2. Interview setup'}).click();
+  await page.getByRole('button',{name:'Add score rule'}).click();
+  await page.getByLabel('Rule 1 requires AI Coach').check();
+  await page.getByRole('button',{name:'Add score rule'}).click();
+  await page.getByLabel('Rule 2 minimum score').fill('0');
+  await page.getByLabel('Rule 2 maximum score').fill('78.99');
+  await page.getByLabel('Rule 2 maximum attempts').fill('1');
+  await expect(page.getByLabel('Rule 1 minimum score')).toHaveValue('79');
+  await expect(page.getByLabel('Rule 1 maximum score')).toHaveValue('100');
+  await page.getByRole('button',{name:'6. Review & create'}).click();
   await page.getByRole('button', {name:'Create placement drive'}).click();
   await expect(page.getByText('Drive created (active).')).toBeVisible();
+  expect(payload.score_attempt_rules).toEqual([
+    {min_score:79,max_score:100,max_attempts:2,require_coach:true},
+    {min_score:0,max_score:78.99,max_attempts:1,require_coach:false},
+  ]);
   expect(payload.eligible_departments).toEqual(['CSE', 'IT']);
   expect(payload.eligible_graduation_years).toEqual([2027, 2028]);
   expect(payload).not.toHaveProperty('college_id');

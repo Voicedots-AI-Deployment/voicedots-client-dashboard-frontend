@@ -17,11 +17,12 @@ const HOURS = Array.from({length:12},(_,i)=>String(i+1));
 const TRACKS = ['hr','domain','industry','manager'];
 
 type Difficulty = 'beginner'|'intermediate'|'advanced';
+type ScoreAttemptRule = {min_score:number;max_score:number;max_attempts:number;require_coach:boolean};
 type FormState = {
   company_profile_id:string; drive_type:string; company_name:string; company_description:string; company_website:string; company_linkedin:string;
   role_title:string; job_type:string; location:string; salary_type:'fixed'|'range'; salary_min_amount:string; salary_max_amount:string;
   salary_currency:string; salary_period:'annual'|'monthly'; jd_text:string; window_start:string; window_end:string; drive_date:string;
-  application_deadline:string; duration:string; max_attempts:string; difficulty_tier:Difficulty; min_cgpa:string;
+  application_deadline:string; duration:string; max_attempts:string; score_attempt_rules:ScoreAttemptRule[]; difficulty_tier:Difficulty; min_cgpa:string;
 };
 type Candidate = {student_id:string;full_name:string;roll_number:string;department_code:string;cgpa?:number|null;graduation_year?:number|null};
 type Preview = {total_students:number;eligible_count:number;not_eligible_count:number;missing_photo_count:number;candidates:Candidate[]};
@@ -32,7 +33,7 @@ type DriveDraft = {id:string;client_draft_key:string;step:number;payload:DraftPa
 const empty:FormState = {
   company_profile_id:'',drive_type:'official_placement',company_name:'',company_description:'',company_website:'',company_linkedin:'',
   role_title:'',job_type:'full_time',location:'',salary_type:'range',salary_min_amount:'',salary_max_amount:'',salary_currency:'INR',salary_period:'annual',
-  jd_text:'',window_start:'',window_end:'',drive_date:'',application_deadline:'',duration:'30',max_attempts:'1',difficulty_tier:'intermediate',min_cgpa:'0',
+  jd_text:'',window_start:'',window_end:'',drive_date:'',application_deadline:'',duration:'30',max_attempts:'1',score_attempt_rules:[],difficulty_tier:'intermediate',min_cgpa:'0',
 };
 
 const dateToApi = (value:string) => value ? `${value.slice(8,10)}-${value.slice(5,7)}-${value.slice(0,4)}` : null;
@@ -102,7 +103,7 @@ export default function CreateDriveWizard({programs,drive,draftId,collegeTimezon
 
   useEffect(()=>{
     if(drive){
-      setForm({...empty,company_profile_id:drive.company_profile_id||'',drive_type:drive.drive_type||'official_placement',company_name:drive.company_name||'',company_description:drive.company_description||'',company_website:drive.company_website||'',company_linkedin:drive.company_linkedin||'',role_title:drive.role_title||'',job_type:drive.job_type||'full_time',location:drive.location||'',salary_type:drive.salary_type||(drive.package_min_lpa!=null&&drive.package_max_lpa==null?'fixed':'range'),salary_min_amount:String(drive.salary_min_amount??(drive.package_min_lpa==null?'':drive.package_min_lpa*100000)),salary_max_amount:String(drive.salary_max_amount??(drive.package_max_lpa==null?'':drive.package_max_lpa*100000)),salary_currency:drive.salary_currency||drive.package_currency||'INR',salary_period:drive.salary_period||'annual',jd_text:drive.jd_raw_text||'',window_start:wallTimeFromInstant(drive.window_start_at,collegeTimezone),window_end:wallTimeFromInstant(drive.window_end_at,collegeTimezone),drive_date:dateFromApi(drive.drive_date),application_deadline:dateFromApi(drive.application_deadline),duration:String(drive.interview_duration_minutes||30),max_attempts:String(drive.max_attempts||1),difficulty_tier:drive.difficulty_tier||'intermediate',min_cgpa:String(drive.criteria_min_cgpa??0)});
+      setForm({...empty,company_profile_id:drive.company_profile_id||'',drive_type:drive.drive_type||'official_placement',company_name:drive.company_name||'',company_description:drive.company_description||'',company_website:drive.company_website||'',company_linkedin:drive.company_linkedin||'',role_title:drive.role_title||'',job_type:drive.job_type||'full_time',location:drive.location||'',salary_type:drive.salary_type||(drive.package_min_lpa!=null&&drive.package_max_lpa==null?'fixed':'range'),salary_min_amount:String(drive.salary_min_amount??(drive.package_min_lpa==null?'':drive.package_min_lpa*100000)),salary_max_amount:String(drive.salary_max_amount??(drive.package_max_lpa==null?'':drive.package_max_lpa*100000)),salary_currency:drive.salary_currency||drive.package_currency||'INR',salary_period:drive.salary_period||'annual',jd_text:drive.jd_raw_text||'',window_start:wallTimeFromInstant(drive.window_start_at,collegeTimezone),window_end:wallTimeFromInstant(drive.window_end_at,collegeTimezone),drive_date:dateFromApi(drive.drive_date),application_deadline:dateFromApi(drive.application_deadline),duration:String(drive.interview_duration_minutes||30),max_attempts:String(drive.max_attempts||1),score_attempt_rules:drive.score_attempt_rules||[],difficulty_tier:drive.difficulty_tier||'intermediate',min_cgpa:String(drive.criteria_min_cgpa??0)});
       setSelection(drive.agent_selection?.length?drive.agent_selection:defaultSelection);setRounds(drive.round_configuration||[]);setProgramIds(drive.criteria_programs||[]);setDepartments(drive.criteria_department_codes||[]);setYears((drive.criteria_graduation_years||[]).map(String));setDraftLoaded(true);return;
     }
     const controller=new AbortController();
@@ -245,6 +246,8 @@ export default function CreateDriveWizard({programs,drive,draftId,collegeTimezon
       else if(form.window_start&&form.window_end&&endInstant<=startInstant)errors.window_end='Interview end must be later than interview start.';
       if(form.application_deadline&&form.window_start&&form.application_deadline>=form.window_start.slice(0,10))errors.application_deadline='Application deadline must be before the interview start date.';
       if(!form.max_attempts||Number(form.max_attempts)<1||Number(form.max_attempts)>5)errors.max_attempts='Choose between 1 and 5 attempts.';
+      const ordered=[...form.score_attempt_rules].sort((a,b)=>a.min_score-b.min_score);
+      for(let index=0;index<ordered.length;index++){const rule=ordered[index];if(!Number.isFinite(rule.min_score)||!Number.isFinite(rule.max_score)||rule.min_score<0||rule.max_score>100||rule.min_score>rule.max_score||rule.max_attempts<1||rule.max_attempts>20){errors.score_attempt_rules='Use valid score bands from 0 to 100 and attempt limits from 1 to 20.';break;}if(index&&rule.min_score<=ordered[index-1].max_score){errors.score_attempt_rules='Score bands cannot overlap. Their endpoints are inclusive.';break;}}
     }
     if(index===2&&(selection.length<1||selection.length>4))errors.agent_selection='Choose between one and four interview roles.';
     if(index===3){for(const round of rounds)if(round.question_source!=='personalized'&&!round.questions.some(question=>question.trim()))errors[`questions.${round.track}`]='Add at least one question for this round.';}
@@ -289,7 +292,7 @@ export default function CreateDriveWizard({programs,drive,draftId,collegeTimezon
       role_title:form.role_title.trim(),job_type:form.job_type,location:form.location.trim(),jd_text:form.jd_text,difficulty_tier:form.difficulty_tier,difficulty_confirmed:ambiguousDifficulty?difficultyConfirmed:true,
       salary_type:form.salary_type,salary_min_amount:form.salary_min_amount?Number(form.salary_min_amount):null,salary_max_amount:form.salary_max_amount?Number(form.salary_max_amount):null,salary_currency:form.salary_currency,salary_period:form.salary_period,
       drive_date:dateToApi(form.drive_date),application_deadline:dateToApi(form.application_deadline),window_start:form.window_start?new Date(wallTimeToInstant(form.window_start,collegeTimezone)).toISOString():null,window_end:form.window_end?new Date(wallTimeToInstant(form.window_end,collegeTimezone)).toISOString():null,
-      interview_duration_minutes:Number(form.duration),max_attempts:Number(form.max_attempts),min_cgpa:Number(form.min_cgpa),eligible_programs:programIds,eligible_departments:departments,eligible_graduation_years:selectedYears,
+      interview_duration_minutes:Number(form.duration),max_attempts:Number(form.max_attempts),score_attempt_rules:form.score_attempt_rules,min_cgpa:Number(form.min_cgpa),eligible_programs:programIds,eligible_departments:departments,eligible_graduation_years:selectedYears,
       agent_selection:selection.map(({track,agent_id})=>({track,agent_id})),round_configuration:rounds,
       ...(!drive?{idempotency_key:creationKey,source_draft_id:draftIdRef.current||undefined}:{}),
     };
@@ -307,10 +310,10 @@ export default function CreateDriveWizard({programs,drive,draftId,collegeTimezon
 
   function fieldError(key:string){return fieldErrors[key]?<span id={`${key}-error`} className="mt-1.5 flex items-start gap-1.5 text-xs font-medium text-rose-600"><CircleAlert size={14} className="mt-0.5 shrink-0"/>{fieldErrors[key]}</span>:null;}
   function label(title:string,required=false){return <span>{title}{required?<b className="ml-1 text-rose-600" aria-label="required">*</b>:<small className="ml-2 font-normal text-slate-500">Optional</small>}</span>;}
-  function inputField(title:string,key:keyof FormState,type='text',required=false,placeholder=''){
+  function inputField(title:string,key:Exclude<keyof FormState,'score_attempt_rules'>,type='text',required=false,placeholder=''){
     return <label className="block text-sm font-medium" key={key}>{label(title,required)}<input id={key} className={`${input} ${fieldErrors[key]?'border-rose-500 focus:border-rose-500 focus:ring-rose-100':''}`} type={type} value={form[key]} placeholder={placeholder} aria-invalid={Boolean(fieldErrors[key])} aria-describedby={fieldErrors[key]?`${key}-error`:undefined} onChange={event=>update(key,event.target.value as never)}/>{fieldError(key)}</label>;
   }
-  function selectField(title:string,key:keyof FormState,options:[string,string][],required=false){
+  function selectField(title:string,key:Exclude<keyof FormState,'score_attempt_rules'>,options:[string,string][],required=false){
     return <label className="block text-sm font-medium" key={key}>{label(title,required)}<select id={key} className={input} value={form[key]} onChange={event=>update(key,event.target.value as never)}>{options.map(([value,text])=><option key={value} value={value}>{text}</option>)}</select>{fieldError(key)}</label>;
   }
   function companyDetailsField(key:'company_description'|'jd_text',title:string,required=false,rows=4){
@@ -366,8 +369,20 @@ export default function CreateDriveWizard({programs,drive,draftId,collegeTimezon
           <div className="dw-timeline-grid"><DateTimePicker id="window_start" title="Interview starts" value={form.window_start} error={fieldErrors.window_start} onChange={value=>update('window_start',value)}/><div className="dw-timeline-arrow"><ArrowRight size={20}/></div><DateTimePicker id="window_end" title="Interview ends" value={form.window_end} error={fieldErrors.window_end} onChange={value=>update('window_end',value)}/></div>
           <div className="grid gap-4 md:grid-cols-2">{inputField('Application deadline','application_deadline','date')}{inputField('Drive date','drive_date','date')}<p className="md:col-span-2 -mt-2 text-xs text-slate-500">Application deadline must be before the interview start date. Drive date is optional when the drive does not have a separate event date.</p></div>
         </Section>
-        <Section title="Interview format" description="These settings define how long each candidate has and how many attempts are allowed.">
-          <div className="grid gap-4 md:grid-cols-3">{selectField('Interview duration','duration',[['15','15 minutes'],['30','30 minutes'],['45','45 minutes']],true)}{inputField('Attempts per student','max_attempts','number',true,'1–5')}{selectField('Interview difficulty','difficulty_tier',[['beginner','Beginner'],['intermediate','Intermediate'],['advanced','Advanced']],true)}</div>
+        <Section title="Interview format" description="Set a fixed attempt limit, or define maximum attempts by the student's latest interview score.">
+          <div className="grid gap-4 md:grid-cols-3">{selectField('Interview duration','duration',[['15','15 minutes'],['30','30 minutes'],['45','45 minutes']],true)}{inputField('Default attempts per student','max_attempts','number',true,'1–5')}{selectField('Interview difficulty','difficulty_tier',[['beginner','Beginner'],['intermediate','Intermediate'],['advanced','Advanced']],true)}</div>
+          <div className="mt-6 space-y-3 rounded-xl border border-slate-200 p-4 dark:border-slate-700">
+            <div className="flex flex-wrap items-start justify-between gap-3"><div><h3 className="font-semibold">Score-based attempt rules</h3><p className="mt-1 max-w-2xl text-xs text-slate-500">Score ranges include both endpoints. A matching rule overrides the default attempt limit. If a rule requires AI Coach, the next attempt stays locked until the student completes Coach teaching, the linked practice interview, and independent validation. Opening AI Coach alone does not unlock it.</p></div><button type="button" className={button} onClick={()=>setForm(current=>({...current,score_attempt_rules:[...current.score_attempt_rules,{min_score:79,max_score:100,max_attempts:2,require_coach:false}]}))}><Plus size={15}/> Add score rule</button></div>
+            {form.score_attempt_rules.map((rule,index)=><div key={index} className="grid items-end gap-3 rounded-lg bg-slate-50 p-3 dark:bg-slate-800 sm:grid-cols-[1fr_1fr_1fr_auto_auto]">
+              <label className="text-xs">Minimum score (%)<input aria-label={`Rule ${index+1} minimum score`} className={input} type="number" min="0" max="100" step="0.01" value={rule.min_score} onChange={event=>setForm(current=>({...current,score_attempt_rules:current.score_attempt_rules.map((item,i)=>i===index?{...item,min_score:Number(event.target.value)}:item)}))}/></label>
+              <label className="text-xs">Maximum score (%)<input aria-label={`Rule ${index+1} maximum score`} className={input} type="number" min="0" max="100" step="0.01" value={rule.max_score} onChange={event=>setForm(current=>({...current,score_attempt_rules:current.score_attempt_rules.map((item,i)=>i===index?{...item,max_score:Number(event.target.value)}:item)}))}/></label>
+              <label className="text-xs">Maximum total attempts<input aria-label={`Rule ${index+1} maximum attempts`} className={input} type="number" min="1" max="20" value={rule.max_attempts} onChange={event=>setForm(current=>({...current,score_attempt_rules:current.score_attempt_rules.map((item,i)=>i===index?{...item,max_attempts:Number(event.target.value)}:item)}))}/></label>
+              <label className="flex min-h-11 items-center gap-2 text-xs"><input aria-label={`Rule ${index+1} requires AI Coach`} type="checkbox" checked={rule.require_coach} onChange={event=>setForm(current=>({...current,score_attempt_rules:current.score_attempt_rules.map((item,i)=>i===index?{...item,require_coach:event.target.checked}:item)}))}/>Require AI Coach</label>
+              <button type="button" className={button} aria-label={`Remove score rule ${index+1}`} onClick={()=>setForm(current=>({...current,score_attempt_rules:current.score_attempt_rules.filter((_,i)=>i!==index)}))}><Trash2 size={15}/></button>
+            </div>)}
+            {fieldError('score_attempt_rules')&&<p role="alert" className="text-sm text-rose-600">{fieldError('score_attempt_rules')}</p>}
+            {!form.score_attempt_rules.length&&<p className="text-sm text-slate-500">No score rules. This drive keeps the fixed attempt limit.</p>}
+          </div>
           {drive&&drive.status!=='draft'&&<p className="dw-info">Interview difficulty is locked after the drive is finalized.</p>}{recommendation&&<p className="dw-info">Academic-year suggestion: {displayName(recommendation)}. You can choose a different difficulty.</p>}
         </Section>
       </div>}
