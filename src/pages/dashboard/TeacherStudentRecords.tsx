@@ -3,10 +3,14 @@ import { collegeApi, collegeError, type Program } from '@/api/collegeApi';
 
 type Student = { id:string; full_name:string; roll_number:string; email:string; phone:string|null; program:string; department_code:string; graduation_year:number; cgpa:number; date_of_birth?:string|null; status:string };
 type Payment = { id:string; amount:number; paid_on:string; reference:string; note:string };
-type Mark = { id:string; subject:string; exam:string; semester:number|null; score:number; maximum:number; exam_date:string };
+type Mark = { id:string; subject:string; exam:string; semester:number|null; score:number; maximum:number; exam_date:string; grade:string|null };
 type Records = { total_fee:number; amount_paid:number; balance:number; currency:string; payments:Payment[]; marks:Mark[]; fee_history:{ previous_total:number; new_total:number; changed_at:string }[] };
+type Extended = { registration_number:string|null; guardian_name:string|null; academic_year:string|null; current_semester:number|null;
+  fee_breakdown:Record<string,unknown>; attendance_snapshot:Record<string,unknown>;
+  academic_review:Record<string,unknown>; academic_contacts:Record<string,unknown>;
+  semester_summaries:Record<string,Record<string,unknown>> };
 type Catalog = { departments:string[]; programs:Program[] };
-type Tab = 'personal'|'fees'|'marks';
+type Tab = 'personal'|'fees'|'marks'|'additional';
 const input = 'mt-1 w-full rounded-xl border border-slate-200 bg-white px-3 py-2.5 text-sm dark:border-slate-700 dark:bg-slate-900';
 const button = 'inline-flex items-center justify-center rounded-xl border border-slate-200 px-4 py-2.5 text-sm font-medium disabled:opacity-50 dark:border-slate-700';
 const primary = `${button} bg-indigo-600 text-white`;
@@ -26,6 +30,7 @@ export default function TeacherStudentRecords() {
   const [tab,setTab] = useState<Tab>('personal');
   const [selected,setSelected] = useState<Student|null>(null);
   const [records,setRecords] = useState<Records|null>(null);
+  const [extended,setExtended] = useState<Extended|null>(null);
   const [semester,setSemester] = useState(1);
   const [program,setProgram] = useState('');
   const [department,setDepartment] = useState('');
@@ -49,20 +54,23 @@ export default function TeacherStudentRecords() {
   },[refresh]);
 
   const backToList = () => {
-    setView('list'); setSelected(null); setRecords(null); setPaymentEdit(null); setMarkEdit(null);
+    setView('list'); setSelected(null); setRecords(null); setExtended(null); setPaymentEdit(null); setMarkEdit(null);
     setError('');
   };
   const openStudent = async (student:Student, initialTab:Tab='personal') => {
-    setSelected(student); setView('detail'); setTab(initialTab); setRecords(null);
+    setSelected(student); setView('detail'); setTab(initialTab); setRecords(null); setExtended(null);
     setPaymentEdit(null); setMarkEdit(null); setError(''); setNotice('');
     try {
-      const data = await collegeApi.get<Records>(`${base}/students/${student.id}/records`);
-      setRecords(data);
+      const [data,extra] = await Promise.all([
+        collegeApi.get<Records>(`${base}/students/${student.id}/records`),
+        collegeApi.get<Extended>(`${base}/students/${student.id}/extended`),
+      ]);
+      setRecords(data); setExtended(extra);
       setSemester(Math.max(1,...data.marks.map(mark=>mark.semester||1)));
     } catch (cause) { setError(collegeError(cause)); }
   };
   const openNew = () => {
-    setView('new'); setSelected(null); setRecords(null); setError(''); setNotice('');
+    setView('new'); setSelected(null); setRecords(null); setExtended(null); setError(''); setNotice('');
     setProgram(catalog.programs[0]?.code || '');
     setDepartment(catalog.programs[0]?.departments[0]?.code || '');
   };
@@ -103,6 +111,24 @@ export default function TeacherStudentRecords() {
       setPaymentEdit(null); setMarkEdit(null); setNotice('Student record saved.');
     } catch (cause) { setError(collegeError(cause)); }
     finally { setBusy(false); }
+  };
+  const saveExtended = async (changes:Partial<Extended>) => {
+    if (!selected) return;
+    setBusy(true); setError(''); setNotice('');
+    try {
+      await collegeApi.save(`${base}/students/${selected.id}/extended`,changes,true);
+      setExtended(await collegeApi.get<Extended>(`${base}/students/${selected.id}/extended`));
+      setNotice('Additional student details saved.');
+    } catch (cause) { setError(collegeError(cause)); }
+    finally { setBusy(false); }
+  };
+  const saveJsonSection = (event:FormEvent<HTMLFormElement>, key:'attendance_snapshot'|'academic_review'|'academic_contacts') => {
+    event.preventDefault();
+    try {
+      const value = JSON.parse(String(new FormData(event.currentTarget).get('json')||'{}'));
+      if (!value || Array.isArray(value) || typeof value!=='object') throw new Error('Enter a JSON object.');
+      void saveExtended({[key]:value});
+    } catch { setError('Enter valid JSON in this section before saving.'); }
   };
   const deleteMark = async (mark:Mark) => {
     if (!selected || !window.confirm(`Delete ${mark.subject} marks for semester ${mark.semester || semester}?`)) return;
@@ -175,7 +201,7 @@ export default function TeacherStudentRecords() {
     {view==='detail' && selected && <section className={card}>
       <div className="flex flex-wrap items-center justify-between gap-3"><div><h2 className="text-lg font-semibold">{selected.full_name}</h2><p className="text-sm text-slate-500">{selected.roll_number} · {selected.department_code}</p></div><button className={button} onClick={backToList}>Back to students</button></div>
       <div role="tablist" aria-label="Student record sections" className="mt-5 flex flex-wrap gap-2 border-b border-slate-200 pb-3 dark:border-slate-700">
-        {([['personal','Personal details'],['fees','Fees & payments'],['marks','Semester marks & results']] as const).map(([value,label])=><button key={value} type="button" role="tab" aria-selected={tab===value} className={tab===value?primary:button} onClick={()=>{setTab(value);setError('')}}>{label}</button>)}
+        {([['personal','Personal details'],['fees','Fees & payments'],['marks','Semester marks & results'],['additional','Attendance & support']] as const).map(([value,label])=><button key={value} type="button" role="tab" aria-selected={tab===value} className={tab===value?primary:button} onClick={()=>{setTab(value);setError('')}}>{label}</button>)}
       </div>
       {tab==='personal' && <div role="tabpanel" className="mt-5">
         <div className="grid gap-3 rounded-xl bg-slate-50 p-4 text-sm dark:bg-slate-800 sm:grid-cols-2"><div><span className="text-slate-500">Roll number</span><p>{selected.roll_number}</p></div><div><span className="text-slate-500">Program / department</span><p>{selected.program} / {selected.department_code}</p></div></div>
@@ -189,9 +215,19 @@ export default function TeacherStudentRecords() {
           <label className="text-sm">Status<select className={input} name="status" defaultValue={selected.status}><option value="active">Active</option><option value="inactive">Inactive</option><option value="placed">Placed</option></select></label>
         </div><button className={primary} disabled={busy}>{busy?'Saving…':'Save personal details'}</button></form>
       </div>}
+      {tab==='personal' && extended && <form key={`${selected.id}-legacy-profile`} className="mt-6 space-y-3 border-t border-slate-200 pt-5 dark:border-slate-700" onSubmit={e=>{e.preventDefault();const v=new FormData(e.currentTarget);void saveExtended({registration_number:String(v.get('registration_number')||'').trim()||null,guardian_name:String(v.get('guardian_name')||'').trim()||null,academic_year:String(v.get('academic_year')||'').trim()||null,current_semester:v.get('current_semester')?Number(v.get('current_semester')):null})}}>
+        <h3 className="font-semibold">Academic identity</h3><p className="text-xs text-slate-500">These fields also support the older call records. Leave unknown values blank.</p>
+        <div className="grid gap-4 sm:grid-cols-2">{field('Registration number','registration_number','text',extended.registration_number||'',false)}{field('Guardian name','guardian_name','text',extended.guardian_name||'',false)}{field('Academic year','academic_year','text',extended.academic_year||'',false)}<label className="text-sm">Current semester<select className={input} name="current_semester" defaultValue={extended.current_semester||''}><option value="">Unknown</option>{semesters.map(value=><option key={value} value={value}>Semester {value}</option>)}</select></label></div>
+        <button className={primary} disabled={busy}>Save academic identity</button>
+      </form>}
       {tab==='fees' && <div role="tabpanel" className="mt-5">{!records ? <p className="text-sm text-slate-500">Loading fee records…</p> : <div className="space-y-6">
         <div className="grid gap-3 sm:grid-cols-3">{[['Total fee',records.total_fee],['Paid',records.amount_paid],['Balance',records.balance]].map(([label,value])=><div className="rounded-xl bg-slate-50 p-4 dark:bg-slate-800" key={label}><p className="text-xs text-slate-500">{label}</p><p className="mt-1 font-semibold">{money(value)}</p></div>)}</div>
         <form className="flex flex-wrap items-end gap-3" onSubmit={e=>{e.preventDefault();const v=new FormData(e.currentTarget);void saveRecord('fee',{total_fee:Number(v.get('total_fee'))},true)}}><label className="text-sm">Total fee<input className={input} name="total_fee" type="number" min="0" step="0.01" required defaultValue={records.total_fee} /></label><button className={primary} disabled={busy}>Save total fee</button></form>
+        {extended && <form key={`${selected.id}-fee-breakdown`} className="space-y-3 rounded-xl border border-slate-200 p-4 dark:border-slate-700" onSubmit={e=>{e.preventDefault();const v=new FormData(e.currentTarget);const fee_breakdown:Record<string,unknown>={};for(const key of ['tuition_fee','hostel_fee','transport_fee','other_charges']) { const raw=String(v.get(key)||'').trim(); if(raw) fee_breakdown[key]=Number(raw); }const due=String(v.get('next_due_date')||'');if(due) fee_breakdown.next_due_date=due;void saveExtended({fee_breakdown})}}>
+          <h3 className="font-semibold">Fee breakdown</h3><p className="text-xs text-slate-500">Total fee and payments above remain the official balance. Enter the component amounts and due date used by the older call format here.</p>
+          <div className="grid gap-3 sm:grid-cols-2">{(['tuition_fee','hostel_fee','transport_fee','other_charges'] as const).map(key=><label className="text-sm" key={key}>{key.replaceAll('_',' ')}<input className={input} name={key} type="number" min="0" step="0.01" defaultValue={String(extended.fee_breakdown[key]??'')} /></label>)}<label className="text-sm">Next due date<input className={input} name="next_due_date" type="date" defaultValue={String(extended.fee_breakdown.next_due_date??'')} /></label></div>
+          <button className={primary} disabled={busy}>Save fee breakdown</button>
+        </form>}
         <div><h3 className="font-semibold">Payments</h3><form key={paymentEdit?.id||'new-payment'} className="mt-3 grid gap-3 sm:grid-cols-2" onSubmit={e=>{e.preventDefault();const v=new FormData(e.currentTarget);void saveRecord(`payments${paymentEdit?`/${paymentEdit.id}`:''}`,{amount:Number(v.get('amount')),paid_on:v.get('paid_on'),reference:v.get('reference'),note:v.get('note')},!!paymentEdit)}}>
           {field('Amount *','amount','number',paymentEdit?.amount)}{field('Paid on *','paid_on','date',paymentEdit?.paid_on||today())}{field('Reference','reference','text',paymentEdit?.reference,false)}{field('Note','note','text',paymentEdit?.note,false)}<div className="flex gap-2"><button className={primary} disabled={busy}>{paymentEdit?'Update payment':'Add payment'}</button>{paymentEdit&&<button type="button" className={button} onClick={()=>setPaymentEdit(null)}>Cancel</button>}</div></form>
           <ul className="mt-3 space-y-2">{records.payments.map(p=><li key={p.id} className="flex justify-between gap-3 border-t border-slate-100 pt-2 text-sm"><span>{p.paid_on} · {money(p.amount)} · {p.reference||'No reference'}</span><button className={button} onClick={()=>setPaymentEdit(p)}>Edit</button></li>)}</ul></div>
@@ -199,10 +235,24 @@ export default function TeacherStudentRecords() {
       </div>}</div>}
       {tab==='marks' && <div role="tabpanel" className="mt-5">{!records ? <p className="text-sm text-slate-500">Loading semester marks…</p> : <div className="space-y-6">
         <div className="flex flex-wrap items-end gap-4"><label className="text-sm">Semester<select className={input} value={semester} onChange={e=>{setSemester(Number(e.target.value));setMarkEdit(null)}}>{semesters.map(value=><option key={value} value={value}>Semester {value}</option>)}</select></label><div className="rounded-xl bg-slate-50 px-4 py-3 text-sm dark:bg-slate-800"><p className="text-slate-500">Recorded marks for semester {semester}</p><p className="font-semibold">{marks.length ? `${scored} / ${maximum} · ${maximum ? ((scored/maximum)*100).toFixed(1) : '0'}%` : 'No marks entered yet'}</p></div></div>
-        <div><h3 className="font-semibold">{markEdit?'Update subject result':'Add subject result'}</h3><form key={`${semester}-${markEdit?.id||'new'}`} className="mt-3 grid gap-3 sm:grid-cols-2" onSubmit={e=>{e.preventDefault();const v=new FormData(e.currentTarget);const score=Number(v.get('score')),outOf=Number(v.get('maximum'));if(score>outOf){setError('Score cannot exceed maximum marks.');return}void saveRecord(`marks${markEdit?`/${markEdit.id}`:''}`,{subject:v.get('subject'),exam:v.get('exam'),semester,score,maximum:outOf,exam_date:v.get('exam_date')},!!markEdit)}}>
-          {field('Subject *','subject','text',markEdit?.subject)}{field('Exam *','exam','text',markEdit?.exam)}{field('Score *','score','number',markEdit?.score)}{field('Out of *','maximum','number',markEdit?.maximum)}{field('Exam date *','exam_date','date',markEdit?.exam_date||today())}<div className="flex items-end gap-2"><button className={primary} disabled={busy}>{markEdit?'Update marks':'Add marks'}</button>{markEdit&&<button type="button" className={button} onClick={()=>setMarkEdit(null)}>Cancel</button>}</div></form>
-          <ul className="mt-4 space-y-2">{marks.map(mark=><li key={mark.id} className="flex items-center justify-between gap-3 border-t border-slate-100 pt-2 text-sm dark:border-slate-800"><span>{mark.subject} · {mark.exam} · {mark.score}/{mark.maximum} · {mark.exam_date}</span><span className="flex gap-2"><button className={button} disabled={busy} onClick={()=>setMarkEdit(mark)}>Edit</button><button className={button} disabled={busy} onClick={()=>void deleteMark(mark)}>Delete</button></span></li>)}</ul></div>
+        {extended && <form key={`${selected.id}-semester-${semester}`} className="grid gap-3 rounded-xl border border-slate-200 p-4 dark:border-slate-700 sm:grid-cols-2" onSubmit={e=>{e.preventDefault();const v=new FormData(e.currentTarget);const summary:Record<string,unknown>={};for(const key of ['overall_result','academic_year']) {const value=String(v.get(key)||'').trim();if(value)summary[key]=value}for(const key of ['semester_gpa','overall_cgpa']) {const value=String(v.get(key)||'').trim();if(value)summary[key]=Number(value)}void saveExtended({semester_summaries:{...extended.semester_summaries,[String(semester)]:summary}})}}>
+          <div className="sm:col-span-2"><h3 className="font-semibold">Semester result</h3><p className="text-xs text-slate-500">Save the result, GPA and academic year for semester {semester}.</p></div>
+          {field('Overall result','overall_result','text',String(extended.semester_summaries[String(semester)]?.overall_result??''),false)}
+          {field('Academic year','academic_year','text',String(extended.semester_summaries[String(semester)]?.academic_year??''),false)}
+          {field('Semester GPA','semester_gpa','number',String(extended.semester_summaries[String(semester)]?.semester_gpa??''),false)}
+          {field('Overall CGPA','overall_cgpa','number',String(extended.semester_summaries[String(semester)]?.overall_cgpa??''),false)}
+          <button className={primary} disabled={busy}>Save semester result</button>
+        </form>}
+        <div><h3 className="font-semibold">{markEdit?'Update subject result':'Add subject result'}</h3><form key={`${semester}-${markEdit?.id||'new'}`} className="mt-3 grid gap-3 sm:grid-cols-2" onSubmit={e=>{e.preventDefault();const v=new FormData(e.currentTarget);const score=Number(v.get('score')),outOf=Number(v.get('maximum'));if(score>outOf){setError('Score cannot exceed maximum marks.');return}void saveRecord(`marks${markEdit?`/${markEdit.id}`:''}`,{subject:v.get('subject'),exam:v.get('exam'),semester,score,maximum:outOf,exam_date:v.get('exam_date'),grade:String(v.get('grade')||'').trim()||null},!!markEdit)}}>
+          {field('Subject *','subject','text',markEdit?.subject)}{field('Exam *','exam','text',markEdit?.exam)}{field('Score *','score','number',markEdit?.score)}{field('Out of *','maximum','number',markEdit?.maximum)}{field('Exam date *','exam_date','date',markEdit?.exam_date||today())}{field('Grade','grade','text',markEdit?.grade||'',false)}<div className="flex items-end gap-2"><button className={primary} disabled={busy}>{markEdit?'Update marks':'Add marks'}</button>{markEdit&&<button type="button" className={button} onClick={()=>setMarkEdit(null)}>Cancel</button>}</div></form>
+          <ul className="mt-4 space-y-2">{marks.map(mark=><li key={mark.id} className="flex items-center justify-between gap-3 border-t border-slate-100 pt-2 text-sm dark:border-slate-800"><span>{mark.subject} · {mark.exam} · {mark.score}/{mark.maximum}{mark.grade?` · ${mark.grade}`:''} · {mark.exam_date}</span><span className="flex gap-2"><button className={button} disabled={busy} onClick={()=>setMarkEdit(mark)}>Edit</button><button className={button} disabled={busy} onClick={()=>void deleteMark(mark)}>Delete</button></span></li>)}</ul></div>
       </div>}</div>}
+      {tab==='additional' && <div role="tabpanel" className="mt-5 space-y-5">
+        {!extended ? <p className="text-sm text-slate-500">Loading additional records…</p> : <>
+          <p className="text-sm text-slate-500">These structured sections preserve the older attendance, academic review, and contact fields. Enter a JSON object for each section. Leave a section as {} when details are unavailable.</p>
+          {([['attendance_snapshot','Attendance snapshot'],['academic_review','Academic review'],['academic_contacts','Academic contacts']] as const).map(([key,label])=><form key={`${selected.id}-${key}`} className="space-y-3 rounded-xl border border-slate-200 p-4 dark:border-slate-700" onSubmit={e=>saveJsonSection(e,key)}><h3 className="font-semibold">{label}</h3><textarea className={`${input} min-h-40 font-mono`} name="json" spellCheck={false} defaultValue={JSON.stringify(extended[key]||{},null,2)} /><button className={primary} disabled={busy}>Save {label.toLowerCase()}</button></form>)}
+        </>}
+      </div>}
     </section>}
   </div>;
 }
