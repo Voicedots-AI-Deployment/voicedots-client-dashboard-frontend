@@ -160,7 +160,6 @@ export default function AttendancePage() {
         <p className="mt-4 text-xs text-slate-500">{record.record ? `Last saved by ${record.record.updated_by_name} · ${new Date(record.record.updated_at).toLocaleString()}` : 'Attendance has not been saved for this class and period.'}</p>
       </section>}
     </>}
-    {tab === 'teacher' && access.college_id === 'b3a441b0-d120-4b92-a4f1-2cc2a4a29f5e' && <section className={card}><h2 className="text-lg font-semibold">Department teacher records</h2><p className="mt-2 text-sm text-slate-500">Assigned teachers verify their face to add students and manage fees, payments and marks in the same student database used by live calls.</p><a className={`${primary} mt-4`} href="/dashboard/attendance/teacher">Open teacher workspace</a><p className="mt-3 text-xs text-slate-500">Share this link with assigned teachers. They do not need a client administrator account.</p></section>}
     {tab === 'students' && <StudentRoster programs={programs} onChanged={()=>void refresh()}/>}
     {tab === 'placement-staff' && <PlacementStaffManagement mode="roster"/>}
     {tab === 'access-control' && <PlacementStaffManagement mode="access"/>}
