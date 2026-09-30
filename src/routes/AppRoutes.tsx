@@ -6,6 +6,7 @@ import ProtectedRoute from "@/routes/ProtectedRoute";
 import EmailFeatureGuard from "@/routes/EmailFeatureGuard";
 
 const AttendancePage = lazy(() => import("@/pages/dashboard/AttendancePage"));
+const TeacherAttendancePage = lazy(() => import("@/pages/dashboard/TeacherAttendancePage"));
 const CollegeManagementPage = lazy(() => import("@/pages/dashboard/CollegeManagementPage"));
 const LoginPage = lazy(() => import("../pages/LoginPage"));
 const HomePage = lazy(() => import("@/pages/dashboard/HomePage").then((module) => ({ default: module.HomePage })));
@@ -37,6 +38,9 @@ const AppRoutes = () => {
       <Route element={<AuthLayout />}>
         <Route path="/login" element={<LoginPage />} />
       </Route>
+
+      {/* Staff use face verification in the widget, independent of client-admin login. */}
+      <Route path="/dashboard/attendance/teacher" element={<TeacherAttendancePage />} />
 
       {/* PROTECTED ROUTES */}
       <Route element={<ProtectedRoute />}>
