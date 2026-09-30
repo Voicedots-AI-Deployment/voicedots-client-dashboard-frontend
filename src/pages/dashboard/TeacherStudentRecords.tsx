@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useState, type FormEvent } from 'react';
 import { collegeApi, collegeError, type Program } from '@/api/collegeApi';
+import { AttendanceEditor, ReviewEditor, ContactsEditor } from './StudentSupportEditors';
 
 type Student = { id:string; full_name:string; roll_number:string; email:string; phone:string|null; program:string; department_code:string; graduation_year:number; cgpa:number; date_of_birth?:string|null; status:string };
 type Payment = { id:string; amount:number; paid_on:string; reference:string; note:string };
@@ -122,14 +123,6 @@ export default function TeacherStudentRecords() {
     } catch (cause) { setError(collegeError(cause)); }
     finally { setBusy(false); }
   };
-  const saveJsonSection = (event:FormEvent<HTMLFormElement>, key:'attendance_snapshot'|'academic_review'|'academic_contacts') => {
-    event.preventDefault();
-    try {
-      const value = JSON.parse(String(new FormData(event.currentTarget).get('json')||'{}'));
-      if (!value || Array.isArray(value) || typeof value!=='object') throw new Error('Enter a JSON object.');
-      void saveExtended({[key]:value});
-    } catch { setError('Enter valid JSON in this section before saving.'); }
-  };
   const deleteMark = async (mark:Mark) => {
     if (!selected || !window.confirm(`Delete ${mark.subject} marks for semester ${mark.semester || semester}?`)) return;
     setBusy(true); setError(''); setNotice('');
@@ -250,8 +243,10 @@ export default function TeacherStudentRecords() {
       </div>}</div>}
       {tab==='additional' && <div role="tabpanel" className="mt-5 space-y-5">
         {!extended ? <p className="text-sm text-slate-500">Loading additional records…</p> : <>
-          <p className="text-sm text-slate-500">These structured sections preserve the older attendance, academic review, and contact fields. Enter a JSON object for each section. Leave a section as {} when details are unavailable.</p>
-          {([['attendance_snapshot','Attendance snapshot'],['academic_review','Academic review'],['academic_contacts','Academic contacts']] as const).map(([key,label])=><form key={`${selected.id}-${key}`} className="space-y-3 rounded-xl border border-slate-200 p-4 dark:border-slate-700" onSubmit={e=>saveJsonSection(e,key)}><h3 className="font-semibold">{label}</h3><textarea className={`${input} min-h-40 font-mono`} name="json" spellCheck={false} defaultValue={JSON.stringify(extended[key]||{},null,2)} /><button className={primary} disabled={busy}>Save {label.toLowerCase()}</button></form>)}
+          <p className="text-sm text-slate-500">Update attendance summaries, advisor reviews, and college contacts below. Saved changes are available to the student lookup.</p>
+          <AttendanceEditor key={`${selected.id}-attendance`} value={extended.attendance_snapshot} busy={busy} onSave={value=>saveExtended({attendance_snapshot:value})} />
+          <ReviewEditor key={`${selected.id}-review`} value={extended.academic_review} busy={busy} onSave={value=>saveExtended({academic_review:value})} />
+          <ContactsEditor key={`${selected.id}-contacts`} value={extended.academic_contacts} busy={busy} onSave={value=>saveExtended({academic_contacts:value})} />
         </>}
       </div>}
     </section>}
