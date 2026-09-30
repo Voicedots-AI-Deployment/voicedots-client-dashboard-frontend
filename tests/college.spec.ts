@@ -1130,3 +1130,27 @@ test('AI preview uses drive role and JD and saves staff edits', async ({ page })
   expect(saved.round_configuration).toEqual(expect.arrayContaining([{track:'domain',question_source:'ai_generated',questions:['How would you maintain this Python service?']} ]));
   expect((saved.agent_selection as {track:string}[])[0].track).toBe('hr');
 });
+
+test('student roster creates a student without requiring a verification photo', async ({ page }) => {
+  await setup(page, true, { initialPath: '/dashboard/attendance' });
+  await page.getByRole('button', { name: 'Student roster', exact: true }).click();
+  await page.getByRole('button', { name: 'Add student', exact: true }).click();
+  const dialog = page.getByRole('dialog');
+  await expect(dialog.getByRole('button', { name: 'Save student' })).toBeEnabled();
+  await dialog.getByLabel('Full name').fill('Photo Optional Student');
+  await dialog.getByLabel('Student ID / Roll number').fill('CS-2027-OPTIONAL');
+  await dialog.locator('input[name=email]').fill('optional-photo@example.edu');
+  await dialog.locator('input[type=tel]').fill('9876543210');
+  await dialog.locator('input[name=cgpa]').fill('8.2');
+  await dialog.getByRole('combobox', { name: /Program/ }).selectOption('B.Tech');
+  await dialog.getByRole('combobox', { name: /Department/ }).selectOption('CSE');
+  let payload: Record<string, unknown> = {};
+  await page.route('**/v3/college/students', route => {
+    if (route.request().method() !== 'POST') return route.fallback();
+    payload = route.request().postDataJSON();
+    return route.fulfill({ json: { student_id: 'student-no-photo', welcome_email_status: 'queued' } });
+  });
+  await dialog.getByRole('button', { name: 'Save student' }).click();
+  await expect(page.getByText('The welcome and password setup email was accepted by the delivery queue', { exact: false })).toBeVisible();
+  expect(payload.photo || '').toBe('');
+});

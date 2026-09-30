@@ -493,7 +493,7 @@ function PlacementStaffManagement() {
       // Removed members stay recorded server-side for audit/history, but are no
       // longer shown in the active access roster.
       setStaff(Array.isArray(result.staff) ? result.staff.filter(person => person.status !== "disabled") : []);
-      let nextOptions = result.options || { programs: [], graduation_years: [], batches: [] };
+      const nextOptions = result.options || { programs: [], graduation_years: [], batches: [] };
       // Keep the roster editor usable when a deployment is rolling through a
       // mixed Client/Student API version. These are the same canonical option
       // endpoints used by drive setup and the student roster.
