@@ -32,3 +32,12 @@
 .erp-support-menu select,.erp-record-selector select{padding:9px 12px;border:1px solid var(--erp-border,#dbe2ee);border-radius:8px;background:var(--erp-card,#fff);color:inherit;max-width:100%}
 .erp-record-selector{margin:12px 0}
 @media(max-width:600px){.erp-support-menu{width:100%}.erp-support-menu select{flex:1;min-width:0}}
+
+/* Keep service actions with the title, separate from the records table. */
+.erp-service-head{align-items:flex-start;gap:24px;margin-bottom:24px}
+.erp-service-title{flex:1;min-width:0}
+.erp-service-actions{display:flex;align-items:center;flex-wrap:wrap;justify-content:flex-end;gap:10px;flex-shrink:0;padding-top:4px}
+.erp-service-actions button{display:inline-flex;align-items:center;justify-content:center;gap:8px;white-space:nowrap}
+.erp-bulk-service>.erp-card{margin-bottom:24px}
+@media(max-width:900px){.erp-service-head{flex-direction:column;gap:16px}.erp-service-actions{justify-content:flex-start;padding-top:0}}
+@media(max-width:640px){.erp-service-actions{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));width:100%;gap:8px}.erp-service-actions button{padding:10px 8px;font-size:13px;min-width:0}.erp-service-actions .erp-primary{width:auto}}
