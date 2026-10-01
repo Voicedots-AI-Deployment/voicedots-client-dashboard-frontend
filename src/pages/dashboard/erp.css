@@ -51,3 +51,28 @@
 .erp-upload-dialog-head>.erp-quiet{flex-shrink:0;padding:9px}
 .erp-upload-dialog input[type=file]{max-width:100%;font-size:13px}
 @media(max-width:640px){.erp-upload-dialog{width:calc(100% - 24px);max-height:calc(100dvh - 24px)}.erp-upload-dialog>.erp-card{padding:16px}.erp-upload-dialog .erp-form-grid{padding:14px}.erp-upload-dialog .erp-form-actions{justify-content:flex-start}.erp-upload-dialog .erp-form-actions button{white-space:normal;text-align:left}}
+
+/* Consistent spacing and grouping inside the service upload popup. */
+.erp-upload-dialog{max-width:880px}
+.erp-upload-dialog>.erp-card{padding:28px}
+.erp-upload-dialog-head{margin-bottom:24px;padding-bottom:20px;border-bottom:1px solid var(--erp-line)}
+.erp-upload-dialog-head .erp-eyebrow{margin:0;font-size:12px;font-weight:600;color:var(--erp-accent)}
+.erp-upload-templates{padding:18px 20px;background:var(--erp-soft);border:1px solid var(--erp-line);border-radius:12px;margin-bottom:24px}
+.erp-upload-dialog h3{font-size:14px;font-weight:650;margin:0;color:var(--erp-text)}
+.erp-upload-templates p{margin:8px 0 0;font-size:13px}
+.erp-upload-templates .erp-form-actions{justify-content:flex-start;flex-wrap:wrap;margin-top:16px;gap:10px}
+.erp-upload-dialog .erp-upload-setup{margin:0 0 24px;padding:18px 20px;background:#fffbeb;border-color:#fde68a;color:#92400e}
+.erp-upload-setup p{margin:8px 0 14px;color:inherit;font-size:13px}
+.erp-upload-dialog .erp-upload-fields{padding:0;margin:0;border:0;gap:20px 24px}
+.erp-upload-fields h3{grid-column:1/-1;margin-bottom:0}
+.erp-upload-fields label{gap:8px}
+.erp-upload-fields select{min-height:44px}
+.erp-upload-fields .erp-upload-file{grid-column:1/-1;margin-top:4px;padding:18px 20px;border:1px dashed var(--erp-line);border-radius:12px;background:var(--erp-soft)}
+.erp-upload-file small{line-height:1.5;font-weight:400;color:var(--erp-muted)}
+.erp-upload-file input{margin-top:6px;width:100%;color:var(--erp-muted)}
+.erp-upload-file input::file-selector-button{border:1px solid var(--erp-line);border-radius:8px;padding:9px 14px;margin-right:12px;background:var(--erp-bg);color:var(--erp-text);font:inherit;font-weight:600;cursor:pointer}
+.erp-upload-footer{display:flex;align-items:center;justify-content:space-between;gap:24px;border-top:1px solid var(--erp-line);padding-top:20px;margin-top:24px}
+.erp-upload-footer p{margin:0;max-width:440px;font-size:12px;line-height:1.6}
+.erp-upload-footer>div{display:flex;gap:10px;flex-shrink:0}
+.dark .erp-upload-dialog .erp-upload-setup{background:#451a03;border-color:#92400e;color:#fde68a}
+@media(max-width:640px){.erp-upload-dialog>.erp-card{padding:20px}.erp-upload-dialog-head{margin-bottom:20px;padding-bottom:16px}.erp-upload-templates,.erp-upload-dialog .erp-upload-setup,.erp-upload-fields .erp-upload-file{padding:16px}.erp-upload-templates .erp-form-actions{display:grid;grid-template-columns:1fr}.erp-upload-dialog .erp-upload-fields{gap:18px}.erp-upload-footer{flex-direction:column;align-items:stretch;gap:16px;margin-top:20px}.erp-upload-footer>div{justify-content:flex-end}.erp-upload-footer button{flex:1}.erp-upload-dialog-head h2{font-size:20px}}
