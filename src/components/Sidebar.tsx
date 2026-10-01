@@ -42,6 +42,7 @@ export function Sidebar({ isOpen, onClose, isCollapsed }: SidebarProps) {
     { id: "analytics", icon: BarChart3, label: "Analytics & reports", path: "/dashboard/placement-management?view=analytics" },
     { id: "agents", icon: Mic, label: "Interview agents", path: "/dashboard/placement-management?view=agents" },
     { id: "placement-settings", icon: Settings, label: "Placement settings", path: "/dashboard/placement-management?view=settings" },
+    { id: "erp", icon: BookOpen, label: "ERP", path: "/dashboard/erp" },
     { id: "attendance", icon: GraduationCap, label: "Institution Management", path: "/dashboard/attendance" },
   ] : [
     { id: "home", icon: Home, label: "Home", path: "/dashboard" },
@@ -57,7 +58,7 @@ export function Sidebar({ isOpen, onClose, isCollapsed }: SidebarProps) {
         ...(emailEnabled ? [{ id: "gmail", label: "Gmail", path: "/dashboard/communications/gmail" }] : []),
       ],
     },
-    ...(collegeAccess?.enabled ? [{ id: "college", icon: GraduationCap, label: "Placement management", path: "/dashboard/placement-management" }, { id: "attendance", icon: GraduationCap, label: "Institution Management", path: "/dashboard/attendance" }] : []),
+    ...(collegeAccess?.enabled ? [{ id: "college", icon: GraduationCap, label: "Placement management", path: "/dashboard/placement-management" }, { id: "attendance", icon: GraduationCap, label: "Institution Management", path: "/dashboard/attendance" }, { id: "erp", icon: BookOpen, label: "ERP", path: "/dashboard/erp" }] : []),
     { id: "settings", icon: Settings, label: "Settings", path: "/dashboard/settings" },
   ];
 
