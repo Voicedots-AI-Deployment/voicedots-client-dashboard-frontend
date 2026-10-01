@@ -67,13 +67,15 @@ test('all eleven services offer bulk upload download and view',async({page})=>{
 });
 test('service bulk import selects context and reviews counted rows before commit',async({page})=>{
  await setup(page);
- const catalogs:Record<string,unknown[]>={departments:[{code:'CSE',display_name:'Computer Science',program:'BTECH'}],years:[{id:'year-1',label:'2026–27'}],batches:[{id:'batch-1',label:'2026 intake',program_code:'BTECH'}],sections:[{id:'class-1',batch_id:'batch-1',department_code:'CSE',name:'A'}]};
+ const catalogs:Record<string,unknown[]>={departments:[{code:'CSE',display_name:'Computer Science',program:'BTECH'}],years:[{id:'year-1',label:'2026–27'}],semesters:[{id:'semester-1',academic_year_id:'year-1',number:1},{id:'other-semester',academic_year_id:'other-year',number:2}],batches:[{id:'batch-1',label:'2026 intake',program_code:'BTECH'}],sections:[{id:'class-1',batch_id:'batch-1',department_code:'CSE',name:'A'}]};
  await page.route('**/v3/college/erp/catalog/**',r=>r.fulfill({json:{items:catalogs[new URL(r.request().url()).pathname.split('/').pop()!]||[]}}));
  await page.route('**/v3/college/erp/records/fee-accounts/preview',r=>r.fulfill({json:{batch_id:'bulk-1',rows:[{id:'valid-1',row_number:2,status:'valid',original_values:{'Student Roll Number':'TEST001'},issues:[]},{id:'update-1',row_number:3,status:'conflict',original_values:{'Student Roll Number':'TEST002'},issues:[{action:'Existing record requires approval.'}]},{id:'error-1',row_number:4,status:'invalid',original_values:{'Total Fee':-1},issues:[{action:'Total fee must be non-negative.'}]}]}}));
  await page.route('**/v3/college/erp/records/fee-accounts/commit',r=>r.fulfill({json:{committed:2,skipped:1}}));
  await page.getByRole('navigation',{name:'ERP sections'}).getByRole('button',{name:'Fees',exact:true}).click();
  await page.getByRole('button',{name:'Upload',exact:true}).click();
  await page.getByLabel('Upload department').selectOption('CSE');await page.getByLabel('Upload academic year').selectOption('year-1');await page.getByLabel('Upload batch').selectOption('batch-1');
+ await expect(page.getByLabel('Upload semester').locator('option[value=other-semester]')).toHaveCount(0);
+ await page.getByLabel('Upload semester').selectOption('semester-1');
  await page.getByLabel('Service upload file').setInputFiles({name:'fees.csv',mimeType:'text/csv',buffer:Buffer.from('Student Roll Number,Total Fee\nTEST001,1000')});
  await page.getByRole('button',{name:'Check records',exact:true}).click();
  for(const name of ['Valid (1)','Conflicts (1)','Errors (1)'])await expect(page.getByRole('button',{name,exact:true})).toBeVisible();
@@ -240,4 +242,18 @@ test('overview explains actionable summaries and removes raw record KPI cards',a
  await expect(page.locator('.erp-overview-stats').getByText('Attendance',{exact:true})).toHaveCount(0);
  await page.getByRole('button',{name:/Imports needing review.*1/}).click();
  await expect(page).toHaveURL(/section=imports/);
+});
+
+
+test('branch choices remain available when one academic catalogue fails',async({page})=>{
+ await setup(page);
+ await page.route('**/v3/college/erp/catalog/departments',r=>r.fulfill({json:{items:[{code:'CSE',display_name:'Computer Science',program:'BTECH'}]}}));
+ await page.route('**/v3/college/erp/catalog/years',r=>r.fulfill({status:503,json:{detail:'Try again'}}));
+ await page.getByRole('navigation',{name:'ERP sections'}).getByRole('button',{name:'Fees',exact:true}).click();
+ await page.getByRole('button',{name:'Upload',exact:true}).click();
+ await expect(page.getByLabel('Upload department').locator('option[value=CSE]')).toHaveCount(1);
+ await expect(page.getByRole('button',{name:'Retry options',exact:true})).toBeVisible();
+ await expect(page.getByText('Academic setup is incomplete.',{exact:true})).toBeVisible();
+ await page.getByRole('button',{name:'Open Academic Setup',exact:true}).click();
+ await expect(page.getByRole('heading',{name:'Academic catalog',exact:true})).toBeVisible();
 });
