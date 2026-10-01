@@ -1040,6 +1040,70 @@ test('ATS Fit keeps pending candidates visible without showing scores or the rem
   expect(resumeFileRequested).toBe(false);
 });
 
+test('candidate resume match opens from keyboard focus with only ATS evidence and stays separate from interview status',async({page})=>{
+  await setup(page);
+  await page.route('**/v3/college/drives/drive-1',route=>route.fulfill({json:{id:'drive-1',company_name:'Example Company',role_title:'Engineer',status:'active'}}));
+  await page.route('**/v3/college/drives/drive-1/dashboard/ranking**',route=>route.fulfill({json:{candidates:[{student_id:'s1',full_name:'Anu Candidate',roll_number:'R1',email:'anu@example.test',department_code:'CSE',program:'B.Tech',assignment_status:'completed'}],total_count:1}}));
+  await page.route('**/v3/college/drives/drive-1/dashboard/ats-fit**',route=>route.fulfill({json:{candidates:[{student_id:'s1',assignment_status:'completed',ats_fit_score:82,skills:[{skill:'Python',match_status:'FULL_MATCH',evidence_text:'Built production services in Python'},{skill:'Kubernetes',match_status:'NO_EVIDENCE'}]}]}}));
+  await page.getByRole('button',{name:'Manage drive',exact:true}).click();
+  await page.getByRole('button',{name:'Candidates',exact:true}).click();
+  const trigger=page.getByRole('button',{name:'AI resume match'});
+  await trigger.focus();
+  const popup=page.getByRole('dialog',{name:'Resume match for Anu Candidate'});
+  await expect(popup).toBeVisible();
+  await expect(popup).toContainText('82/100');
+  await expect(popup).toContainText('Built production services in Python');
+  await expect(popup).toContainText('Kubernetes');
+  await expect(popup).not.toContainText('Interview not completed');
+  await page.keyboard.press('Escape');
+  await expect(popup).toBeHidden();
+});
+
+test('pending candidate resume summary stays neutral when role analysis is unavailable',async({page})=>{
+  await setup(page);
+  await page.route('**/v3/college/drives/drive-1',route=>route.fulfill({json:{id:'drive-1',company_name:'Example Company',role_title:'Engineer',status:'active'}}));
+  await page.route('**/v3/college/drives/drive-1/dashboard/ranking**',route=>route.fulfill({json:{candidates:[{student_id:'s1',full_name:'Pending Candidate',roll_number:'R1',assignment_status:'invited'}],total_count:1}}));
+  await page.route('**/v3/college/drives/drive-1/dashboard/ats-fit**',route=>route.fulfill({json:{candidates:[{student_id:'s1',assignment_status:'invited',ats_fit_score:null,skills:[]}]}}));
+  await page.getByRole('button',{name:'Manage drive',exact:true}).click();
+  await page.getByRole('button',{name:'Candidates',exact:true}).click();
+  await page.getByRole('button',{name:'AI resume match'}).focus();
+  const popup=page.getByRole('dialog',{name:'Resume match for Pending Candidate'});
+  await expect(popup).toContainText('Role-specific resume evidence is unavailable');
+  await expect(popup).not.toContainText('Strengths');
+  await expect(popup).not.toContainText('Gaps');
+  await expect(popup).not.toContainText('Interview not completed');
+});
+
+test('interview report presents the protected recording and persisted question evidence',async({page})=>{
+  await setup(page);
+  const started='2026-10-01T10:00:00.000Z';
+  await page.route('**/v3/college/drives/drive-1',route=>route.fulfill({json:{id:'drive-1',company_name:'Example Company',role_title:'Engineer',status:'active',agent_selection:[]}}));
+  await page.route('**/v3/college/students/s1/reports',route=>route.fulfill({json:{student:{full_name:'Anu Candidate',roll_number:'R1',program:'B.Tech',department_code:'CSE',graduation_year:2027},reports:[{source:'drive',drive_id:'drive-1',session_id:'session-1',attempt_number:2,completed_at:started,overall_score:83,readiness:'Approaching Ready',recording:{status:'ready',duration_seconds:60,started_at:started,segment_count:1},detail:{status:'released',placement_readiness:{score:80,comparable:true},job_fit:{score:78},evaluation_confidence:{score:91},hiring_recommendation:{label:'Strong evidence',reasons:[]},strengths:[{label:'Clear implementation reasoning'}],priority_improvement_areas:[{focus:'Add production examples'}],question_reviews:[{turn_id:'turn-1',agent_type:'technical',question:'How do you handle file reads?',answer:'I use a context manager.',evidence_status:'answered',has_audio:false,strength_feedback:['Explained automatic resource cleanup.'],improvement_feedback:[]}]}}]}}));
+  await page.route('**/v3/college/students/s1/reports/session-1/recording',route=>route.fulfill({json:{status:'ready',playback_url:'https://media.example/signed.webm',duration_seconds:60,started_at:started,segment_count:1}}));
+  await page.route('**/v3/college/students/s1/reports/session-1/transcript',route=>route.fulfill({json:{session_id:'session-1',turns:[{turn_id:'turn-1',turn_index:1,agent_type:'technical',question_text:'How do you handle file reads?',transcript:'I use a context manager.',asked_at:'2026-10-01T10:00:05.000Z',has_audio:false}]}}));
+  await page.route('**/v3/college/drives/drive-1/candidates/s1/decision',route=>route.fulfill({json:{decision:{decision:'shortlist'},publication:{state:'hidden'},history:[]}}));
+  await page.route('**/v3/college/interview-results-settings',route=>route.fulfill({json:{}}));
+  await page.route('https://media.example/**',route=>route.abort());
+  await page.goto('/dashboard/placement-management?drive=drive-1&section=results&candidate=s1');
+  await expect(page.getByRole('heading',{name:'Anu Candidate'})).toBeVisible();
+  await expect(page.getByText('Attempt 2',{exact:true})).toBeVisible();
+  await expect(page.getByText('Interview strengths',{exact:true})).toBeVisible();
+  await expect(page.getByText('Clear implementation reasoning')).toBeVisible();
+  await page.getByRole('button',{name:'Load secure recording'}).click();
+  const video=page.getByLabel('Interview recording video');
+  await expect(video).toBeVisible();
+  await expect(video).toHaveAttribute('src','https://media.example/signed.webm');
+  await page.getByRole('button',{name:'Load transcript'}).click();
+  const question=page.locator('#evidence details').first();
+  await question.locator('summary').click();
+  await expect(question).toContainText('Good evidence');
+  await expect(question).toContainText('Persisted candidate transcript');
+  await expect(question).toContainText('I use a context manager.');
+  await expect(question.getByRole('button',{name:/Play this answer/})).toBeVisible();
+  await expect(page.getByText('AI recommendation · advisory')).toBeVisible();
+  await expect(page.getByText('Officer decision · final')).toBeVisible();
+});
+
 test('drive editor submits and displays interview windows in IST',async({page})=>{
   await setup(page,true,{initialPath:'/dashboard/placement-management?drive=drive-1&section=settings',driveRows:[{id:'drive-1',company_name:'Example Company',role_title:'Engineer',status:'scheduled',location:'Chennai'}],driveDetails:{id:'drive-1',company_name:'Example Company',role_title:'Engineer',status:'scheduled',location:'Chennai',window_start_at:'2027-01-10T03:30:00Z',window_end_at:'2027-01-10T04:30:00Z'}});
   let payload:Record<string,unknown>={};

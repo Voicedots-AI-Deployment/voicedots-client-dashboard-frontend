@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { ArrowLeft, FileText, ShieldCheck, Volume2 } from "lucide-react";
 import { collegeApi, collegeError, type Drive } from "@/api/collegeApi";
 import { btn, field, panel } from "./interviewAgentTypes";
@@ -13,6 +13,8 @@ type Report = Data & {
   readiness?: string;
   completed_at?: string;
   detail?: Data;
+  attempt_number?: number;
+  recording?: Data | null;
 };
 const nav = [
   ["summary", "Overview"], ["integrity", "AI Proctor review"],
@@ -25,6 +27,7 @@ const show = (value: unknown, fallback = "Not available") =>
     : String(value);
 const stamp = (value: unknown) =>
   value ? new Date(String(value)).toLocaleString() : "Not available";
+const durationLabel=(value:unknown)=>{const total=Math.max(0,Math.floor(Number(value)||0)),hours=Math.floor(total/3600),minutes=Math.floor(total%3600/60),seconds=total%60;return hours?`${hours}h ${minutes}m ${seconds}s`:`${minutes}m ${seconds}s`};
 const decisionLabel = (value: unknown) => value === "shortlist" ? "Shortlisted" : value === "reject" ? "Rejected" : displayName(show(value, "undecided"));
 const eventExplanation = (event: Data) => {
   const details = event.details;
@@ -177,6 +180,10 @@ export default function CandidateReport({
     [resultSettings, setResultSettings] = useState<Data | null>(null);
   const [transcript, setTranscript] = useState<Data | null>(null),
     [integrity, setIntegrity] = useState<Data | null>(null);
+  const [recording, setRecording] = useState<Data | null>(null),
+    [recordingLoading, setRecordingLoading] = useState(false),
+    [recordingError, setRecordingError] = useState("");
+  const videoRef = useRef<HTMLVideoElement | null>(null);
   const [transcriptLoading, setTranscriptLoading] = useState(false),
     [integrityLoading, setIntegrityLoading] = useState(false),
     [transcriptError, setTranscriptError] = useState(""),
@@ -241,6 +248,32 @@ export default function CandidateReport({
       ),
     [bundle, driveId],
   );
+  async function loadRecording() {
+    if (!report?.session_id || recordingLoading) return;
+    setRecordingLoading(true);
+    setRecordingError("");
+    try {
+      setRecording(await collegeApi.get<Data>(`students/${studentId}/reports/${report.session_id}/recording`));
+    } catch (e) {
+      setRecordingError(collegeError(e));
+    } finally {
+      setRecordingLoading(false);
+    }
+  }
+  function seekToQuestion(askedAt: unknown) {
+    // After a reconnect the finished file concatenates browser segments and
+    // has no single wall-clock offset for the full timeline. Never offer a
+    // misleading seek in that case.
+    if (Number(recording?.segment_count || 0) > 1) return;
+    const start = Date.parse(String(recording?.started_at || ""));
+    const question = Date.parse(String(askedAt || ""));
+    if (!videoRef.current || !Number.isFinite(start) || !Number.isFinite(question)) return;
+    const offset = (question - start) / 1000;
+    const duration = Number(recording?.duration_seconds || 0);
+    if (offset < 0 || (duration > 0 && offset > duration)) return;
+    videoRef.current.currentTime = offset;
+    void videoRef.current.play().catch(() => undefined);
+  }
   async function evidence(kind: "transcript" | "integrity-events") {
     if (!report?.session_id) return;
     const isTranscript = kind === "transcript";
@@ -342,7 +375,7 @@ export default function CandidateReport({
     const allowed = new Set([...(drive?.agent_selection || []).map(item => item.profile?.role).filter(Boolean), ...Object.values(roleLabels)]);
     const candidate = String(saved || configured || "").trim();
     if (candidate && allowed.has(candidate)) return candidate;
-    return roleLabels[track] || "Interviewer role not configured";
+    return roleLabels[track] || "Interview question";
   };
   const orderedHistory = [...history].sort((a, b) => {
     const aTime = Date.parse(String(a.decided_at || a.created_at || ""));
@@ -372,6 +405,7 @@ export default function CandidateReport({
             Graduation {show(student.graduation_year)}
           </p>
           <p className="mt-1 text-sm">{drive?.company_name || "Company unavailable"} · {drive?.role_title || "Role unavailable"}</p>
+          {report.attempt_number != null && <p className="mt-1 text-sm text-slate-500">Attempt {show(report.attempt_number)}</p>}
           {driveError && <p role="alert" className="mt-2 text-sm text-rose-700">Drive details could not be loaded: {driveError} <button className="underline" onClick={() => void load()}>Retry</button></p>}
         </div>
         <div className="text-right text-sm">
@@ -381,6 +415,27 @@ export default function CandidateReport({
           <p className="mt-2"><strong>Student result:</strong> {displayName(show(publication.state, "hidden"))}</p>
         </div>
       </header>
+      <section aria-labelledby="recording-title" className={panel}>
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <div>
+            <h3 id="recording-title" className="text-lg font-bold">Interview recording</h3>
+            <p className="mt-1 text-sm text-slate-500">
+              {report.recording?.status === "ready" || recording?.status === "ready"
+                ? `Completed interview · ${durationLabel(recording?.duration_seconds ?? report.recording?.duration_seconds)} · Recorded ${stamp(recording?.started_at ?? report.recording?.started_at)}`
+                : report.recording?.status && report.recording.status !== "failed"
+                  ? `Recording ${displayName(show(report.recording.status))}`
+                  : "Recording unavailable for this attempt"}
+            </p>
+          </div>
+          {!recording?.playback_url && report.recording?.status === "ready" && (
+            <button type="button" className={btn} onClick={() => void loadRecording()} disabled={recordingLoading}>
+              {recordingLoading ? "Loading secure player…" : "Load secure recording"}
+            </button>
+          )}
+        </div>
+        {recordingError && <p role="alert" className="mt-3 text-sm text-rose-700">Recording could not be loaded: {recordingError}</p>}
+        {recording && typeof recording.playback_url === "string" && <video ref={videoRef} className="mt-4 aspect-video w-full rounded-xl bg-slate-950 object-contain" src={recording.playback_url} controls playsInline preload="metadata" aria-label="Interview recording video" />}
+      </section>
       <nav
         className="report-nav sticky top-0 z-20 flex gap-2 overflow-x-auto border-b bg-white py-3 dark:bg-slate-950 sm:gap-5"
         aria-label="Report sections"
@@ -447,6 +502,10 @@ export default function CandidateReport({
             }
             helper="Evidence gate; it does not add PRI points"
           />
+        </div>
+        <div className="grid gap-4 lg:grid-cols-2">
+          <article className={`${panel} border-emerald-200`}><h4 className="mb-3 font-bold text-emerald-800">Interview strengths</h4><List items={detail.strengths} empty="No evidence-grounded strengths were recorded." /></article>
+          <article className={`${panel} border-amber-200`}><h4 className="mb-3 font-bold text-amber-900">Needs improvement</h4><List items={detail.priority_improvement_areas} empty="No improvement priorities were recorded." /></article>
         </div>
         <details className={panel}>
           <summary className="cursor-pointer font-semibold">
@@ -600,16 +659,14 @@ export default function CandidateReport({
                   <p className="text-xs font-semibold uppercase text-indigo-600">
                     {roundRole(review.agent_type || review.track)}
                   </p>
-                  <span>
-                    {displayName(
-                      show(
-                        review.answer_state ||
-                          review.evidence_status ||
-                          review.status,
-                        "Answered",
-                      ),
-                    )}
-                  </span>
+                  {(() => {
+                    const state = String(review.answer_state || review.evidence_status || review.status || "").toLowerCase();
+                    const answered = state === "answered";
+                    const unavailable = ["no_response", "explicit_dont_know", "irrelevant_answer", "capture_unavailable", "system_interrupted"].includes(state);
+                    const style = answered ? "bg-emerald-100 text-emerald-800" : unavailable ? "bg-rose-100 text-rose-800" : "bg-amber-100 text-amber-900";
+                    const label = answered ? "Answer recorded" : unavailable ? "Needs review" : displayName(show(state, "Status unavailable"));
+                    return <span className={`rounded-full px-2.5 py-1 text-xs font-semibold ${style}`}>{label}</span>;
+                  })()}
                 </div>
                 <h4 className="mt-2 font-bold">
                   {show(review.question || review.question_text)}
@@ -621,18 +678,14 @@ export default function CandidateReport({
                     "No response text was captured.",
                   )}
                 </p>
-                {review.strength_feedback != null && (
-                  <p className="mt-3 text-sm">
-                    <strong>What was strong:</strong>{" "}
-                    {show(review.strength_feedback)}
-                  </p>
-                )}
-                {review.improvement_feedback != null && (
-                  <p className="mt-2 text-sm">
-                    <strong>Could improve:</strong>{" "}
-                    {show(review.improvement_feedback)}
-                  </p>
-                )}
+                {Array.isArray(review.strength_feedback) && review.strength_feedback.length > 0 && <div className="mt-3 rounded-lg bg-emerald-50 p-3 text-sm text-emerald-900"><strong>Good evidence</strong><ul className="mt-1 list-disc space-y-1 pl-5">{(review.strength_feedback as unknown[]).map((item, i) => <li key={i}>{show(item)}</li>)}</ul></div>}
+                {Array.isArray(review.improvement_feedback) && review.improvement_feedback.length > 0 && <div className="mt-2 rounded-lg bg-amber-50 p-3 text-sm text-amber-950"><strong>Needs improvement</strong><ul className="mt-1 list-disc space-y-1 pl-5">{(review.improvement_feedback as unknown[]).map((item, i) => <li key={i}>{show(item)}</li>)}</ul></div>}
+                {(() => {
+                  const persistedTurn = turns.find(turn => String(turn.turn_id) === turnId);
+                  if (!persistedTurn) return transcript ? <p className="mt-3 text-xs text-slate-500">No persisted transcript was available for this answer.</p> : null;
+                  return <div className="mt-3 rounded-lg border border-slate-200 p-3"><p className="text-xs font-semibold uppercase text-slate-500">Persisted candidate transcript</p><p className="mt-1 whitespace-pre-wrap text-sm">{show(persistedTurn.transcript, "No response text was captured.")}</p></div>;
+                })()}
+                {(() => { const turn = turns.find(item => String(item.turn_id) === turnId); if (!turn?.asked_at || !recording?.playback_url || Number(recording.segment_count || 0) > 1) return null; return <button type="button" className={`${btn} mt-3`} onClick={() => seekToQuestion(turn.asked_at)}>Play this answer · {new Date(String(turn.asked_at)).toLocaleTimeString()}</button>; })()}
                 {review.has_audio === true && turnId && report.session_id && (
                   <Audio
                     path={`students/${studentId}/reports/${report.session_id}/turns/${turnId}/audio`}
@@ -745,22 +798,6 @@ export default function CandidateReport({
               )}
             </article>
           ))}
-        </div>
-        <div className="grid gap-4 lg:grid-cols-2">
-          <article className={panel}>
-            <h4 className="mb-3 font-bold">Strengths</h4>
-            <List
-              items={detail.strengths}
-              empty="No evidence-grounded strengths were recorded."
-            />
-          </article>
-          <article className={panel}>
-            <h4 className="mb-3 font-bold">Priority improvement areas</h4>
-            <List
-              items={detail.priority_improvement_areas}
-              empty="No improvement priorities were recorded."
-            />
-          </article>
         </div>
         {detail.communication != null && (
           <article className={panel}>
