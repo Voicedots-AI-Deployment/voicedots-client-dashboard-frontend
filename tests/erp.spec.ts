@@ -210,3 +210,16 @@ test('workbook results show counted groups and only ten records at a time',async
  await page.setViewportSize({width:390,height:844});
  expect(await page.evaluate(()=>document.documentElement.scrollWidth<=window.innerWidth)).toBeTruthy();
 });
+
+test('overview explains actionable summaries and removes raw record KPI cards',async({page})=>{
+ await setup(page);
+ await page.route('**/v3/college/erp/dashboard',r=>r.fulfill({json:{students:16,imports_needing_review:1,outstanding_fees_inr:null}}));
+ await page.reload();
+ await expect(page.getByRole('button',{name:/Student profiles.*16/})).toBeVisible();
+ await expect(page.getByRole('button',{name:/Imports needing review.*1/})).toBeVisible();
+ await expect(page.getByRole('button',{name:/Outstanding fees \(INR\).*Not available/})).toBeVisible();
+ await expect(page.locator('.erp-overview-stats').getByText('Marks',{exact:true})).toHaveCount(0);
+ await expect(page.locator('.erp-overview-stats').getByText('Attendance',{exact:true})).toHaveCount(0);
+ await page.getByRole('button',{name:/Imports needing review.*1/}).click();
+ await expect(page).toHaveURL(/section=imports/);
+});
