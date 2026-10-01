@@ -54,25 +54,37 @@ test('ERP uses top section options and remembers the selected section',async({pa
  await page.reload();
  await expect(page.getByRole('heading',{name:'Fee payments',exact:true})).toBeVisible();
 });
-test('fee payment forms use named students and submit typed values',async({page})=>{
+test('all eleven services offer bulk upload download and view',async({page})=>{
  await setup(page);
- await page.route('**/v3/college/erp/students?**',route=>route.fulfill({json:{items:[{id:'student-1',full_name:'Ananya Rao',roll_number:'VT001'}]}}));
- let saved:Record<string,unknown>|null=null;
- await page.route('**/v3/college/erp/records/payments**',route=>{
-  if(route.request().method()==='POST'){saved=route.request().postDataJSON();return route.fulfill({json:{id:'payment-1'}});}
-  return route.fulfill({json:{items:saved?[{id:'payment-1',student_id:'student-1',amount:500,paid_on:'2026-10-01'}]:[]}});
- });
+ for(const name of ['Class Timetable','Attendance','Internal Marks','Semester Marks','Fees','Homework','Circulars','Exam Schedules','OPAC Search','Hostel Attendance','Mess Attendance']){
+  await page.getByRole('navigation',{name:'ERP sections'}).getByRole('button',{name,exact:true}).click();
+  const actions=page.getByRole('region',{name:'Bulk data actions'});
+  for(const action of ['Upload','Download','View'])await expect(actions.getByRole('button',{name:action,exact:true})).toBeVisible();
+  await expect(page.getByRole('button',{name:'Add record',exact:true})).toHaveCount(0);
+ }
+ await page.getByLabel('Manage ERP',{exact:true}).selectOption('students');
+ await expect(page.getByRole('button',{name:'Add student',exact:true})).toHaveCount(0);
+});
+test('service bulk import selects context and reviews counted rows before commit',async({page})=>{
+ await setup(page);
+ const catalogs:Record<string,unknown[]>={departments:[{code:'CSE',display_name:'Computer Science',program:'BTECH'}],years:[{id:'year-1',label:'2026–27'}],batches:[{id:'batch-1',label:'2026 intake',program_code:'BTECH'}],sections:[{id:'class-1',batch_id:'batch-1',department_code:'CSE',name:'A'}]};
+ await page.route('**/v3/college/erp/catalog/**',r=>r.fulfill({json:{items:catalogs[new URL(r.request().url()).pathname.split('/').pop()!]||[]}}));
+ await page.route('**/v3/college/erp/records/fee-accounts/preview',r=>r.fulfill({json:{batch_id:'bulk-1',rows:[{id:'valid-1',row_number:2,status:'valid',original_values:{'Student Roll Number':'TEST001'},issues:[]},{id:'update-1',row_number:3,status:'conflict',original_values:{'Student Roll Number':'TEST002'},issues:[{action:'Existing record requires approval.'}]},{id:'error-1',row_number:4,status:'invalid',original_values:{'Total Fee':-1},issues:[{action:'Total fee must be non-negative.'}]}]}}));
+ await page.route('**/v3/college/erp/records/fee-accounts/commit',r=>r.fulfill({json:{committed:2,skipped:1}}));
  await page.getByRole('navigation',{name:'ERP sections'}).getByRole('button',{name:'Fees',exact:true}).click();
- await page.getByLabel('Fees record type',{exact:true}).selectOption('payments');
- await page.getByRole('button',{name:'Add record',exact:true}).click();
- await expect(page.getByRole('option',{name:'Ananya Rao · VT001'})).toHaveCount(1);
- await page.getByLabel('Student *',{exact:true}).selectOption('student-1');
- await page.getByLabel('Amount *',{exact:true}).fill('500');
- await page.getByLabel('Payment date *',{exact:true}).fill('2026-10-01');
- await page.getByRole('button',{name:'Save record',exact:true}).click();
- await expect(page.getByText('Record saved.',{exact:true})).toBeVisible();
- expect(saved).toMatchObject({values:{student_id:'student-1',amount:500,paid_on:'2026-10-01'}});
- await expect(page.locator('tbody').getByText('Ananya Rao · VT001')).toBeVisible();
+ await page.getByRole('button',{name:'Upload',exact:true}).click();
+ await page.getByLabel('Upload department').selectOption('CSE');await page.getByLabel('Upload academic year').selectOption('year-1');await page.getByLabel('Upload batch').selectOption('batch-1');
+ await page.getByLabel('Service upload file').setInputFiles({name:'fees.csv',mimeType:'text/csv',buffer:Buffer.from('Student Roll Number,Total Fee\nTEST001,1000')});
+ await page.getByRole('button',{name:'Check records',exact:true}).click();
+ for(const name of ['Valid (1)','Conflicts (1)','Errors (1)'])await expect(page.getByRole('button',{name,exact:true})).toBeVisible();
+ await expect(page.getByText('View uploaded values',{exact:true})).toHaveCount(0);
+ await page.getByRole('button',{name:'Conflicts (1)',exact:true}).click();await page.getByLabel('Import row 3').check();
+ await expect(page.getByRole('button',{name:'Import 2 selected rows',exact:true})).toBeDisabled();
+ await page.getByLabel('Skip the 1 unselected rows').check();
+ const pending=page.waitForRequest(r=>r.method()==='POST'&&r.url().endsWith('/records/fee-accounts/commit'));
+ await page.getByRole('button',{name:'Import 2 selected rows',exact:true}).click();
+ expect((await pending).postDataJSON()).toEqual({batch_id:'bulk-1',approved_rows:['valid-1','update-1']});
+ await expect(page.getByText('2 records saved together. 1 rows skipped.',{exact:true})).toBeVisible();
 });
 test('editing a record uses ordinary form controls and keeps version checks',async({page})=>{
  await setup(page);
