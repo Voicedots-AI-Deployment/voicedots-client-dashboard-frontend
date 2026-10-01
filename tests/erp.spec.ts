@@ -110,3 +110,30 @@ test('import review uses editable fields and waits for saved approvals',async({p
  expect((await pending).postDataJSON()).toMatchObject({decisions:[{row_id:'row-1',normalized_values:{email:'ananya@example.edu'}}]});
  await expect(page.getByRole('button',{name:'Commit approved rows'})).toBeEnabled();
 });
+
+test('one workbook maps multiple sheets and saves a reusable standard',async({page})=>{
+ await setup(page);
+ const mapping={sheets:[
+  {source_sheet:'Students',target_sheet:'Students',header_row:2,columns:{'Student ID':1,'Roll Number':2,'Registration Number':3,'Student Name':4},defaults:{}},
+  {source_sheet:'Marks',target_sheet:'Marks',header_row:2,columns:{'Registration Number':1,'Subject':2,'Marks':3},defaults:{}},
+  {source_sheet:'Read Me',target_sheet:null,header_row:1,columns:{},defaults:{}}
+ ]};
+ const targets=[{name:'Students',fields:['Student ID','Roll Number','Registration Number','Student Name'],required:['Student ID','Roll Number','Registration Number','Student Name']},{name:'Marks',fields:['Registration Number','Subject','Marks','Maximum Marks','Assessment Name'],required:['Registration Number','Subject','Marks']}];
+ const inspect={mapping,targets,matching_templates:[],standard:{name:'Veltech student workbook',sheets:{}},sheets:mapping.sheets.map(m=>({name:m.source_sheet,data_rows:2,suggested_header_row:m.header_row,instruction_sheet:!m.target_sheet,header_rows:[{row:m.header_row,columns:Object.entries(m.columns).map(([label,index])=>({label,index}))}]}))};
+ let previewBody='';
+ await page.route('**/v3/college/erp/imports/inspect',route=>route.fulfill({json:inspect}));
+ await page.route('**/v3/college/erp/imports/preview',route=>{previewBody=route.request().postData()||'';return route.fulfill({json:{batch_id:'new-batch',saved_template:{name:'Veltech monthly'},rows:[{id:'new-row',sheet_name:'Marks',row_number:3,status:'valid',normalized_values:{marks:80},original_values:{Marks:80},issues:[]}]}})});
+ await page.route('**/v3/college/erp/imports/new-batch/approve-ready',route=>route.fulfill({json:{approved_count:1,rows:[{id:'new-row',sheet_name:'Marks',row_number:3,status:'approved',normalized_values:{marks:80},original_values:{Marks:80},issues:[]}]}}));
+ await page.getByRole('navigation',{name:'ERP sections'}).getByRole('button',{name:'Import data',exact:true}).click();
+ await page.getByLabel('Choose workbook',{exact:true}).setInputFiles({name:'Veltech.xlsx',mimeType:'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',buffer:Buffer.from('synthetic workbook')});
+ await page.getByRole('button',{name:'Read workbook',exact:true}).click();
+ await expect(page.getByText('3 sheets found · 2 selected for import')).toBeVisible();
+ await expect(page.getByLabel('Data type for Read Me')).toHaveValue('');
+ await page.getByRole('checkbox',{name:'Save this mapping as an institution standard'}).check();
+ await page.getByLabel('Standard name',{exact:true}).fill('Veltech monthly');
+ await page.getByRole('button',{name:'Preview all sheets',exact:true}).click();
+ await expect(page.getByText('Standard “Veltech monthly” saved for reuse.',{exact:false})).toBeVisible();
+ expect(previewBody).toContain('mapping_json');expect(previewBody).toContain('save_standard_name');expect(previewBody).toContain('Veltech monthly');
+ await page.getByRole('button',{name:'Approve ready rows in bulk',exact:true}).click();
+ await expect(page.getByRole('button',{name:'Commit approved rows',exact:true})).toBeEnabled();
+});
