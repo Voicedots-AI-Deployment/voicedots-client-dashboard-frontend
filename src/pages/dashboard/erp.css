@@ -61,3 +61,15 @@
 .erp-upload-dialog>.erp-card>.erp-form-grid label{gap:10px}
 .erp-upload-dialog>.erp-card>.erp-form-grid+p{margin:0 0 20px}
 @media(max-width:640px){.erp-upload-dialog>.erp-card>.erp-form-grid{gap:20px}.erp-upload-dialog>.erp-card>.erp-form-actions{gap:12px}}
+
+/* Shared service filters retain the existing popup proportions. */
+.erp-academic-filters{padding:18px 20px;margin:0 0 24px;border:1px solid var(--erp-line);border-radius:14px;background:var(--erp-soft)}
+.erp-filter-heading{display:flex;justify-content:space-between;align-items:center;gap:16px;margin-bottom:16px;font-size:14px}
+.erp-filter-grid{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:16px}
+.erp-filter-grid label,.erp-record-tools>label:not(.erp-search){display:flex;flex-direction:column;gap:8px;font-size:13px;font-weight:500;min-width:0}
+.erp-academic-filters>p{font-size:12px;line-height:1.6;color:var(--erp-muted);margin:14px 0 0}
+.erp-record-tools{display:flex;align-items:flex-end;gap:16px;margin:0 0 16px}
+.erp-record-tools .erp-search{flex:1;max-width:none;margin:0}
+.erp-record-tools>label:not(.erp-search){max-width:220px}
+@media(max-width:900px){.erp-filter-grid{grid-template-columns:repeat(2,minmax(0,1fr))}}
+@media(max-width:640px){.erp-academic-filters{padding:16px}.erp-filter-grid{grid-template-columns:1fr}.erp-record-tools{flex-wrap:wrap}.erp-record-tools .erp-search{flex-basis:100%}.erp-record-tools>label:not(.erp-search){flex:1;max-width:none}}

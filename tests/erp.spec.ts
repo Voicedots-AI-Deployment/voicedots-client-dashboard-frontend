@@ -86,6 +86,7 @@ test('service bulk import selects context and reviews counted rows before commit
  await page.getByLabel('Upload semester').selectOption('semester-1');
  await page.getByLabel('Service upload file').setInputFiles({name:'fees.csv',mimeType:'text/csv',buffer:Buffer.from('Student Roll Number,Total Fee\nTEST001,1000')});
  await page.getByRole('button',{name:'Check records',exact:true}).click();
+ const reportDownload=page.waitForEvent('download');await page.getByRole('button',{name:'Download correction report',exact:true}).click();const report=await reportDownload;expect(report.suggestedFilename()).toBe('fee-accounts-correction-report.csv');
  for(const name of ['Valid (1)','Conflicts (1)','Errors (1)'])await expect(page.getByRole('button',{name,exact:true})).toBeVisible();
  await expect(page.getByText('View uploaded values',{exact:true})).toHaveCount(0);
  await page.getByRole('button',{name:'Conflicts (1)',exact:true}).click();await page.getByLabel('Import row 3').check();
@@ -264,4 +265,36 @@ test('branch choices remain available when one academic catalogue fails',async({
  await expect(page.getByText('Academic setup is incomplete.',{exact:true})).toBeVisible();
  await page.getByRole('button',{name:'Open Academic Setup',exact:true}).click();
  await expect(page.getByRole('heading',{name:'Academic catalog',exact:true})).toBeVisible();
+});
+
+test('shared academic filters persist across tabs and prefill upload and downloads',async({page})=>{
+ await setup(page);
+ const catalogs:Record<string,unknown[]>={departments:[{code:'CSE',display_name:'Computer Science',program:'BTECH'}],years:[{id:'year-1',label:'2026–27'}],semesters:[{id:'semester-1',academic_year_id:'year-1',number:1}],batches:[{id:'batch-1',label:'2026 intake',program_code:'BTECH'}],sections:[{id:'class-1',batch_id:'batch-1',department_code:'CSE',name:'A'}]};
+ await page.route('**/v3/college/erp/catalog/*',route=>route.fulfill({json:{items:catalogs[new URL(route.request().url()).pathname.split('/').pop()!]||[]}}));
+ await page.getByRole('navigation',{name:'ERP sections'}).getByRole('button',{name:'Fees',exact:true}).click();
+ await page.getByLabel('Filter department').selectOption('CSE');await page.getByLabel('Filter academic year').selectOption('year-1');await page.getByLabel('Filter semester').selectOption('semester-1');await page.getByLabel('Filter batch').selectOption('batch-1');
+ const pending=page.waitForRequest(r=>r.url().includes('/records/attendance?')&&r.url().includes('batch_id=batch-1'));
+ await page.getByRole('navigation',{name:'ERP sections'}).getByRole('button',{name:'Attendance',exact:true}).click();await pending;
+ await expect(page.getByLabel('Filter department')).toHaveValue('CSE');await expect(page.getByLabel('Filter semester')).toHaveValue('semester-1');
+ await page.getByRole('button',{name:'Upload',exact:true}).click();
+ for(const [label,value] of [['Upload department','CSE'],['Upload academic year','year-1'],['Upload semester','semester-1'],['Upload batch','batch-1']])await expect(page.getByLabel(label)).toHaveValue(value);
+ await page.getByRole('button',{name:'Close upload'}).click();
+ await page.route('**/v3/college/erp/records/attendance/download?*',route=>route.fulfill({contentType:'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',body:Buffer.from('fixture')}));
+ const downloaded=page.waitForRequest(r=>r.url().includes('/attendance/download?'));await page.getByRole('button',{name:'Download',exact:true}).click();const url=new URL((await downloaded).url());expect(url.searchParams.get('batch_id')).toBe('batch-1');expect(url.searchParams.get('semester_id')).toBe('semester-1');
+ await page.reload();await expect(page.getByLabel('Filter academic year')).toHaveValue('year-1');
+ await page.getByRole('button',{name:'Clear filters',exact:true}).click();await expect(page.getByLabel('Filter department')).toHaveValue('');
+});
+
+test('record search and sorting are sent to the server',async({page})=>{
+ await setup(page);await page.getByRole('navigation',{name:'ERP sections'}).getByRole('button',{name:'OPAC Search',exact:true}).click();
+ const search=page.waitForRequest(r=>r.url().includes('/records/books?')&&r.url().includes('q=Example'));await page.getByLabel('Search service records').fill('Example');await search;
+ const sorted=page.waitForRequest(r=>r.url().includes('/records/books?')&&r.url().includes('sort_by=title'));await page.getByLabel('Sort service records').selectOption('title');await sorted;
+ const order=page.waitForRequest(r=>r.url().includes('/records/books?')&&r.url().includes('sort_direction=asc'));await page.getByLabel('Service sort order').selectOption('asc');await order;
+ await expect(page.getByText('No matching records. Adjust your filters or search. Records need a matching academic assignment to appear in filtered views.',{exact:true})).toBeVisible();
+});
+
+test('service tables show student names and open their linked profile',async({page})=>{
+ await setup(page);await page.route('**/v3/college/erp/records/attendance?*',route=>route.fulfill({json:{items:[{id:'attendance-1',student_id:'student-1',student_name:'Example Student',student_roll_number:'EX001',period:'semester',percentage:90,version:1}]}}));
+ await page.route('**/v3/college/erp/students/student-1/profile?*',route=>route.fulfill({json:{student:{id:'student-1',full_name:'Example Student',roll_number:'EX001'},tabs:['overview'],sections:[]}}));
+ await page.getByRole('navigation',{name:'ERP sections'}).getByRole('button',{name:'Attendance',exact:true}).click();await expect(page.getByText('EX001',{exact:true})).toBeVisible();await page.getByRole('button',{name:'Example Student',exact:true}).click();await expect(page.getByRole('heading',{name:'Example Student',exact:true})).toBeVisible();
 });
