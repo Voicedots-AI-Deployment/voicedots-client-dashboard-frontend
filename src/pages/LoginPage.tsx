@@ -1,3 +1,4 @@
+import axios from "axios";
 import { useEffect, useState } from "react";
 import { Eye, EyeOff, AlertCircle } from "lucide-react";
 import { useNavigate } from "react-router-dom";
@@ -46,10 +47,12 @@ const LoginPage = () => {
       await login();
       navigate("/dashboard", { replace: true });
     } catch (err: any) {
-      setError(
-        err?.response?.data?.detail ||
-        "Invalid email or password"
-      );
+      const detail = axios.isAxiosError(err) ? err.response?.data?.detail : undefined;
+      const status = axios.isAxiosError(err) ? err.response?.status : undefined;
+      setError(typeof detail === "string" ? detail : status === 401
+        ? "Invalid email or password"
+        : status && status >= 500 ? "Sign-in is temporarily unavailable. Please try again."
+        : "Could not connect to VoiceDots. Check your connection and try again.");
     } finally {
       setLoading(false);
     }

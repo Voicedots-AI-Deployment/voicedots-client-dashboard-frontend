@@ -13,7 +13,7 @@ const authApi = {
   ): Promise<LoginResponse> => {
     const form = new URLSearchParams();
 
-    form.append("email", email);
+    form.append("email", email.trim().toLowerCase());
     form.append("password", password);
 
     let response;
