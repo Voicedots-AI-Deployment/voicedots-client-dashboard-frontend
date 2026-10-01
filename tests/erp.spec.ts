@@ -73,6 +73,14 @@ test('service bulk import selects context and reviews counted rows before commit
  await page.route('**/v3/college/erp/records/fee-accounts/commit',r=>r.fulfill({json:{committed:2,skipped:1}}));
  await page.getByRole('navigation',{name:'ERP sections'}).getByRole('button',{name:'Fees',exact:true}).click();
  await page.getByRole('button',{name:'Upload',exact:true}).click();
+ await expect(page.getByRole('dialog',{name:'Upload records in bulk'})).toBeVisible();
+ await page.keyboard.press('Escape');
+ await expect(page.getByRole('dialog')).toHaveCount(0);
+ await expect(page.getByRole('button',{name:'Upload',exact:true})).toBeFocused();
+ await page.getByRole('button',{name:'Upload',exact:true}).click();
+ await page.getByRole('button',{name:'Close upload'}).click();
+ await expect(page.getByRole('dialog')).toHaveCount(0);
+ await page.getByRole('button',{name:'Upload',exact:true}).click();
  await page.getByLabel('Upload department').selectOption('CSE');await page.getByLabel('Upload academic year').selectOption('year-1');await page.getByLabel('Upload batch').selectOption('batch-1');
  await expect(page.getByLabel('Upload semester').locator('option[value=other-semester]')).toHaveCount(0);
  await page.getByLabel('Upload semester').selectOption('semester-1');
