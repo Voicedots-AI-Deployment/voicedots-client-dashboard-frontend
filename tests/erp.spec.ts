@@ -21,8 +21,8 @@ test('ERP uses Client login and appears as its own dashboard sidebar option',asy
   await expect(page.getByRole('heading',{name:'Academic operations'})).toBeVisible();
   await expect(page.locator('aside').first().getByRole('button',{name:'ERP',exact:true})).toBeVisible();
   await expect(page.getByRole('heading',{name:'Staff sign in'})).toHaveCount(0);
-  await page.getByRole('navigation',{name:'ERP sections'}).getByRole('button',{name:'Students',exact:true}).click();
-  await expect(page.getByRole('heading',{name:'Students',exact:true})).toBeVisible();
+  await page.getByRole('navigation',{name:'ERP sections'}).getByRole('button',{name:'Students & Families',exact:true}).click();
+  await expect(page.getByRole('heading',{name:'Students & Families',exact:true})).toBeVisible();
 });
 test('existing Client staff can open ERP with scoped modules',async({page})=>{
   await setup(page,true);
@@ -101,14 +101,14 @@ test('import review uses editable fields and waits for saved approvals',async({p
  });
  await page.getByRole('navigation',{name:'ERP sections'}).getByRole('button',{name:'Import data',exact:true}).click();
  await page.getByLabel('Resume import review').selectOption('batch-1');
- await expect(page.getByRole('button',{name:'Commit approved rows'})).toBeDisabled();
+ await expect(page.getByRole('button',{name:'Import approved records'})).toBeDisabled();
  await page.getByRole('button',{name:'Review row',exact:true}).click();
  await expect(page.getByText('Normalized values')).toHaveCount(0);
  await page.getByLabel('Email',{exact:true}).fill('ananya@example.edu');
  const pending=page.waitForRequest(r=>r.method()==='POST'&&r.url().endsWith('/resolve'));
  await page.getByRole('button',{name:'Save decision',exact:true}).click();
  expect((await pending).postDataJSON()).toMatchObject({decisions:[{row_id:'row-1',normalized_values:{email:'ananya@example.edu'}}]});
- await expect(page.getByRole('button',{name:'Commit approved rows'})).toBeEnabled();
+ await expect(page.getByRole('button',{name:'Import approved records'})).toBeEnabled();
 });
 
 test('one workbook maps multiple sheets and saves a reusable standard',async({page})=>{
@@ -128,12 +128,61 @@ test('one workbook maps multiple sheets and saves a reusable standard',async({pa
  await page.getByLabel('Choose workbook',{exact:true}).setInputFiles({name:'Veltech.xlsx',mimeType:'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',buffer:Buffer.from('synthetic workbook')});
  await page.getByRole('button',{name:'Read workbook',exact:true}).click();
  await expect(page.getByText('3 sheets found · 2 selected for import')).toBeVisible();
+ await expect(page.getByLabel('Data type for Read Me')).not.toBeVisible();
+ await page.getByText('Adjust sheet and column mapping',{exact:true}).click();
  await expect(page.getByLabel('Data type for Read Me')).toHaveValue('');
- await page.getByRole('checkbox',{name:'Save this mapping as an institution standard'}).check();
- await page.getByLabel('Standard name',{exact:true}).fill('Veltech monthly');
- await page.getByRole('button',{name:'Preview all sheets',exact:true}).click();
- await expect(page.getByText('Standard “Veltech monthly” saved for reuse.',{exact:false})).toBeVisible();
+ await page.getByText('Adjust sheet and column mapping',{exact:true}).click();
+ await page.getByRole('checkbox',{name:'Remember this format for next time'}).check();
+ await page.getByLabel('Format name',{exact:true}).fill('Veltech monthly');
+ await page.getByRole('button',{name:'Check records',exact:true}).click();
+ await expect(page.getByText('Format “Veltech monthly” saved for next time.',{exact:false})).toBeVisible();
  expect(previewBody).toContain('mapping_json');expect(previewBody).toContain('save_standard_name');expect(previewBody).toContain('Veltech monthly');
- await page.getByRole('button',{name:'Approve ready rows in bulk',exact:true}).click();
- await expect(page.getByRole('button',{name:'Commit approved rows',exact:true})).toBeEnabled();
+ await page.getByRole('button',{name:'Approve ready records',exact:true}).click();
+ await expect(page.getByRole('button',{name:'Import approved records',exact:true})).toBeEnabled();
+});
+
+test('student profile connects family and records without asking for student IDs',async({page})=>{
+ await setup(page);
+ const person={id:'student-1',full_name:'Ananya Rao',roll_number:'VT001',email:'ananya@example.edu',program:'BTECH',department_code:'CSE',version:3};
+ await page.route('**/v3/college/erp/students?**',r=>r.fulfill({json:{items:[person]}}));
+ let saved:Record<string,unknown>|null=null;
+ await page.route('**/v3/college/erp/students/student-1/profile?**',r=>{
+  const tab=new URL(r.request().url()).searchParams.get('tab');
+  const sections=tab==='family'?[{module:'guardians',items:saved?[{id:'link-1',version:1,contact_version:1,...(saved.values as object)}]:[],has_more:false}]:tab==='fees'?[{module:'payments',items:[],has_more:false}]:[{module:'enrollments',items:[],has_more:false}];
+  return r.fulfill({json:{student:person,tabs:['overview','family','fees'],sections}});
+ });
+ await page.route('**/v3/college/erp/students/student-1/family',r=>{saved=r.request().postDataJSON();return r.fulfill({json:{id:'link-1'}})});
+ await page.getByRole('navigation',{name:'ERP sections'}).getByRole('button',{name:'Students & Families',exact:true}).click();
+ await page.getByRole('button',{name:'Open profile',exact:true}).click();
+ await expect(page.getByRole('heading',{name:'Ananya Rao',exact:true})).toBeVisible();
+ await expect(page).toHaveURL(/student=student-1/);
+ await page.getByRole('navigation',{name:'Student profile sections'}).getByRole('button',{name:'Family',exact:true}).click();
+ await page.getByRole('button',{name:'Add family contact',exact:true}).click();
+ await page.getByLabel('Relationship *').selectOption('mother');
+ await page.getByLabel('Full name *').fill('Meera Rao');
+ await page.getByLabel('Mobile number (include country code)').fill('9999999999');
+ await page.getByRole('button',{name:'Save family contact',exact:true}).click();
+ await expect(page.getByRole('heading',{name:'Meera Rao',exact:true})).toBeVisible();
+ expect(saved).toMatchObject({values:{full_name:'Meera Rao',relationship:'mother',mobile:'9999999999',is_primary:false}});
+ await page.getByRole('navigation',{name:'Student profile sections'}).getByRole('button',{name:'Fees',exact:true}).click();
+ await page.getByRole('button',{name:'Add record',exact:true}).click();
+ await expect(page.getByLabel('Student *',{exact:true})).toHaveCount(0);
+ await page.getByLabel('Amount *',{exact:true}).fill('100');
+ await page.getByLabel('Payment date *',{exact:true}).fill('2026-10-01');
+ const submitted=page.waitForRequest(r=>r.method()==='POST'&&r.url().includes('/records/payments'));
+ await page.getByRole('button',{name:'Save record',exact:true}).click();
+ expect((await submitted).postDataJSON()).toMatchObject({values:{student_id:'student-1',amount:100}});
+ await page.getByRole('button',{name:'← Back to students',exact:true}).click();
+ await expect(page.getByRole('heading',{name:'Students & Families',exact:true})).toBeVisible();
+});
+
+test('setup tools stay behind settings and family profile fits a mobile screen',async({page})=>{
+ await page.setViewportSize({width:390,height:844});await setup(page);
+ await expect(page.getByRole('navigation',{name:'ERP sections'}).getByRole('button',{name:'Academic setup',exact:true})).toHaveCount(0);
+ await page.getByRole('button',{name:'Settings & history',exact:true}).click();
+ await expect(page.getByRole('navigation',{name:'ERP settings'}).getByRole('button',{name:'Academic setup',exact:true})).toBeVisible();
+ await page.route('**/v3/college/erp/students/student-1/profile?**',r=>r.fulfill({json:{student:{id:'student-1',full_name:'Ananya Rao',roll_number:'VT001'},tabs:['overview','family'],sections:[{module:'enrollments',items:[],has_more:false}]}}));
+ await page.goto('/dashboard/erp?section=students&student=student-1');
+ await expect(page.getByRole('heading',{name:'Ananya Rao',exact:true})).toBeVisible();
+ expect(await page.evaluate(()=>document.documentElement.scrollWidth<=window.innerWidth)).toBeTruthy();
 });
