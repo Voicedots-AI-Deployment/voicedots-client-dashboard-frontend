@@ -102,6 +102,7 @@ test('import review uses editable fields and waits for saved approvals',async({p
  await page.getByRole('navigation',{name:'ERP sections'}).getByRole('button',{name:'Import data',exact:true}).click();
  await page.getByLabel('Resume import review').selectOption('batch-1');
  await expect(page.getByRole('button',{name:'Import approved records'})).toBeDisabled();
+ await page.getByRole('navigation',{name:'Import result groups'}).getByRole('button',{name:/^Errors/}).click();
  await page.getByRole('button',{name:'Review row',exact:true}).click();
  await expect(page.getByText('Normalized values')).toHaveCount(0);
  await page.getByLabel('Email',{exact:true}).fill('ananya@example.edu');
@@ -184,5 +185,28 @@ test('setup tools stay behind settings and family profile fits a mobile screen',
  await page.route('**/v3/college/erp/students/student-1/profile?**',r=>r.fulfill({json:{student:{id:'student-1',full_name:'Ananya Rao',roll_number:'VT001'},tabs:['overview','family'],sections:[{module:'enrollments',items:[],has_more:false}]}}));
  await page.goto('/dashboard/erp?section=students&student=student-1');
  await expect(page.getByRole('heading',{name:'Ananya Rao',exact:true})).toBeVisible();
+ expect(await page.evaluate(()=>document.documentElement.scrollWidth<=window.innerWidth)).toBeTruthy();
+});
+
+test('workbook results show counted groups and only ten records at a time',async({page})=>{
+ await setup(page);
+ const rows=Array.from({length:28},(_,i)=>({id:`row-${i}`,sheet_name:i<20?'Students':'Marks',row_number:i+3,original_values:{Name:`Example ${i}`},normalized_values:{full_name:`Example ${i}`},status:i<22?'valid':i<25?'conflict':'invalid',issues:i<22?[]:[{id:`issue-${i}`,severity:i<25?'warning':'error',code:'review_required',action:'Check this record'}]}));
+ await page.route('**/v3/college/erp/imports**',r=>r.fulfill({json:new URL(r.request().url()).pathname.endsWith('/batch-groups')?{rows}:{items:[{id:'batch-groups',original_filename:'example.xlsx',status:'reviewing'}]}}));
+ await page.getByRole('navigation',{name:'ERP sections'}).getByRole('button',{name:'Import data',exact:true}).click();
+ await page.getByLabel('Resume import review').selectOption('batch-groups');
+ await expect(page.locator('.erp-import-group.valid strong')).toHaveText('22');
+ await expect(page.locator('.erp-import-group.conflicts strong')).toHaveText('3');
+ await expect(page.locator('.erp-import-group.errors strong')).toHaveText('3');
+ await expect(page.locator('.erp-import-row')).toHaveCount(0);
+ await page.getByRole('navigation',{name:'Import result groups'}).getByRole('button',{name:/^Valid/}).click();
+ await expect(page.locator('.erp-import-row')).toHaveCount(10);
+ await page.getByRole('button',{name:'Next records',exact:true}).click();
+ await expect(page.getByText('Showing 11–20 of 22 records')).toBeVisible();
+ await page.getByRole('navigation',{name:'Import result groups'}).getByRole('button',{name:/^Errors/}).click();
+ await expect(page.locator('.erp-import-row')).toHaveCount(3);
+ await page.getByLabel('Review sheet').selectOption('Students');
+ await expect(page.locator('.erp-import-group.errors strong')).toHaveText('0');
+ await expect(page.locator('.erp-import-row')).toHaveCount(0);
+ await page.setViewportSize({width:390,height:844});
  expect(await page.evaluate(()=>document.documentElement.scrollWidth<=window.innerWidth)).toBeTruthy();
 });
