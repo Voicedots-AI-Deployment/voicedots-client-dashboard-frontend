@@ -1078,9 +1078,11 @@ test('interview report presents the protected recording and persisted question e
   await setup(page);
   const started='2026-10-01T10:00:00.000Z';
   await page.route('**/v3/college/drives/drive-1',route=>route.fulfill({json:{id:'drive-1',company_name:'Example Company',role_title:'Engineer',status:'active',agent_selection:[]}}));
-  await page.route('**/v3/college/students/s1/reports',route=>route.fulfill({json:{student:{full_name:'Anu Candidate',roll_number:'R1',program:'B.Tech',department_code:'CSE',graduation_year:2027},reports:[{source:'drive',drive_id:'drive-1',session_id:'session-1',attempt_number:2,completed_at:started,overall_score:83,readiness:'Approaching Ready',recording:{status:'ready',duration_seconds:60,started_at:started,segment_count:1},detail:{status:'released',placement_readiness:{score:80,comparable:true},job_fit:{score:78},evaluation_confidence:{score:91},hiring_recommendation:{label:'Strong evidence',reasons:[]},strengths:[{label:'Clear implementation reasoning'}],priority_improvement_areas:[{focus:'Add production examples'}],question_reviews:[{turn_id:'turn-1',agent_type:'technical',question:'How do you handle file reads?',answer:'I use a context manager.',evidence_status:'answered',has_audio:false,strength_feedback:['Explained automatic resource cleanup.'],improvement_feedback:[]}]}}]}}));
+  await page.route('**/v3/college/students/s1/reports**',route=>route.fulfill({json:{student:{full_name:'Anu Candidate',roll_number:'R1',program:'B.Tech',department_code:'CSE',graduation_year:2027},reports:[{source:'drive',drive_id:'drive-1',session_id:'session-1',attempt_number:2,completed_at:started,overall_score:83,readiness:'Approaching Ready',recording:{status:'ready',duration_seconds:60,started_at:started,segment_count:1},detail:{status:'released',placement_readiness:{score:80,comparable:true},job_fit:{score:78},evaluation_confidence:{score:91},hiring_recommendation:{label:'Strong evidence',reasons:[]},strengths:[{label:'Clear implementation reasoning'}],priority_improvement_areas:[{focus:'Add production examples'}],question_reviews:[{turn_id:'turn-1',agent_type:'technical',question:'How do you handle file reads?',answer:'I use a context manager.',evidence_status:'answered',has_audio:false,strength_feedback:['Explained automatic resource cleanup.'],improvement_feedback:[]}]}}]}}));
   await page.route('**/v3/college/students/s1/reports/session-1/recording',route=>route.fulfill({json:{status:'ready',playback_url:'https://media.example/signed.webm',duration_seconds:60,started_at:started,segment_count:1}}));
   await page.route('**/v3/college/students/s1/reports/session-1/transcript',route=>route.fulfill({json:{session_id:'session-1',turns:[{turn_id:'turn-1',turn_index:1,agent_type:'technical',question_text:'How do you handle file reads?',transcript:'I use a context manager.',asked_at:'2026-10-01T10:00:05.000Z',has_audio:false}]}}));
+  await page.route('**/v3/college/students/s1/reports/session-1/integrity-events',route=>route.fulfill({json:{events:[{event_id:'event-1',event_type:'tab_hidden',severity:'review',occurred_at:'2026-10-01T10:00:10.000Z'},{event_id:'event-2',event_type:'multiple_faces',severity:'review',occurred_at:'2026-10-01T10:00:20.000Z'}]}}));
+  await page.route('**/v3/college/students/s1/reports/session-1/turns/turn-1/audio',route=>route.fulfill({status:200,headers:{'content-type':'audio/wav'},body:Buffer.from('UklGRiQAAABXQVZFZm10IBAAAAABAAEARKwAAESsAAABAAgAZGF0YQAAAAA=','base64')}));
   await page.route('**/v3/college/drives/drive-1/candidates/s1/decision',route=>route.fulfill({json:{decision:{decision:'shortlist'},publication:{state:'hidden'},history:[]}}));
   await page.route('**/v3/college/interview-results-settings',route=>route.fulfill({json:{}}));
   await page.route('https://media.example/**',route=>route.abort());
@@ -1093,15 +1095,35 @@ test('interview report presents the protected recording and persisted question e
   const video=page.getByLabel('Interview recording video');
   await expect(video).toBeVisible();
   await expect(video).toHaveAttribute('src','https://media.example/signed.webm');
-  await page.getByRole('button',{name:'Load transcript'}).click();
+  await page.getByRole('button',{name:'Load event timeline'}).click();
+  const bookmarks=page.getByRole('group',{name:'Video event timeline'});
+  await expect(bookmarks.getByRole('button',{name:/Seek to Tab hidden/i})).toBeVisible();
+  const secondBookmark=bookmarks.getByRole('button',{name:/Seek to Multiple faces/i});
+  await secondBookmark.click();
+  await expect(secondBookmark).toHaveAttribute('aria-pressed','true');
   const question=page.locator('#evidence details').first();
   await question.locator('summary').click();
   await expect(question).toContainText('Good evidence');
+  await question.getByRole('button',{name:'Play response audio'}).click();
+  await expect(question.locator('audio[controls]')).toBeVisible();
+  await page.getByRole('button',{name:'Load transcript'}).click();
   await expect(question).toContainText('Persisted candidate transcript');
   await expect(question).toContainText('I use a context manager.');
   await expect(question.getByRole('button',{name:/Play this answer/})).toBeVisible();
   await expect(page.getByText('AI recommendation · advisory')).toBeVisible();
   await expect(page.getByText('Officer decision · final')).toBeVisible();
+});
+
+test('expired interview video leaves the rest of the report available without a broken player',async({page})=>{
+  await setup(page);
+  await page.route('**/v3/college/drives/drive-1',route=>route.fulfill({json:{id:'drive-1',company_name:'Example Company',role_title:'Engineer',status:'active',agent_selection:[]}}));
+  await page.route('**/v3/college/students/s1/reports**',route=>route.fulfill({json:{student:{full_name:'Anu Candidate',roll_number:'R1'},reports:[{source:'drive',drive_id:'drive-1',session_id:'session-1',completed_at:'2026-01-01T10:00:00Z',recording:{status:'expired'},detail:{status:'released',overall_score:83,readiness:'Ready',strengths:[{label:'Clear reasoning'}]}}]}}));
+  await page.route('**/v3/college/interview-results-settings',route=>route.fulfill({json:{}}));
+  await page.goto('/dashboard/placement-management?drive=drive-1&section=results&candidate=s1');
+  await expect(page.getByText(/Interview recording expired according to the video retention policy/)).toBeVisible();
+  await expect(page.getByText('Clear reasoning')).toBeVisible();
+  await expect(page.getByRole('button',{name:'Load secure recording'})).toHaveCount(0);
+  await expect(page.getByLabel('Interview recording video')).toHaveCount(0);
 });
 
 test('drive editor submits and displays interview windows in IST',async({page})=>{

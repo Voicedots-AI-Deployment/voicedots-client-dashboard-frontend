@@ -133,7 +133,8 @@ function List({ items, empty }: { items: unknown; empty: string }) {
 }
 function Audio({ path }: { path: string }) {
   const [url, setUrl] = useState(""),
-    [error, setError] = useState("");
+    [error, setError] = useState(""),
+    [loading, setLoading] = useState(false);
   useEffect(
     () => () => {
       if (url) URL.revokeObjectURL(url);
@@ -145,16 +146,21 @@ function Audio({ path }: { path: string }) {
     <>
       <button
         className={`${btn} mt-3`}
+        disabled={loading}
         onClick={async () => {
+          setLoading(true);
+          setError("");
           try {
             setUrl(await collegeApi.audio(path));
           } catch (e) {
-            setError(collegeError(e));
+            setError(collegeError(e) || "Audio is unavailable for this response.");
+          } finally {
+            setLoading(false);
           }
         }}
       >
         <Volume2 size={15} />
-        Play response
+        {loading ? "Loading response audio…" : "Play response audio"}
       </button>
       {error && (
         <p role="alert" className="mt-2 text-xs text-rose-600">
@@ -271,8 +277,30 @@ export default function CandidateReport({
     const offset = (question - start) / 1000;
     const duration = Number(recording?.duration_seconds || 0);
     if (offset < 0 || (duration > 0 && offset > duration)) return;
-    videoRef.current.currentTime = offset;
-    void videoRef.current.play().catch(() => undefined);
+    const video = videoRef.current;
+    const seekAndPlay = () => {
+      try {
+        video.currentTime = offset;
+        void video.play().catch(() => undefined);
+      } catch {
+        // A secure video URL may still be loading; the one-shot metadata
+        // listener below retries only after the browser can seek it.
+      }
+    };
+    if (video.readyState === 0) video.addEventListener("loadedmetadata", seekAndPlay, { once: true });
+    else seekAndPlay();
+  }
+  function seekToEvent(event: Data) {
+    seekToQuestion(event.occurred_at || event.created_at);
+  }
+  function recordingOffset(timestamp: unknown): number | null {
+    if (Number(recording?.segment_count || 0) > 1) return null;
+    const start = Date.parse(String(recording?.started_at || ""));
+    const point = Date.parse(String(timestamp || ""));
+    if (!Number.isFinite(start) || !Number.isFinite(point)) return null;
+    const offset = (point - start) / 1000;
+    const duration = Number(recording?.duration_seconds || 0);
+    return offset >= 0 && (!duration || offset <= duration) ? offset : null;
   }
   async function evidence(kind: "transcript" | "integrity-events") {
     if (!report?.session_id) return;
@@ -434,7 +462,26 @@ export default function CandidateReport({
           )}
         </div>
         {recordingError && <p role="alert" className="mt-3 text-sm text-rose-700">Recording could not be loaded: {recordingError}</p>}
-        {recording && typeof recording.playback_url === "string" && <video ref={videoRef} className="mt-4 aspect-video w-full rounded-xl bg-slate-950 object-contain" src={recording.playback_url} controls playsInline preload="metadata" aria-label="Interview recording video" />}
+        {(recording?.status === "expired" || report.recording?.status === "expired") && (
+          <p className="mt-4 rounded-lg bg-slate-50 p-4 text-sm text-slate-600" role="status">
+            Interview recording expired according to the video retention policy. The transcript, evaluation, proctor events, and placement decision remain available below.
+          </p>
+        )}
+        {recording && typeof recording.playback_url === "string" && <video ref={videoRef} className="mt-4 aspect-video w-full rounded-xl bg-slate-950 object-contain" src={recording.playback_url} crossOrigin="anonymous" controls playsInline preload="metadata" aria-label="Interview recording video" />}
+        {typeof recording?.playback_url === "string" && events.length > 0 && Number(recording.segment_count || 0) <= 1 && Number(recording.duration_seconds || 0) > 0 && (
+          <div className="mt-3" aria-label="AI proctor video bookmarks">
+            <p className="mb-2 text-xs font-semibold text-slate-600">AI proctor bookmarks · select an observation to seek</p>
+            <div className="relative h-8 rounded-full bg-slate-100" role="group" aria-label="Video event timeline">
+              <div className="absolute inset-x-2 top-1/2 h-1 -translate-y-1/2 rounded bg-slate-300" />
+              {events.map((event, index) => {
+                const offset = recordingOffset(event.occurred_at || event.created_at);
+                if (offset === null) return null;
+                const left = Math.min(100, Math.max(0, (offset / Number(recording.duration_seconds)) * 100));
+                return <button key={String(event.event_id || index)} type="button" aria-pressed={activeEvent === index} className="absolute top-1/2 z-10 h-4 w-4 -translate-x-1/2 -translate-y-1/2 rounded-full border-2 border-white bg-violet-600 shadow focus-visible:outline focus-visible:outline-2 focus-visible:outline-violet-700" style={{ left: `${left}%` }} aria-label={`Seek to ${displayName(show(event.event_type || event.type, "proctor observation"))} at ${stamp(event.occurred_at || event.created_at)}`} title={`${displayName(show(event.event_type || event.type, "Proctor observation"))} · ${stamp(event.occurred_at || event.created_at)}`} onClick={() => { setActiveEvent(index); seekToEvent(event); }} />;
+              })}
+            </div>
+          </div>
+        )}
       </section>
       <nav
         className="report-nav sticky top-0 z-20 flex gap-2 overflow-x-auto border-b bg-white py-3 dark:bg-slate-950 sm:gap-5"
@@ -612,7 +659,7 @@ export default function CandidateReport({
               {events.length ? (
                 <div className="grid gap-4 lg:grid-cols-[minmax(14rem,0.8fr)_minmax(0,1.2fr)]">
                   <div className="space-y-2" role="list" aria-label="Proctor observations">
-                    {events.map((event, index) => <button type="button" role="listitem" aria-pressed={activeEvent===index} key={String(event.event_id||index)} onClick={()=>setActiveEvent(index)} className={"w-full rounded-xl border p-3 text-left text-sm focus-visible:outline focus-visible:outline-2 focus-visible:outline-indigo-600 " + (activeEvent===index?"border-indigo-500 bg-indigo-50":"border-slate-200")}>
+                    {events.map((event, index) => <button type="button" role="listitem" aria-pressed={activeEvent===index} key={String(event.event_id||index)} onClick={()=>{setActiveEvent(index);seekToEvent(event);}} className={"w-full rounded-xl border p-3 text-left text-sm focus-visible:outline focus-visible:outline-2 focus-visible:outline-indigo-600 " + (activeEvent===index?"border-indigo-500 bg-indigo-50":"border-slate-200")}>
                       <strong className="block">{displayName(show(event.event_type || event.type, "Integrity event"))}</strong>
                       <span className="mt-1 block text-xs text-slate-500">{stamp(event.occurred_at || event.created_at)}</span>
                     </button>)}
@@ -686,7 +733,9 @@ export default function CandidateReport({
                   return <div className="mt-3 rounded-lg border border-slate-200 p-3"><p className="text-xs font-semibold uppercase text-slate-500">Persisted candidate transcript</p><p className="mt-1 whitespace-pre-wrap text-sm">{show(persistedTurn.transcript, "No response text was captured.")}</p></div>;
                 })()}
                 {(() => { const turn = turns.find(item => String(item.turn_id) === turnId); if (!turn?.asked_at || !recording?.playback_url || Number(recording.segment_count || 0) > 1) return null; return <button type="button" className={`${btn} mt-3`} onClick={() => seekToQuestion(turn.asked_at)}>Play this answer · {new Date(String(turn.asked_at)).toLocaleTimeString()}</button>; })()}
-                {review.has_audio === true && turnId && report.session_id && (
+                {turnId && report.session_id &&
+                  (String(review.answer || review.transcript || "").trim() ||
+                    String(review.answer_state || review.evidence_status || "").toLowerCase() === "answered") && (
                   <Audio
                     path={`students/${studentId}/reports/${report.session_id}/turns/${turnId}/audio`}
                   />
