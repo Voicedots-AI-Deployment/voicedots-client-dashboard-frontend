@@ -61,6 +61,7 @@
 .erp-upload-dialog>.erp-card>.erp-form-grid label{gap:10px}
 .erp-upload-dialog>.erp-card>.erp-form-grid+p{margin:0 0 20px}
 @media(max-width:640px){.erp-upload-dialog>.erp-card>.erp-form-grid{gap:20px}.erp-upload-dialog>.erp-card>.erp-form-actions{gap:12px}}
+.erp-timetable-detail{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:0 24px;margin:0;border-top:1px solid var(--erp-line)}.erp-timetable-detail>div{padding:14px 0;border-bottom:1px solid var(--erp-line);min-width:0}.erp-timetable-detail dt{font-size:12px;color:var(--erp-muted);font-weight:600}.erp-timetable-detail dd{margin:5px 0 0;overflow-wrap:anywhere}.erp-timetable-detail .erp-upload-origin{display:inline-flex}@media(max-width:640px){.erp-timetable-detail{grid-template-columns:1fr}}
 
 /* Shared service filters retain the existing popup proportions. */
 .erp-academic-filters{padding:18px 20px;margin:0 0 24px;border:1px solid var(--erp-line);border-radius:14px;background:var(--erp-soft)}
