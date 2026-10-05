@@ -5,6 +5,8 @@ import { useCollegeAccess } from '../../hooks/useCollegeAccess';
 import { AcademicSetup, StudentRoster } from './InstitutionData';
 import { PlacementStaffManagement } from './CollegeManagementPage';
 import TeacherStudentRecords from './TeacherStudentRecords';
+import ErpPage from './ErpPage';
+import { useSearchParams } from 'react-router-dom';
 
 type Student = { id: string; full_name: string; roll_number: string; has_photo: boolean; department_code: string };
 type Staff = { id: string; full_name: string; email: string; employee_code: string; active: boolean; has_photo: boolean; class_ids: string[] };
@@ -84,7 +86,11 @@ export function PhotoEditor({ kind, person, done, close, inline = false }: { kin
 export default function AttendancePage() {
   const { access, loading: accessLoading, error: accessError } = useCollegeAccess();
   const [setup, setSetup] = useState<Setup>({ staff: [], students: [], classes: [] });
-  const [tab, setTab] = useState<'students' | 'placement-staff' | 'access-control' | 'attendance' | 'academic' | 'classes' | 'staff' | 'teacher'>('students');
+  const [params,setParams]=useSearchParams();
+  type InstitutionTab = 'students' | 'placement-staff' | 'access-control' | 'attendance' | 'academic' | 'classes' | 'staff' | 'teacher' | 'records';
+  const validTabs:InstitutionTab[]=['students','placement-staff','access-control','attendance','academic','classes','staff','teacher','records'];
+  const tab:InstitutionTab=validTabs.includes(params.get('tab') as InstitutionTab)?params.get('tab') as InstitutionTab:'students';
+  const setTab=(next:InstitutionTab)=>setParams({tab:next,...(next==='records'?{section:'students'}:{})});
   const [programs,setPrograms]=useState<Program[]>([]);
   const [error, setError] = useState('');
   const [notice, setNotice] = useState('');
@@ -146,9 +152,10 @@ export default function AttendancePage() {
   const selectedStaff = staffEdit && staffEdit !== 'new' ? staffEdit : null;
   return <div className="space-y-6 text-slate-900 dark:text-white">
     <header><p className="text-sm font-medium text-indigo-600">{access.college_name}</p><h1 className="mt-2 text-3xl font-bold">Institution Management</h1><p className="mt-2 text-sm text-slate-500">Manage student and placement staff rosters, student access, academic setup, and attendance.</p></header>
-    <nav className="flex flex-wrap gap-2 border-b border-slate-200 pb-3 dark:border-slate-800" aria-label="Attendance sections">{(['students','placement-staff','access-control','attendance','academic','classes','staff','teacher'] as const).map(t => <button key={t} className={tab === t ? primary : button} onClick={() => { setTab(t); setError(''); setNotice(''); }} aria-pressed={tab === t}>{({ students:'Student Roster','placement-staff':'Staff Roster','access-control':'Access Control',attendance:'Attendance register',academic:'Academic setup',classes:'Classes',staff:'Attendance staff',teacher:'Teacher student records' })[t]}</button>)}</nav>
+    <nav className="flex flex-wrap gap-2 border-b border-slate-200 pb-3 dark:border-slate-800" aria-label="Attendance sections">{(['students','placement-staff','access-control','attendance','academic','classes','staff','teacher','records'] as const).map(t => <button key={t} className={tab === t ? primary : button} onClick={() => { setTab(t); setError(''); setNotice(''); }} aria-pressed={tab === t}>{({ records:'Student records & classes', students:'Student Roster','placement-staff':'Staff Roster','access-control':'Access Control',attendance:'Attendance register',academic:'Academic setup',classes:'Classes',staff:'Attendance staff',teacher:'Teacher student records' })[t]}</button>)}</nav>
     {error && <p role="alert" className="rounded-xl bg-red-50 p-4 text-sm text-red-700">{error}</p>}
     {notice && <p role="status" className="rounded-xl bg-emerald-50 p-4 text-sm text-emerald-700">{notice}</p>}
+    {tab === 'records' && <ErpPage institutionManagement/>}
     {tab === 'teacher' && <TeacherStudentRecords />}
     {tab === 'attendance' && <>
       <div className={`${card} grid gap-4 sm:grid-cols-3`}><label className="text-sm">Date<input type="date" value={day} disabled={busy} onChange={e => setDay(e.target.value)} className={input} /></label><label className="text-sm">Hour / period<select value={period} disabled={busy} onChange={e => setPeriod(e.target.value)} className={input}>{Array.from({ length: 12 }, (_, i) => <option key={i} value={i + 1}>Hour {i + 1}</option>)}</select></label><div className="flex items-end"><button className={button} disabled={busy} onClick={() => setReload(n => n + 1)}><RefreshCw size={16} />Refresh register</button></div></div>
@@ -164,7 +171,7 @@ export default function AttendancePage() {
     {tab === 'placement-staff' && <PlacementStaffManagement mode="roster"/>}
     {tab === 'access-control' && <PlacementStaffManagement mode="access"/>}
     {tab === 'academic' && (
-      <AcademicSetup programs={programs} refresh={()=>void refresh()}/>
+      <><AcademicSetup programs={programs} refresh={()=>void refresh()}/><button className={button} onClick={()=>setParams({tab:'records',section:'catalog'})}>Academic years, semesters, batches & sections →</button></>
     )}
     {tab === 'staff' && <>
       <div className={`${card} flex flex-wrap items-center justify-between gap-4`}><div><h2 className="font-semibold">Staff webcam sign-in</h2><p className="mt-2 max-w-2xl text-sm text-slate-500">Add the staff name, email, assigned classes and photo here. Staff then open “Staff attendance” in the website AI widget, verify their face, and speak the absent names.</p></div><button className={primary} onClick={() => { setStaffEdit('new'); setClassIds([]); }}><Plus size={16} />Add staff</button></div>

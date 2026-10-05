@@ -25,11 +25,13 @@ export function ErpDataProvider({call,children}:{call:ErpCall;children:ReactNode
     if(path==='students'){
      for(let offset=0;offset<2000;offset+=200){const r=await call<{items:Row[]}>(`/api/college/erp/students?limit=200&offset=${offset}&q=${encodeURIComponent(search)}`);rows.push(...r.items);if(r.items.length<200)break;}
     }else{const r=await call<{items:Row[]}>(`/api/college/erp/${path}${path.startsWith('records/')?'?limit=200':''}`);rows=r.items;}
-    let people:Option[]=[],periods:Option[]=[],hostels:Option[]=[],years:Option[]=[];
+    let people:Option[]=[],periods:Option[]=[],hostels:Option[]=[],years:Option[]=[],batches:Option[]=[];
     if(rows.some(r=>r.student_id))people=await data.load('student_id');
     if(path==='records/enrollments')periods=await data.load('semester_id');
     if(path==='records/hostel-residencies')hostels=await data.load('hostel_id');
     if(path==='catalog/semesters')years=await data.load('academic_year_id');
+    if(path==='catalog/sections')batches=await data.load('batch_id');
+    if(path==='catalog/sections')return rows.map(r=>({value:String(r[valueKey]),label:[r.name,r.department_code,batches.find(b=>b.value===String(r.batch_id))?.label].filter(Boolean).join(' · ')}));
     return rows.map(r=>({value:String(r[valueKey]),label:[people.find(o=>o.value===r.student_id)?.label,r.full_name||r.display_name||r.title||r.name||r.label||(r.number?`Semester ${r.number}`:null)||r.room_label||r.description||r.category||r.reference||(r.amount?`Payment ₹${r.amount}`:null)||(!r.student_id?'Saved record':null),periods.find(o=>o.value===r.semester_id)?.label,hostels.find(o=>o.value===r.hostel_id)?.label,years.find(o=>o.value===r.academic_year_id)?.label,r.paid_on,r.roll_number||r.employee_code||r.code||r.accession_number].filter(Boolean).join(' · ')||'Saved record'}));
    })().catch(e=>{cache.delete(cacheKey);throw e}));
    return cache.get(cacheKey)!;
