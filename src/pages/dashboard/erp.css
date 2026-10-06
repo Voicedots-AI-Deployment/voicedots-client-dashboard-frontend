@@ -126,9 +126,5 @@
 .erp-timetable-grid .erp-week-live { outline:2px solid #059669; outline-offset:1px; }
 .erp-week-live-label { color:#059669; font-size:11px; font-weight:700; }
 
-.erp-upload-dates{display:grid;grid-template-columns:repeat(2,minmax(0,220px));gap:10px 16px;margin:0 0 14px}
-.erp-upload-dates label{display:flex;flex-direction:column;gap:6px;font-size:12px}
-.erp-upload-dates input{padding:9px 10px;border:1px solid var(--erp-line);border-radius:9px;background:var(--erp-bg);color:var(--erp-text);font:inherit;min-width:0;min-height:40px}
-.erp-upload-dates>p{grid-column:1/-1;margin:0;color:var(--erp-muted);font-size:12px}
 .erp-upload-resolved-dates{font-size:12px;white-space:nowrap}
-@media(max-width:480px){.erp-upload-dates{grid-template-columns:1fr}.erp-upload-resolved-dates{white-space:normal}}
+@media(max-width:480px){.erp-upload-resolved-dates{white-space:normal}}
