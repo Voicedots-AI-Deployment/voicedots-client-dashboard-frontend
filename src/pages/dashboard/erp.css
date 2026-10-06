@@ -81,3 +81,34 @@
 .erp-timetable-time-range{display:block;line-height:1.4;white-space:nowrap}
 @media(max-width:700px){.erp-exam-calendar>div{grid-template-columns:1fr}.erp-opac-result{grid-template-columns:40px minmax(0,1fr)}.erp-opac-result>.erp-quiet{grid-column:2;justify-self:start}.erp-opac-cover{width:40px;height:50px}.erp-opac-search{flex-direction:column}.erp-opac-search button{width:100%}.erp-service-detail-grid{grid-template-columns:1fr 1fr}}
 .erp-meal-mark{display:inline-grid;place-items:center;width:27px;height:27px;border-radius:50%;font-size:16px;font-weight:750}.erp-meal-mark.attended{background:#dcfce7;color:#15803d}.erp-meal-mark.missed{background:#fee2e2;color:#b91c1c}
+
+/* Compact shared bulk-upload dialog, including the existing review workflow. */
+.erp-upload-dialog{width:min(960px,calc(100vw - 32px));max-height:calc(100dvh - 40px);padding:0;border:1px solid var(--erp-line);border-radius:20px;box-shadow:0 24px 80px #0f172a30;overflow:auto}
+.erp-upload-dialog>.erp-card{padding:24px;border:0;border-radius:0;margin:0}
+.erp-upload-dialog .erp-upload-dialog-head{align-items:flex-start;margin-bottom:12px;gap:16px}
+.erp-upload-dialog .erp-upload-dialog-head h2{font-size:24px;line-height:1.25;margin:4px 0 0}
+.erp-upload-dialog .erp-upload-dialog-head .erp-eyebrow{font-size:11px;margin:0;color:var(--erp-muted)}
+.erp-upload-dialog .erp-upload-dialog-head>button{padding:8px;min-height:36px;flex-shrink:0}
+.erp-upload-dialog .erp-upload-intro{font-size:13px;line-height:1.6;margin:0;color:var(--erp-muted);max-width:760px}
+.erp-upload-dialog>.erp-card>.erp-upload-resources{justify-content:flex-start;flex-wrap:wrap;gap:8px;margin:14px 0 18px}
+.erp-upload-dialog .erp-upload-resources button{padding:8px 12px;font-size:12px;min-height:36px}
+.erp-upload-dialog>.erp-card>.erp-upload-context{grid-template-columns:repeat(4,minmax(0,1fr));padding:16px;gap:12px;margin:0 0 14px;border-radius:12px;background:var(--erp-soft)}
+.erp-upload-dialog>.erp-card>.erp-upload-context label{gap:6px;font-size:12px}
+.erp-upload-dialog .erp-upload-context select{padding:9px 10px;font-size:13px;min-height:40px}
+.erp-upload-dialog .erp-upload-file{position:relative;display:flex;flex-direction:row;align-items:center;gap:12px;padding:18px;border:1px dashed #a5b4fc;border-radius:12px;background:color-mix(in srgb,#6366f1 4%,var(--erp-bg));cursor:pointer}
+.erp-upload-file-icon{display:grid;place-items:center;width:44px;height:44px;border-radius:10px;background:color-mix(in srgb,#6366f1 12%,var(--erp-bg));color:#6366f1;flex-shrink:0}
+.erp-upload-file-copy{display:flex;flex-direction:column;gap:4px;min-width:0;flex:1}
+.erp-upload-file-copy strong{font-size:13px;overflow-wrap:anywhere;color:var(--erp-text)}
+.erp-upload-file-copy>span{font-size:12px;color:var(--erp-muted)}
+.erp-upload-file-action{font-size:12px;font-weight:600;color:#6366f1;flex-shrink:0}
+.erp-upload-file input[type=file]{position:absolute;inset:0;width:100%;height:100%;opacity:0;cursor:pointer}
+.erp-upload-file:focus-within{outline:2px solid #818cf8;outline-offset:3px}
+.erp-upload-file:has(input:disabled){opacity:.6;cursor:wait}
+.erp-upload-dialog .erp-upload-enrollment{display:flex;align-items:flex-start;gap:8px;margin:12px 0 16px;color:var(--erp-muted)}
+.erp-upload-enrollment>svg{flex-shrink:0;margin-top:2px}
+.erp-upload-dialog .erp-upload-enrollment p{font-size:12px;line-height:1.6;margin:0}
+.erp-upload-check{display:flex;align-items:center;justify-content:space-between;gap:16px;padding-top:14px;border-top:1px solid var(--erp-line)}
+.erp-upload-check>span{font-size:12px;color:var(--erp-muted)}
+.erp-upload-dialog .erp-upload-check .erp-primary{padding:10px 16px;font-size:13px;min-height:40px;flex-shrink:0}
+@media(max-width:760px){.erp-upload-dialog>.erp-card>.erp-upload-context{grid-template-columns:repeat(2,minmax(0,1fr))}}
+@media(max-width:480px){.erp-upload-dialog{width:calc(100vw - 20px);max-height:calc(100dvh - 20px);border-radius:16px}.erp-upload-dialog>.erp-card{padding:18px}.erp-upload-dialog .erp-upload-dialog-head h2{font-size:21px}.erp-upload-dialog>.erp-card>.erp-upload-context{grid-template-columns:1fr;padding:12px}.erp-upload-file-action{display:none}.erp-upload-check{align-items:stretch;flex-direction:column;gap:10px}}
