@@ -1,0 +1,52 @@
+{
+  "date": "2026-10-06",
+  "scope": "Recent ERP upload modal and academic-filter changes",
+  "current_ui": {
+    "passed": 13,
+    "failed": 0,
+    "command": "npx playwright test tests/erp-upload-ui.spec.ts --workers=2",
+    "coverage": [
+      "Native dropdown selection",
+      "Academic dependency resets",
+      "File-input cancel event preserves modal/file/context",
+      "Escape and close focus restoration",
+      "390/768/1440/1920px responsive widths",
+      "Upload valid/conflict/error review and explicit skip approval",
+      "Upload batch colours",
+      "Preview failure retry",
+      "Required semester for attendance",
+      "Template download",
+      "Actions and upload modal across all 11 services",
+      "Filter persistence and upload prefill",
+      "Dark theme and native modal keyboard focus"
+    ]
+  },
+  "legacy_erp_suite": {
+    "passed": 6,
+    "failed": 13,
+    "note": "Failures reference removed Manage ERP controls, old setup headings, old record views/search and old commit notice/response fixtures. These tests need migration to the current UI; broader ERP suite is not green."
+  },
+  "lint": {
+    "errors": 0,
+    "warnings": 3,
+    "files": [
+      "ErpAcademicFilters.tsx",
+      "ErpServiceBulk.tsx",
+      "erp-upload-ui.spec.ts"
+    ]
+  },
+  "production": {
+    "url": "https://dashboard.voicedots.ai/dashboard/erp",
+    "http_status": 200,
+    "current_main_filter_css": true,
+    "current_upload_filter_css": true,
+    "native_select_bundle": true,
+    "custom_select_bundle_removed": true
+  },
+  "limits": [
+    "Browser tests run locally with mocked APIs, not real production imports.",
+    "Native OS picker cancellation is simulated by its bubbling cancel event.",
+    "Browsers tested: Chromium only.",
+    "No new production data was created."
+  ]
+}
