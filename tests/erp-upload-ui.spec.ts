@@ -15,7 +15,7 @@ const workbook={name:'attendance.csv',mimeType:'text/csv',buffer:Buffer.from('Ro
 test('file-picker cancellation keeps modal and selections usable',async({page})=>{
  await setup(page);await upload(page);
  await page.getByLabel('Upload department').selectOption('CSE');
- await page.getByLabel('Upload academic year').selectOption('year-1');
+ await page.getByLabel('Upload academic year').selectOption('year-1');await page.getByLabel('Upload semester').selectOption('sem-1');
  await page.getByLabel('Upload batch').selectOption('batch-1');
  await page.getByLabel('Service upload file').setInputFiles(workbook);
  await page.getByLabel('Service upload file').dispatchEvent('cancel',{bubbles:true});
@@ -64,7 +64,7 @@ test('review and commit preserve conflicts, errors and upload colours',async({pa
  await setup(page);
  await page.route('**/v3/college/erp/records/timetable/preview',r=>r.fulfill({json:{batch_id:'batch-upload-123',upload_color:'#8b5cf6',rows:[{id:'valid',row_number:2,status:'valid',original_values:{Subject:'Chemistry'},issues:[]},{id:'conflict',row_number:3,status:'conflict',original_values:{Subject:'Maths'},issues:[{action:'Approve existing record update'}]},{id:'invalid',row_number:4,status:'invalid',original_values:{Subject:'Unknown'},issues:[{action:'Subject not found'}]}]}}));
  await page.route('**/v3/college/erp/records/timetable/commit',r=>r.fulfill({json:{batch_id:'batch-upload-123',upload_color:'#8b5cf6',committed:2,skipped:1}}));
- await upload(page);await page.getByLabel('Upload department').selectOption('CSE');await page.getByLabel('Upload academic year').selectOption('year-1');await page.getByLabel('Upload batch').selectOption('batch-1');await page.getByLabel('Service upload file').setInputFiles(workbook);
+ await upload(page);await page.getByLabel('Upload department').selectOption('CSE');await page.getByLabel('Upload academic year').selectOption('year-1');await page.getByLabel('Upload semester').selectOption('sem-1');await page.getByLabel('Upload batch').selectOption('batch-1');await page.getByLabel('Service upload file').setInputFiles(workbook);
  await page.getByRole('button',{name:'Check records',exact:true}).click();
  for(const label of ['Valid (1)','Conflicts (1)','Errors (1)'])await expect(page.getByRole('button',{name:label,exact:true})).toBeVisible();
  await page.getByRole('button',{name:'Errors (1)',exact:true}).click();await expect(page.getByLabel('Import row 4')).toBeDisabled();
@@ -76,14 +76,14 @@ test('review and commit preserve conflicts, errors and upload colours',async({pa
 });
 test('preview errors leave selections available for retry',async({page})=>{
  await setup(page);await page.route('**/v3/college/erp/records/timetable/preview',r=>r.fulfill({status:422,json:{detail:'Invalid workbook columns'}}));
- await upload(page);await page.getByLabel('Upload department').selectOption('CSE');await page.getByLabel('Upload academic year').selectOption('year-1');await page.getByLabel('Upload batch').selectOption('batch-1');await page.getByLabel('Service upload file').setInputFiles(workbook);await page.getByRole('button',{name:'Check records',exact:true}).click();
+ await upload(page);await page.getByLabel('Upload department').selectOption('CSE');await page.getByLabel('Upload academic year').selectOption('year-1');await page.getByLabel('Upload semester').selectOption('sem-1');await page.getByLabel('Upload batch').selectOption('batch-1');await page.getByLabel('Service upload file').setInputFiles(workbook);await page.getByRole('button',{name:'Check records',exact:true}).click();
  await expect(page.getByRole('dialog').getByRole('alert')).toBeVisible();await expect(page.getByRole('button',{name:'Check records',exact:true})).toBeEnabled();await expect(page.getByLabel('Upload department')).toHaveValue('CSE');
 });
 test('attendance requires semester and template remains downloadable',async({page})=>{
  await setup(page);await page.getByRole('navigation',{name:'ERP sections'}).getByRole('button',{name:'Attendance',exact:true}).click();await upload(page);
  await page.getByLabel('Upload department').selectOption('CSE');await page.getByLabel('Upload academic year').selectOption('year-1');await page.getByLabel('Upload batch').selectOption('batch-1');await page.getByLabel('Service upload file').setInputFiles(workbook);
  await expect(page.getByRole('button',{name:'Check records',exact:true})).toBeDisabled();await page.getByLabel('Upload semester').selectOption('sem-1');await expect(page.getByRole('button',{name:'Check records',exact:true})).toBeEnabled();
- await page.route('**/v3/college/erp/records/attendance/download?template=true',r=>r.fulfill({contentType:'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',body:Buffer.from('mock')}));
+ await page.route('**/v3/college/erp/records/attendance/download?template=true**',r=>r.fulfill({contentType:'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',body:Buffer.from('mock')}));
  const pending=page.waitForEvent('download');await page.getByRole('button',{name:'Download upload template',exact:true}).click();expect((await pending).suggestedFilename()).toBe('attendance-template.xlsx');
 });
 test('all eleven ERP services retain upload download and view actions',async({page})=>{
@@ -108,4 +108,17 @@ test('modal remains usable in dark theme with keyboard focus trapped',async({pag
  const modal=page.getByRole('dialog');await expect(page.getByRole('button',{name:'Close upload'})).toBeFocused();
  for(let i=0;i<12;i++){await page.keyboard.press('Tab');expect(await modal.evaluate(el=>el.contains(document.activeElement)||document.activeElement===document.body)).toBe(true);}
  await page.screenshot({path:'/tmp/erp-upload-dark.png'});await page.keyboard.press('Escape');await expect(modal).toHaveCount(0);
+});
+
+test('template download sends the selected upload academic context',async({page})=>{
+ await setup(page);await upload(page);
+ await page.getByLabel('Upload department').selectOption('CSE');
+ await page.getByLabel('Upload academic year').selectOption('year-1');
+ await page.getByLabel('Upload semester').selectOption('sem-1');
+ await page.getByLabel('Upload batch').selectOption('batch-1');
+ await page.route('**/v3/college/erp/records/timetable/download?**',route=>route.fulfill({body:'sample',contentType:'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'}));
+ const request=page.waitForRequest(r=>r.url().includes('/records/timetable/download?'));
+ await page.getByRole('button',{name:'Download upload template',exact:true}).click();
+ const params=new URL((await request).url()).searchParams;
+ expect(Object.fromEntries(params)).toEqual({template:'true',department_code:'CSE',academic_year_id:'year-1',semester_id:'sem-1',batch_id:'batch-1'});
 });
