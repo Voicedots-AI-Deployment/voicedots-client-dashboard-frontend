@@ -21,6 +21,7 @@ import {
 import { displayName, formatPlacementDateTime, wallTimeFromInstant, wallTimeToInstant } from "./placementDisplay";
 import CandidateReport from "./CandidateReport";
 import ResultCohortBuilder, {type ResultFilterOptions,type ResultRule} from "./ResultCohortBuilder";
+import DriveQuestionBank from "./DriveQuestionBank";
 
 type Data = Record<string, unknown>;
 type Candidate = Data & {
@@ -71,6 +72,7 @@ const sections = {
   results: "Interview results",
   skills: "Skill intelligence",
   departments: "Departments",
+  questions: "Previous interview questions",
   settings: "Modify drive",
 };
 type Tab = keyof typeof sections;
@@ -81,6 +83,7 @@ const paths: Record<Tab, string> = {
   results: "dashboard/ranking",
   skills: "dashboard/skill-gap",
   departments: "dashboard/departments",
+  questions: "previous-interview-questions",
   settings: "dashboard/overview",
 };
 function Metric({
@@ -1580,7 +1583,7 @@ export default function DriveManagement({
     if (tab === "candidates") query.set("sort_by", listSort === "ats_desc" || listSort === "ats_asc" ? "name" : listSort);
     Promise.all([
       collegeApi.get<Drive>(`drives/${driveId}`, c.signal),
-      collegeApi.get<Data>(
+      tab === "questions" ? Promise.resolve({} as Data) : collegeApi.get<Data>(
         `drives/${driveId}/${paths[tab]}?${query.toString()}`,
         c.signal,
       ),
@@ -2402,6 +2405,7 @@ export default function DriveManagement({
           </div>
         </>
       )}
+      {tab === "questions" && <DriveQuestionBank driveId={driveId} />}
       {tab === "skills" && data && <SkillView data={data} />}{" "}
       {tab === "departments" && data && <DepartmentView data={data} onViewReport={(student) => setParams(current => { current.set("section", "results"); current.set("candidate", String(student.student_id)); return current; })} />}{" "}
       {tab === "settings" && drive && (
