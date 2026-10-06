@@ -114,3 +114,21 @@
 @media(max-width:480px){.erp-upload-dialog{width:calc(100vw - 20px);max-height:calc(100dvh - 20px);border-radius:16px}.erp-upload-dialog>.erp-card{padding:18px}.erp-upload-dialog .erp-upload-dialog-head h2{font-size:21px}.erp-upload-dialog>.erp-card>.erp-upload-context{grid-template-columns:1fr;padding:12px}.erp-upload-file-action{display:none}.erp-upload-check{align-items:stretch;flex-direction:column;gap:10px}}
 /* Let long department names use the row while short academic values stay compact. */
 @media(min-width:481px) and (max-width:760px){.erp-upload-dialog>.erp-card>.erp-upload-context{grid-template-columns:minmax(0,1.5fr) minmax(0,1fr)}.erp-upload-context>label:first-child{grid-column:1/-1}}
+
+.erp-week-toolbar { display:flex; align-items:center; justify-content:space-between; flex-wrap:wrap; gap:12px; margin:16px 0; }
+.erp-week-toolbar strong,.erp-week-toolbar small { display:block; }
+.erp-week-toolbar small { margin-top:5px; font-size:12px; color:var(--erp-muted,var(--muted)); }
+.erp-week-toolbar nav { display:flex; flex-wrap:wrap; gap:8px; }
+.erp-week-toolbar button { padding:8px 12px; border:1px solid var(--erp-line,var(--border)); border-radius:8px; background:var(--erp-bg,var(--card)); color:inherit; cursor:pointer; font:inherit; font-size:12px; }
+.erp-week-toolbar button:focus-visible { outline:2px solid #7c3aed; outline-offset:2px; }
+.erp-week-date { display:block; margin-top:5px; font-size:12px; font-weight:400; }
+.erp-timetable-grid th.erp-week-today,.erp-timetable-grid td.erp-week-today { background:color-mix(in srgb,#7c3aed 9%,var(--erp-bg,var(--card))); }
+.erp-timetable-grid .erp-week-live { outline:2px solid #059669; outline-offset:1px; }
+.erp-week-live-label { color:#059669; font-size:11px; font-weight:700; }
+
+.erp-upload-dates{display:grid;grid-template-columns:repeat(2,minmax(0,220px));gap:10px 16px;margin:0 0 14px}
+.erp-upload-dates label{display:flex;flex-direction:column;gap:6px;font-size:12px}
+.erp-upload-dates input{padding:9px 10px;border:1px solid var(--erp-line);border-radius:9px;background:var(--erp-bg);color:var(--erp-text);font:inherit;min-width:0;min-height:40px}
+.erp-upload-dates>p{grid-column:1/-1;margin:0;color:var(--erp-muted);font-size:12px}
+.erp-upload-resolved-dates{font-size:12px;white-space:nowrap}
+@media(max-width:480px){.erp-upload-dates{grid-template-columns:1fr}.erp-upload-resolved-dates{white-space:normal}}
