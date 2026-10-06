@@ -973,7 +973,7 @@ test('opportunity summary shows exact company URLs with external-link controls',
   await expect(linkedin.locator('svg')).toBeVisible();
 });
 
-test('drive UI shows scan-friendly ATS and skills and saves readiness weights', async ({page}) => {
+test('drive UI shows scan-friendly ATS and skills and saves readiness and proctor stop policies', async ({page}) => {
   await setup(page);
   await page.route('**/v3/college/drives/drive-1', route => route.fulfill({json:{id:'drive-1',company_name:'Example Company',role_title:'Engineer',status:'active'}}));
   await page.route('**/v3/college/drives/drive-1/dashboard/**', route => {
@@ -985,9 +985,14 @@ test('drive UI shows scan-friendly ATS and skills and saves readiness weights', 
   });
   await page.route('**/v3/college/drives/drive-1/candidates/s1/resume-file',route=>route.fulfill({status:200,contentType:'application/pdf',body:'%PDF-1.4\n%%EOF'}));
   let formula:Record<string,number>|undefined;
+  let proctorPolicy:Record<string,unknown>|undefined;
   await page.route('**/v3/college/readiness-policy', route => {
     if(route.request().method()==='PUT'){formula=route.request().postDataJSON();return route.fulfill({json:formula});}
     return route.fulfill({json:{interview_readiness:70,resume_readiness:30}});
+  });
+  await page.route('**/v3/college/interview-results-settings', route => {
+    if(route.request().method()==='PUT'){proctorPolicy=route.request().postDataJSON();return route.fulfill({json:proctorPolicy});}
+    return route.fulfill({json:{}});
   });
   await page.getByRole('button',{name:'Manage drive',exact:true}).click();
   await page.getByRole('button',{name:'ATS fit',exact:true}).click();
@@ -1015,6 +1020,11 @@ test('drive UI shows scan-friendly ATS and skills and saves readiness weights', 
   await page.getByRole('button',{name:'Save formula'}).click();
   await expect(page.getByText('Readiness formula saved for every student in this institution.')).toBeVisible();
   expect(formula).toEqual({interview_readiness:80,resume_readiness:20});
+  await page.getByLabel('End after recorded AI-proctor warnings').selectOption('3');
+  await page.getByLabel('End if multiple people are detected').check();
+  await page.getByRole('button',{name:'Save settings'}).click();
+  await expect(page.getByText('Interview Results settings saved.')).toBeVisible();
+  expect(proctorPolicy).toMatchObject({proctor_auto_end_warning_threshold:3,proctor_auto_end_on_multiple_people:true});
 });
 
 test('ATS Fit keeps pending candidates visible without showing scores or the removed warning',async({page})=>{
