@@ -69,14 +69,14 @@
 /* Shared service filters retain the existing popup proportions. */
 .erp-academic-filters{padding:18px 20px;margin:0 0 24px;border:1px solid var(--erp-line);border-radius:14px;background:var(--erp-soft)}
 .erp-filter-heading{display:flex;justify-content:space-between;align-items:center;gap:16px;margin-bottom:16px;font-size:14px}
-.erp-filter-grid{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:16px}
+.erp-filter-grid{display:grid;grid-template-columns:minmax(0,1fr) clamp(170px,15vw,220px) clamp(190px,17vw,250px) clamp(150px,13vw,190px);gap:16px}
 .erp-filter-grid label,.erp-record-tools>label:not(.erp-search){display:flex;flex-direction:column;gap:8px;font-size:13px;font-weight:500;min-width:0}
 .erp-academic-filters>p{font-size:12px;line-height:1.6;color:var(--erp-muted);margin:14px 0 0}
 .erp-record-tools{display:flex;align-items:flex-end;gap:16px;margin:0 0 16px}
 .erp-record-tools .erp-search{flex:1;max-width:none;margin:0}
 .erp-record-tools>label:not(.erp-search){max-width:220px}
-@media(max-width:900px){.erp-filter-grid{grid-template-columns:repeat(2,minmax(0,1fr))}}
-@media(max-width:640px){.erp-academic-filters{padding:16px}.erp-filter-grid{grid-template-columns:1fr}.erp-record-tools{flex-wrap:wrap}.erp-record-tools .erp-search{flex-basis:100%}.erp-record-tools>label:not(.erp-search){flex:1;max-width:none}}
+@media(max-width:1100px){.erp-filter-grid{grid-template-columns:repeat(3,minmax(0,1fr))}.erp-filter-grid>label:first-child{grid-column:1/-1}}
+@media(max-width:640px){.erp-academic-filters{padding:16px}.erp-filter-grid{grid-template-columns:1fr}.erp-filter-grid>label:first-child{grid-column:auto}.erp-record-tools{flex-wrap:wrap}.erp-record-tools .erp-search{flex-basis:100%}.erp-record-tools>label:not(.erp-search){flex:1;max-width:none}}
 .erp-upload-batch-marker{display:flex;align-items:center;gap:9px;width:max-content;max-width:100%;padding:8px 12px;border:1px solid;border-left-width:5px;border-radius:8px;font-size:13px;font-weight:650;overflow-wrap:anywhere}.erp-upload-batch-marker>span,.erp-upload-origin>i{width:11px;height:11px;flex:0 0 11px;border-radius:50%;display:inline-block}.erp-upload-origin{display:inline-flex;align-items:center;gap:7px;max-width:220px;padding:5px 8px;border:1px solid;border-left-width:4px;border-radius:7px;font-size:12px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .erp-timetable-time-range{display:block;line-height:1.4;white-space:nowrap}
 @media(max-width:700px){.erp-exam-calendar>div{grid-template-columns:1fr}.erp-opac-result{grid-template-columns:40px minmax(0,1fr)}.erp-opac-result>.erp-quiet{grid-column:2;justify-self:start}.erp-opac-cover{width:40px;height:50px}.erp-opac-search{flex-direction:column}.erp-opac-search button{width:100%}.erp-service-detail-grid{grid-template-columns:1fr 1fr}}
