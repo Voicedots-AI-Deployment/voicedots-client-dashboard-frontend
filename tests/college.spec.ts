@@ -230,6 +230,34 @@ test('closed drive can be activated through a confirmation and saves the active 
   expect(savedStatus).toBe('active');
 });
 
+test('placement staff manage drive questions and validate a CSV before import', async ({ page }) => {
+  await setup(page, true, { initialPath: '/dashboard/placement-management?drive=drive-1&section=questions',
+    driveRows: [{id:'drive-1',company_name:'Example Company',role_title:'Software Engineer',status:'active'}],
+    driveDetails: {id:'drive-1',company_name:'Example Company',role_title:'Software Engineer',status:'active'} });
+  let saved: Record<string, unknown> = {}, previewSeen = false, imported = false;
+  await page.route('**/v3/college/drives/drive-1/previous-interview-questions', route => route.fulfill({json:{company_name:'Example Company',role_name:'Software Engineer',count:0,questions:[]}}));
+  await page.route('**/v3/college/previous-interview-questions', async route => { saved=route.request().postDataJSON(); return route.fulfill({json:{id:'q1',...saved,verified:true,report_count:1}}); });
+  await page.getByRole('button',{name:'Add question',exact:true}).click();
+  const addDialog=page.getByRole('dialog',{name:'Add previous interview question'});
+  await addDialog.getByLabel('Question').fill('How would you design a reliable API?');
+  await addDialog.getByLabel('Internal source/reference').fill('Placement panel notes');
+  await addDialog.getByRole('button',{name:'Add question',exact:true}).click();
+  await expect(page.getByText('Question added.')).toBeVisible();
+  expect(saved.drive_id).toBe('drive-1');
+  await page.getByRole('button',{name:'Import CSV / Excel'}).click();
+  await page.getByRole('button',{name:'Download template'}).click();
+  await page.route('**/v3/college/previous-interview-questions/import**', async route => {
+    if(new URL(route.request().url()).searchParams.get('preview_only')==='true') { previewSeen=true; return route.fulfill({json:{preview:[{question_text:'Explain API versioning',round_type:'Technical',canonical_skill:'REST',difficulty:'Intermediate'}],invalid_rows:[]}}); }
+    imported=true; return route.fulfill({json:{imported:1,duplicates_merged:0,invalid:0,questions:[]}});
+  });
+  await page.locator('input[type=file]').setInputFiles({name:'questions.csv',mimeType:'text/csv',buffer:Buffer.from('question_text,round_type,canonical_skill,difficulty,year,interview_date\n"Explain API versioning",Technical,REST,Intermediate,2026,\n')});
+  await expect(page.getByText('Validated preview: 1 questions. No rows are saved until you confirm.')).toBeVisible();
+  expect(previewSeen).toBe(true);
+  await page.getByRole('button',{name:'Confirm import'}).click();
+  await expect(page.getByText('Imported: 1 · Duplicates merged: 0 · Invalid: 0')).toBeVisible();
+  expect(imported).toBe(true);
+});
+
 test('active drive closes through the persisted lifecycle API and remains closed after refresh', async ({ page }) => {
   let currentStatus = 'active';
   await setup(page, true, {
