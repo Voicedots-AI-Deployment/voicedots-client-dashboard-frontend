@@ -112,12 +112,5 @@
 .erp-upload-dialog .erp-upload-check .erp-primary{padding:10px 16px;font-size:13px;min-height:40px;flex-shrink:0}
 @media(max-width:760px){.erp-upload-dialog>.erp-card>.erp-upload-context{grid-template-columns:repeat(2,minmax(0,1fr))}}
 @media(max-width:480px){.erp-upload-dialog{width:calc(100vw - 20px);max-height:calc(100dvh - 20px);border-radius:16px}.erp-upload-dialog>.erp-card{padding:18px}.erp-upload-dialog .erp-upload-dialog-head h2{font-size:21px}.erp-upload-dialog>.erp-card>.erp-upload-context{grid-template-columns:1fr;padding:12px}.erp-upload-file-action{display:none}.erp-upload-check{align-items:stretch;flex-direction:column;gap:10px}}
-.erp-upload-select{position:relative;min-width:0;width:100%}
-.erp-upload-select>button{display:flex;align-items:center;justify-content:space-between;gap:8px;width:100%;min-height:40px;padding:9px 10px;border:1px solid var(--erp-line);border-radius:10px;background:var(--erp-bg);color:var(--erp-text);font:inherit;font-size:13px;text-align:left;cursor:pointer}
-.erp-upload-select>button>span{overflow:hidden;white-space:nowrap;text-overflow:ellipsis;min-width:0}.erp-upload-select svg{flex-shrink:0}.erp-upload-select>button:disabled{opacity:.55;cursor:not-allowed}.erp-upload-select>button:focus-visible{outline:2px solid #a5b4fc;outline-offset:2px}
-.erp-upload-options{position:absolute;top:calc(100% + 6px);left:0;right:0;z-index:10;max-height:240px;overflow:auto;padding:4px;border:1px solid var(--erp-line);border-radius:10px;background:var(--erp-bg);box-shadow:0 8px 24px #0f172a20}
-.erp-upload-options>[role=option]{display:flex;align-items:center;justify-content:space-between;gap:8px;padding:9px 8px;border-radius:6px;font-size:12px;line-height:1.45;cursor:pointer;overflow-wrap:anywhere;color:var(--erp-text)}.erp-upload-options>[role=option].is-active{background:var(--erp-soft)}.erp-upload-options>[aria-selected=true]{color:#6366f1;font-weight:600}
-
 /* Let long department names use the row while short academic values stay compact. */
-.erp-upload-context>label:first-child .erp-upload-select>button>span{white-space:normal;overflow-wrap:anywhere;line-height:1.4}
 @media(min-width:481px) and (max-width:760px){.erp-upload-dialog>.erp-card>.erp-upload-context{grid-template-columns:minmax(0,1.5fr) minmax(0,1fr)}.erp-upload-context>label:first-child{grid-column:1/-1}}
