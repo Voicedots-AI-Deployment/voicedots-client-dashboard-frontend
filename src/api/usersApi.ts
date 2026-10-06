@@ -24,7 +24,10 @@ export interface PasswordUpdateRequest {
 
 const usersApi = {
     getMe: async (): Promise<User> => {
-        const response = await apiClient.get<User>("/v1/users/me");
+        // A stalled profile request must not leave ProtectedRoute on its
+        // initial auth spinner indefinitely (common with expired sessions or
+        // an unreachable API during local development).
+        const response = await apiClient.get<User>("/v1/users/me", { timeout: 12000 });
         return response.data;
     },
 

@@ -1,7 +1,18 @@
 import { useEffect, useMemo, useRef, useState } from "react";
-import { ArrowLeft, FileText, ShieldCheck, Volume2 } from "lucide-react";
+import {
+  ArrowLeft,
+  ChevronDown,
+  ChevronRight,
+  FileText,
+  ChevronLeft,
+  Download,
+  Search,
+  ShieldCheck,
+  Volume2,
+  X,
+} from "lucide-react";
 import { collegeApi, collegeError, type Drive } from "@/api/collegeApi";
-import { btn, field, panel } from "./interviewAgentTypes";
+import { btn } from "./interviewAgentTypes";
 import { displayName } from "./placementDisplay";
 import { roleLabels } from "./interviewAgentTypes";
 
@@ -17,10 +28,17 @@ type Report = Data & {
   recording?: Data | null;
 };
 const nav = [
-  ["summary", "Overview"], ["integrity", "AI Proctor review"],
-  ["evidence", "Interview answers"], ["panel-rounds", "Rounds"],
-  ["competencies", "Competencies"], ["role-fit", "Job fit"], ["decision", "Decision"],
+  ["answers", "Answers"], ["skills", "Skills proof"],
+  ["rounds", "Rounds & competencies"], ["proctor", "AI Proctor"],
+  ["feedback", "Student feedback"],
 ] as const;
+const reportPanel = "rounded-2xl border border-slate-200 bg-white p-5 shadow-sm";
+const reportField = "mt-1 w-full rounded-xl border border-slate-300 bg-white p-3 text-sm text-slate-900 outline-none transition placeholder:text-slate-400 focus:border-violet-400 focus:ring-4 focus:ring-violet-100";
+function PreviewToggle({ shown, total, onClick, noun = "items" }: { shown: number; total: number; onClick: () => void; noun?: string }) {
+  if (total <= shown) return null;
+  const expanded = shown >= total;
+  return <button type="button" onClick={onClick} className="mt-3 inline-flex items-center gap-1.5 rounded-lg px-2.5 py-1.5 text-xs font-semibold text-violet-700 transition hover:bg-violet-50 focus-visible:outline focus-visible:outline-2 focus-visible:outline-violet-500">{expanded ? "Show less" : `Show all ${total} ${noun}`}<ChevronDown size={14} className={`transition-transform ${expanded ? "rotate-180" : ""}`}/></button>;
+}
 const show = (value: unknown, fallback = "Not available") =>
   value === null || value === undefined || value === ""
     ? fallback
@@ -45,25 +63,6 @@ const eventExplanation = (event: Data) => {
   return descriptions[String(event.event_type || event.type)] || "A proctoring observation was recorded for human review.";
 };
 
-function Metric({
-  label,
-  value,
-  helper,
-}: {
-  label: string;
-  value: unknown;
-  helper?: string;
-}) {
-  return (
-    <article className={panel}>
-      <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">
-        {label}
-      </p>
-      <strong className="mt-2 block text-2xl">{show(value, "—")}</strong>
-      {helper && <p className="mt-2 text-xs text-slate-500">{helper}</p>}
-    </article>
-  );
-}
 function List({ items, empty }: { items: unknown; empty: string }) {
   const values = Array.isArray(items) ? items : [];
   if (!values.length) return <p className="text-sm text-slate-500">{empty}</p>;
@@ -77,7 +76,7 @@ function List({ items, empty }: { items: unknown; empty: string }) {
           : [];
         return (
           <article
-            className="rounded-xl border border-slate-200 p-4 text-sm dark:border-slate-800"
+            className="rounded-xl border border-slate-200 bg-white p-4 text-sm transition hover:border-violet-200 hover:shadow-sm"
             key={index}
           >
             <div className="flex justify-between gap-3">
@@ -108,7 +107,7 @@ function List({ items, empty }: { items: unknown; empty: string }) {
               item.summary ||
               item.reason ||
               item.description) != null && (
-              <p className="mt-2 text-slate-600 dark:text-slate-300">
+              <p className="mt-2 text-slate-600">
                 {show(
                   item.evidence ||
                     item.problem ||
@@ -171,14 +170,52 @@ function Audio({ path }: { path: string }) {
   );
 }
 
+function ReportKeyboardShortcuts({
+  videoRef,
+  onNextFlag,
+}: {
+  videoRef: { current: HTMLVideoElement | null };
+  onNextFlag: () => void;
+}) {
+  useEffect(() => {
+    const handler = (event: KeyboardEvent) => {
+      const target = event.target as HTMLElement | null;
+      if (target && ["INPUT", "TEXTAREA", "SELECT"].includes(target.tagName)) return;
+      const video = videoRef.current;
+      if (event.code === "Space" && video) {
+        event.preventDefault();
+        if (video.paused) void video.play();
+        else video.pause();
+      }
+      if (event.key === "ArrowLeft" && video) video.currentTime = Math.max(0, video.currentTime - 5);
+      if (event.key === "ArrowRight" && video) video.currentTime = Math.min(video.duration || Infinity, video.currentTime + 5);
+      if (event.key.toLowerCase() === "n") onNextFlag();
+      if (event.key.toLowerCase() === "b") document.getElementById("bookmark-note")?.focus();
+    };
+    window.addEventListener("keydown", handler);
+    return () => window.removeEventListener("keydown", handler);
+  }, [videoRef, onNextFlag]);
+  return null;
+}
+
 export default function CandidateReport({
   driveId,
   studentId,
   onBack,
+  candidatePosition,
+  candidateTotal,
+  canPrevious,
+  canNext,
+  onNavigate,
 }: {
   driveId: string;
   studentId: string;
   onBack: () => void;
+  candidatePosition?: number | null;
+  candidateTotal?: number;
+  canPrevious?: boolean;
+  canNext?: boolean;
+  onNavigate?: (direction: -1 | 1) => void;
 }) {
   const [bundle, setBundle] = useState<Data | null>(null),
     [drive, setDrive] = useState<Drive | null>(null),
@@ -189,13 +226,28 @@ export default function CandidateReport({
   const [recording, setRecording] = useState<Data | null>(null),
     [recordingLoading, setRecordingLoading] = useState(false),
     [recordingError, setRecordingError] = useState("");
+  const [focusGroup, setFocusGroup] = useState<"strengths" | "growth" | null>(null);
+  const [expanded, setExpanded] = useState<Record<string, boolean>>({});
+  const toggleExpanded = (key: string) => setExpanded(current => ({ ...current, [key]: !current[key] }));
   const videoRef = useRef<HTMLVideoElement | null>(null);
   const [transcriptLoading, setTranscriptLoading] = useState(false),
     [integrityLoading, setIntegrityLoading] = useState(false),
     [transcriptError, setTranscriptError] = useState(""),
     [integrityError, setIntegrityError] = useState(""),
-    [activeSection, setActiveSection] = useState("summary"),
     [activeEvent, setActiveEvent] = useState(0);
+  const [activeTab, setActiveTab] = useState<(typeof nav)[number][0]>("answers");
+  const [answerFilter, setAnswerFilter] = useState("all");
+  const [skillFilter, setSkillFilter] = useState("all");
+  const [answerSearch, setAnswerSearch] = useState("");
+  const [bookmarkFilter, setBookmarkFilter] = useState("all");
+  const [resumeSkillFilter, setResumeSkillFilter] = useState("all");
+  const [bookmarkNote, setBookmarkNote] = useState("");
+  const [bookmarkNotes, setBookmarkNotes] = useState<Array<{ id: string; seconds: number; text: string }>>([]);
+  const [eventReviews, setEventReviews] = useState<Record<string, string>>({});
+  const [eventReviewSaved, setEventReviewSaved] = useState(false);
+  const [playbackRate, setPlaybackRate] = useState(1);
+  const [playbackTime, setPlaybackTime] = useState(0);
+  const [isPlaying, setIsPlaying] = useState(false);
   const [driveError, setDriveError] = useState(""),
     [decisionError, setDecisionError] = useState("");
   const [decision, setDecision] = useState(""),
@@ -228,6 +280,7 @@ export default function CandidateReport({
         setDecisionError("");
         const current = decisionValue.value.decision as Data | undefined;
         setDecision(current?.decision ? String(current.decision) : "");
+        setNote(current?.note ? String(current.note) : "");
       } else setDecisionError(collegeError(decisionValue.reason));
       if (settingsValue.status === "fulfilled") setResultSettings(settingsValue.value);
     } catch (e) {
@@ -237,16 +290,22 @@ export default function CandidateReport({
     }
   }
   useEffect(() => {
+    setBundle(null);
+    setDecisionData(null);
+    setTranscript(null);
+    setIntegrity(null);
+    setRecording(null);
+    setTranscriptError("");
+    setIntegrityError("");
+    setRecordingError("");
+    setBookmarkNotes([]);
+    setEventReviews({});
+    setEventReviewSaved(false);
+    setPlaybackTime(0);
+    setIsPlaying(false);
+    setBookmarkNote("");
     void load();
   }, [driveId, studentId]);
-  useEffect(() => {
-    const observer = new IntersectionObserver(entries => {
-      const visible = entries.filter(entry => entry.isIntersecting).sort((a,b) => b.intersectionRatio-a.intersectionRatio)[0];
-      if (visible) setActiveSection(visible.target.id);
-    }, { rootMargin: "-100px 0px -65% 0px", threshold: [0, .2, .5, 1] });
-    for (const [id] of nav) { const section = document.getElementById(id); if (section) observer.observe(section); }
-    return () => observer.disconnect();
-  }, [bundle]);
   const report = useMemo(
     () =>
       ((bundle?.reports || []) as Report[]).find(
@@ -266,6 +325,9 @@ export default function CandidateReport({
       setRecordingLoading(false);
     }
   }
+  useEffect(() => {
+    if (report?.recording?.status === "ready" && !recording && !recordingLoading && !recordingError) void loadRecording();
+  }, [report?.session_id, report?.recording?.status]);
   function seekToQuestion(askedAt: unknown) {
     // After a reconnect the finished file concatenates browser segments and
     // has no single wall-clock offset for the full timeline. Never offer a
@@ -321,6 +383,11 @@ export default function CandidateReport({
       else setIntegrityLoading(false);
     }
   }
+  useEffect(() => {
+    if (!report?.session_id) return;
+    if (!transcript && !transcriptLoading && !transcriptError) void evidence("transcript");
+    if (!integrity && !integrityLoading && !integrityError) void evidence("integrity-events");
+  }, [report?.session_id]);
   async function perform() {
     if (!confirm) return;
     const action = confirm;
@@ -349,6 +416,7 @@ export default function CandidateReport({
         await collegeApi.remove(
           `drives/${driveId}/candidates/${studentId}/release/schedule`,
         );
+      if (action === "decision") setBookmarkNotes([]);
       setNotice(
         action === "decision"
           ? "Officer decision saved."
@@ -361,10 +429,10 @@ export default function CandidateReport({
       setBusy(false);
     }
   }
-  if (busy && !bundle) return <p role="status">Loading candidate report…</p>;
+  if (busy && !bundle) return <section role="status" className="mx-auto max-w-7xl animate-pulse rounded-2xl border border-slate-200 bg-white p-6 text-sm text-slate-500 shadow-sm">Loading candidate report…</section>;
   if (!report)
     return (
-      <section className={panel}>
+      <section className={reportPanel}>
         <p role="alert">
           {error || "No report exists for this candidate in this drive."}
         </p>
@@ -413,666 +481,282 @@ export default function CandidateReport({
     return bTime - aTime;
   });
   const comparable = pri.comparable !== false && typeof pri.score === "number";
+  const recordingStatus = recording?.status || report.recording?.status || "unavailable";
+  const recordingDuration = recording?.duration_seconds ?? report.recording?.duration_seconds;
+  const executiveSummary = detail.executive_summary || detail.not_assessed_notice;
+  const strengths = Array.isArray(detail.strengths) ? detail.strengths : [];
+  const growthAreas = [detail.priority_improvement_areas, placement.recommended_preparation, placement.needs_improvement_before].find((items): items is unknown[] => Array.isArray(items) && items.length > 0) || [];
+  const recommendationReasons = Array.isArray(hiring.reasons) ? hiring.reasons : [];
+  const suitableRoles = Array.isArray(placement.suitable_roles) ? placement.suitable_roles : [];
+  const preparationSteps = Array.isArray(placement.recommended_preparation) ? placement.recommended_preparation : Array.isArray(placement.needs_improvement_before) ? placement.needs_improvement_before : [];
+  const nextRoundQuestions = Array.isArray(detail.next_round_questions) ? detail.next_round_questions : Array.isArray(placement.next_round_questions) ? placement.next_round_questions : [];
+  const feedbackSummary = detail.student_feedback_summary || detail.student_summary || executiveSummary;
+  const unansweredReviews = reviews.filter(review => ["explicit_dont_know", "no_response", "capture_unavailable", "system_interrupted", "irrelevant_answer"].includes(String(review.answer_state || review.evidence_status || "").toLowerCase()));
+  const followUpReviews = reviews.filter(review => String(review.kind || review.turn_kind || "").toLowerCase().includes("follow"));
+  const filteredRequirements = requirements.filter(item => skillFilter === "all" || (skillFilter === "gaps" && item.candidate_mentioned !== true) || (skillFilter === "demonstrated" && item.candidate_mentioned === true) || (skillFilter === "not_asked" && item.requirement_was_asked !== true));
+  const filteredReviews = reviews.filter(review => {
+    const answer = String(review.answer || review.transcript || "");
+    const search = answerSearch.trim().toLowerCase();
+    const matchesFilter = answerFilter === "all" || (answerFilter === "unanswered" && unansweredReviews.includes(review)) || (answerFilter === "strong" && (String(review.evidence_strength || "").toLowerCase() === "strong" || Array.isArray(review.strength_feedback) && review.strength_feedback.length > 0)) || (answerFilter === "feedback" && (Array.isArray(review.strength_feedback) && review.strength_feedback.length > 0 || Array.isArray(review.improvement_feedback) && review.improvement_feedback.length > 0)) || (answerFilter === "followups" && followUpReviews.includes(review));
+    return matchesFilter && (!search || `${String(review.question || review.question_text || "")} ${answer}`.toLowerCase().includes(search));
+  });
+  const videoReady = typeof recording?.playback_url === "string" && recording.playback_url.trim().length > 0;
+  const currentDecisionNote = String((decisionData?.decision as Data | undefined)?.note || "");
+  const timeLabel = (seconds: number) => `${Math.floor(seconds / 60)}:${String(Math.floor(seconds % 60)).padStart(2, "0")}`;
+  const addBookmarkNote = () => {
+    const videoTime = videoRef.current?.currentTime;
+    const content = bookmarkNote.trim();
+    if (!content || videoTime == null) return;
+    setBookmarkNotes(current => [...current, { id: `${Date.now()}-${current.length}`, seconds: videoTime, text: content }]);
+    setBookmarkFilter("note");
+    setNotice("Timestamped note added to this page. Include it in the officer note and save the decision to persist it.");
+    setBookmarkNote("");
+  };
+  const jumpToAdjacentFlag = (direction: -1 | 1) => {
+    if (!videoReady || !events.length) return;
+    const next = (activeEvent + direction + events.length) % events.length;
+    setActiveEvent(next);
+    seekToEvent(events[next]);
+  };
+  const communication = (detail.communication || {}) as Data;
+  const resumeAlignment = (detail.resume_alignment || {}) as Data;
+  const resumeSkills = Array.isArray(resumeAlignment.skills) ? resumeAlignment.skills as Data[] : [];
+  const testedResumeSkills = resumeSkills.filter(item => !["not_assessed", ""].includes(String(item.evidence_level || "").toLowerCase()));
+  const verifiedResumeSkills = testedResumeSkills.filter(item => String(item.evidence_level || "").toLowerCase() === "verified");
+  const claimGaps = resumeSkills.filter(item => String(item.evidence_level || "").toLowerCase() === "not_demonstrated");
+  const notTestedResumeSkills = resumeSkills.filter(item => String(item.evidence_level || "").toLowerCase() === "not_assessed");
+  const filteredResumeSkills = resumeSkills.filter(item => resumeSkillFilter === "all" || (resumeSkillFilter === "gaps" && String(item.evidence_level || "").toLowerCase() === "not_demonstrated") || (resumeSkillFilter === "verified" && String(item.evidence_level || "").toLowerCase() === "verified") || (resumeSkillFilter === "not_tested" && String(item.evidence_level || "").toLowerCase() === "not_assessed"));
+  const dontKnowCount = reviews.filter(review => String(review.answer_state || review.evidence_status || "").toLowerCase() === "explicit_dont_know").length;
+  const weakestRound = rounds.filter(round => typeof round.sub_score === "number").sort((a, b) => Number(a.sub_score) - Number(b.sub_score))[0];
+  const lowCompetencies = dimensions.filter(item => typeof item.percentage === "number" && Number(item.percentage) < 40);
+  const proctorViolations = events.filter(event => String(event.severity || "").toLowerCase() === "violation");
+  const completionPct = reviews.length ? Math.round(unansweredReviews.length / reviews.length * 100) : null;
+  const metricTone = (value: unknown) => typeof value !== "number" ? "bg-slate-400" : value >= 75 ? "bg-emerald-600" : value >= 50 ? "bg-amber-500" : "bg-rose-600";
+  const reportMetrics = [
+    { label: "Interview score", score: typeof report.overall_score === "number" ? report.overall_score : null, value: report.overall_score == null ? "—" : `${report.overall_score}`, unit: "/100", note: rounds.length ? `Across ${rounds.length} AI rounds` : "Round breakdown unavailable" },
+    { label: "Job fit (resume)", score: typeof jobFit.score === "number" ? jobFit.score : null, value: typeof jobFit.score === "number" ? String(jobFit.score) : "—", unit: "/100", note: resumeAlignment.credibility_score != null ? "From resume vs role requirements" : "Resume comparison unavailable" },
+    { label: "Skills proven live", score: testedResumeSkills.length ? verifiedResumeSkills.length / testedResumeSkills.length * 100 : null, value: testedResumeSkills.length ? String(verifiedResumeSkills.length) : "—", unit: testedResumeSkills.length ? ` / ${testedResumeSkills.length}` : "", note: resumeSkills.length ? `${claimGaps.length} resume claims not demonstrated` : "Resume skill evidence unavailable" },
+    { label: "Unanswered", score: completionPct, value: reviews.length ? String(unansweredReviews.length) : "—", unit: reviews.length ? ` / ${reviews.length}` : "", note: reviews.length ? `“I don’t know”: ${dontKnowCount}; includes other recorded no-response states` : "Answer review unavailable" },
+    { label: "Integrity", score: typeof proctor.score === "number" ? proctor.score : null, value: proctor.score == null ? "—" : String(proctor.score), unit: "/100", note: integrity ? `${events.length} flags · ${displayName(show(proctor.status, "status unavailable"))}` : "Proctor assessment unavailable" },
+  ];
+  const feedback = (detail.student_feedback || detail.learning_plan || {}) as Data;
+  const feedbackAreas = Array.isArray(feedback.growth_areas) ? feedback.growth_areas : growthAreas;
+  const savedNoteBookmarks = [currentDecisionNote, ...orderedHistory.map(item => String(item.note || ""))]
+    .flatMap(value => [...value.matchAll(/\[Recording (\d{1,2}:\d{2})\] ([^\n]+)/g)].map(match => {
+      const [minutes, seconds] = match[1].split(":").map(Number);
+      return { id: `${match[0]}-${value.slice(0, 20)}`, seconds: minutes * 60 + seconds, text: match[2], saved: true };
+    }));
+  const visibleBookmarks: Array<{ id: string; seconds: number | null; text: string; detail?: string; event?: Data; saved?: boolean }> = [
+    ...(bookmarkFilter !== "proctor" ? [...bookmarkNotes.map(item => ({ ...item, saved: false }))] : []),
+    ...(bookmarkFilter !== "note" ? events.map((event, index) => ({ id: String(event.event_id || index), seconds: recordingOffset(event.occurred_at || event.created_at), text: displayName(show(event.event_type || event.type, "Proctor observation")), detail: eventExplanation(event), event, saved: true })) : []),
+    ...(bookmarkFilter !== "proctor" ? savedNoteBookmarks : []),
+  ].sort((a, b) => Number(a.seconds ?? Infinity) - Number(b.seconds ?? Infinity));
+  const answerState = (review: Data) => String(review.answer_state || review.evidence_status || review.status || "not_assessed").toLowerCase();
+  const answerIsMissing = (review: Data) => ["explicit_dont_know", "no_response", "capture_unavailable", "system_interrupted", "irrelevant_answer"].includes(answerState(review));
+  const roundEntries = rounds.map((round, index) => ({
+    round,
+    index,
+    label: roundRole(round.agent_type || round.track, round.interviewer_role),
+    roundReviews: reviews.filter(review => String(review.agent_type || review.track || "").toLowerCase() === String(round.agent_type || round.track || "").toLowerCase()),
+  }));
+  const dimensionsWithScore = dimensions.filter(item => typeof item.percentage === "number");
+  const proctorSubscores = proctor.subscores && typeof proctor.subscores === "object" ? Object.entries(proctor.subscores as Data) : [];
+  const priComponents = pri.components && typeof pri.components === "object" ? pri.components as Data : {};
+  const interviewComponent = (priComponents.overall_performance || {}) as Data;
+  const jobFitComponent = (priComponents.job_fit || {}) as Data;
+  const priFormulaAvailable = typeof interviewComponent.weight === "number" && typeof interviewComponent.score === "number" && typeof jobFitComponent.weight === "number" && typeof jobFitComponent.score === "number";
+  const advisoryFlags = [
+    resumeSkills.length ? `${claimGaps.length} resume skills not demonstrated` : "Resume claim evidence unavailable",
+    reviews.length ? `${dontKnowCount} answers marked “I don’t know”` : "Answer review unavailable",
+    integrity ? `${proctorViolations.length} proctor violations to review` : "Proctor event review unavailable",
+  ];
+  const candidateProfile = (bundle?.candidate_info || {}) as Data;
+  const studentInitials = String(student.full_name || "Candidate").trim().split(/\s+/).slice(0, 2).map(part => part[0] || "").join("").toUpperCase();
+  const studentDetailRows = [
+    ["Student ID", student.roll_number], ["Email", student.email], ["Program", student.program],
+    ["Department", student.department_code], ["Year of study", student.year_of_study ?? candidateProfile.year_of_study],
+    ["Graduation year", student.graduation_year ?? candidateProfile.graduation_year],
+  ].filter(([, value]) => value !== null && value !== undefined && value !== "");
+
   return (
-    <section className="space-y-6 pb-12 text-slate-900 dark:text-white">
-      <button className={btn + " report-back"} onClick={onBack}>
-        <ArrowLeft size={16} />
-        Back to Interview Results
-      </button>
-      <style>{"@media print{.report-nav,.report-back,.report-actions{display:none!important}details:not([open])>*:not(summary){display:block!important}article,details{break-inside:avoid}body{color:#111!important;background:#fff!important}}"}</style>
-      <header className="flex flex-wrap items-start justify-between gap-4">
-        <div>
-          <p className="text-sm font-semibold text-indigo-600">
-            Candidate Interview Report
-          </p>
-          <h2 className="mt-1 text-3xl font-bold">
-            {show(student.full_name, "Candidate")}
-          </h2>
-          <p className="mt-2 text-sm text-slate-500">
-            {show(student.roll_number)} · {show(student.program)} · {show(student.department_code)} ·
-            Graduation {show(student.graduation_year)}
-          </p>
-          <p className="mt-1 text-sm">{drive?.company_name || "Company unavailable"} · {drive?.role_title || "Role unavailable"}</p>
-          {report.attempt_number != null && <p className="mt-1 text-sm text-slate-500">Attempt {show(report.attempt_number)}</p>}
-          {driveError && <p role="alert" className="mt-2 text-sm text-rose-700">Drive details could not be loaded: {driveError} <button className="underline" onClick={() => void load()}>Retry</button></p>}
+    <section className="mx-auto max-w-[1440px] space-y-5 bg-[#f5f6fa] p-3 pb-12 text-slate-900 sm:p-5">
+      <ReportKeyboardShortcuts videoRef={videoRef} onNextFlag={() => jumpToAdjacentFlag(1)} />
+      <style>{"@media print{.report-nav,.report-back,.report-actions,.candidate-pager,.no-print{display:none!important}.candidate-report-content .hidden{display:block!important}details:not([open])>*:not(summary){display:block!important}article,details{break-inside:avoid}body{color:#111!important;background:#fff!important}}"}</style>
+      <div className="candidate-pager no-print flex flex-wrap items-center justify-between gap-3 border-b border-slate-200 bg-white px-4 py-3">
+        <div className="flex min-w-0 items-center gap-2 text-sm text-slate-500">
+          <button type="button" className="report-back inline-flex items-center gap-1.5 font-semibold text-slate-700 hover:text-indigo-700" onClick={onBack}><ArrowLeft size={15}/> Interview results</button>
+          <span>/</span><span className="truncate">{show(drive?.company_name, "Placement drive")} · {show(drive?.role_title, "Role")}</span>
         </div>
-        <div className="text-right text-sm">
-          <p><strong>Interview completion:</strong> {report.completed_at ? "Completed" : "Incomplete"}</p>
-          <p className="mt-1"><strong>Evaluation:</strong> {displayName(show(detail.status, "not available"))}</p>
-          <p className="mt-1 text-slate-500">Completed {stamp(report.completed_at)}</p>
-          <p className="mt-2"><strong>Student result:</strong> {displayName(show(publication.state, "hidden"))}</p>
+        <div className="flex shrink-0 items-center gap-2">
+          <button type="button" className={`${btn} shrink-0 px-2.5 py-1.5`} disabled={!canPrevious} aria-label="Previous candidate" onClick={() => onNavigate?.(-1)}><ChevronLeft size={15}/></button>
+          <span className="min-w-16 shrink-0 text-center text-xs font-semibold text-slate-600">{candidatePosition ?? "—"} of {candidateTotal ?? "—"}</span>
+          <button type="button" className={`${btn} shrink-0 px-2.5 py-1.5`} disabled={!canNext} aria-label="Next candidate" onClick={() => onNavigate?.(1)}><ChevronRight size={15}/></button>
+          <button type="button" aria-label="Export PDF" title="Export PDF" className={`${btn} report-actions inline-flex h-10 min-w-[102px] shrink-0 items-center justify-center gap-2 whitespace-nowrap px-3 py-1 text-xs`} onClick={() => window.print()}><Download className="shrink-0" size={14}/><span className="whitespace-nowrap">Export PDF</span></button>
+        </div>
+      </div>
+
+      <header className="mb-1 flex flex-wrap items-center gap-4 border-b border-slate-200 pb-5">
+        <div className="grid h-14 w-14 shrink-0 place-items-center rounded-2xl bg-indigo-700 text-lg font-extrabold text-white">{studentInitials || "C"}</div>
+        <div className="min-w-0 flex-1">
+          <h1 className="text-2xl font-bold tracking-tight text-slate-900">{show(student.full_name, "Candidate")}</h1>
+          <div className="mt-1 flex flex-wrap gap-x-3 gap-y-1 text-xs text-slate-500">
+            {student.roll_number != null && student.roll_number !== "" && <span>{String(student.roll_number)}</span>}
+            {[student.program, student.department_code, student.graduation_year ?? candidateProfile.graduation_year].some(value => value != null && value !== "") && <span>{[student.program, student.department_code, student.graduation_year ?? candidateProfile.graduation_year].filter(value => value != null && value !== "").map(String).join(" · ")}</span>}
+            <span>{show(drive?.company_name, "Placement drive")} — {show(drive?.role_title, "Role")}</span>
+            {report.attempt_number != null && <span>Attempt {report.attempt_number}</span>}
+            <span>{report.completed_at ? `Completed ${stamp(report.completed_at)}` : "Interview in progress"}</span>
+          </div>
+          <details className="mt-1 text-xs text-slate-500"><summary className="inline-flex cursor-pointer items-center gap-1 font-semibold text-slate-600">Candidate details <ChevronDown size={13}/></summary><dl className="mt-2 grid max-w-3xl gap-x-8 gap-y-2 rounded-lg border border-slate-200 bg-white p-3 sm:grid-cols-2">{studentDetailRows.map(([label, value]) => <div key={String(label)} className="flex justify-between gap-4"><dt>{String(label)}</dt><dd className="text-right font-medium text-slate-800">{String(value)}</dd></div>)}</dl></details>
+        </div>
+        <div className="flex flex-wrap items-center gap-1.5 text-xs">
+          <span className="rounded-full bg-emerald-50 px-2.5 py-1 font-semibold text-emerald-800">{report.completed_at ? "Interview completed" : "Interview in progress"}</span>
+          <span className={`rounded-full px-2.5 py-1 ${publication.state === "released" ? "bg-indigo-50 text-indigo-800" : "bg-slate-100 text-slate-700"}`}>Result {displayName(show(publication.state, "hidden")).toLowerCase()}</span>
+          <span className="rounded-full bg-slate-100 px-2.5 py-1">{decision ? `Officer: ${decisionLabel(decision)}` : "Decision pending"}</span>
+          {driveError && <span role="alert" className="text-rose-700">Drive details: {driveError} <button className="underline" onClick={() => void load()}>Retry</button></span>}
         </div>
       </header>
-      <section aria-labelledby="recording-title" className={panel}>
-        <div className="flex flex-wrap items-center justify-between gap-3">
-          <div>
-            <h3 id="recording-title" className="text-lg font-bold">Interview recording</h3>
-            <p className="mt-1 text-sm text-slate-500">
-              {report.recording?.status === "ready" || recording?.status === "ready"
-                ? `Completed interview · ${durationLabel(recording?.duration_seconds ?? report.recording?.duration_seconds)} · Recorded ${stamp(recording?.started_at ?? report.recording?.started_at)}`
-                : report.recording?.status && report.recording.status !== "failed"
-                  ? `Recording ${displayName(show(report.recording.status))}`
-                  : "Recording unavailable for this attempt"}
-            </p>
-          </div>
-          {!recording?.playback_url && report.recording?.status === "ready" && (
-            <button type="button" className={btn} onClick={() => void loadRecording()} disabled={recordingLoading}>
-              {recordingLoading ? "Loading secure player…" : "Load secure recording"}
-            </button>
-          )}
-        </div>
-        {recordingError && <p role="alert" className="mt-3 text-sm text-rose-700">Recording could not be loaded: {recordingError}</p>}
-        {(recording?.status === "expired" || report.recording?.status === "expired") && (
-          <p className="mt-4 rounded-lg bg-slate-50 p-4 text-sm text-slate-600" role="status">
-            Interview recording expired according to the video retention policy. The transcript, evaluation, proctor events, and placement decision remain available below.
-          </p>
-        )}
-        {recording && typeof recording.playback_url === "string" && <video ref={videoRef} className="mt-4 aspect-video w-full rounded-xl bg-slate-950 object-contain" src={recording.playback_url} crossOrigin="anonymous" controls playsInline preload="metadata" aria-label="Interview recording video" />}
-        {typeof recording?.playback_url === "string" && events.length > 0 && Number(recording.segment_count || 0) <= 1 && Number(recording.duration_seconds || 0) > 0 && (
-          <div className="mt-3" aria-label="AI proctor video bookmarks">
-            <p className="mb-2 text-xs font-semibold text-slate-600">AI proctor bookmarks · select an observation to seek</p>
-            <div className="relative h-8 rounded-full bg-slate-100" role="group" aria-label="Video event timeline">
-              <div className="absolute inset-x-2 top-1/2 h-1 -translate-y-1/2 rounded bg-slate-300" />
-              {events.map((event, index) => {
-                const offset = recordingOffset(event.occurred_at || event.created_at);
-                if (offset === null) return null;
-                const left = Math.min(100, Math.max(0, (offset / Number(recording.duration_seconds)) * 100));
-                return <button key={String(event.event_id || index)} type="button" aria-pressed={activeEvent === index} className="absolute top-1/2 z-10 h-4 w-4 -translate-x-1/2 -translate-y-1/2 rounded-full border-2 border-white bg-violet-600 shadow focus-visible:outline focus-visible:outline-2 focus-visible:outline-violet-700" style={{ left: `${left}%` }} aria-label={`Seek to ${displayName(show(event.event_type || event.type, "proctor observation"))} at ${stamp(event.occurred_at || event.created_at)}`} title={`${displayName(show(event.event_type || event.type, "Proctor observation"))} · ${stamp(event.occurred_at || event.created_at)}`} onClick={() => { setActiveEvent(index); seekToEvent(event); }} />;
-              })}
-            </div>
-          </div>
-        )}
-      </section>
-      <nav
-        className="report-nav sticky top-0 z-20 flex gap-2 overflow-x-auto border-b bg-white py-3 dark:bg-slate-950 sm:gap-5"
-        aria-label="Report sections"
-      >
-        {nav.map(([item, label]) => (
-          <a
-            aria-current={activeSection === item ? "location" : undefined}
-            className={`whitespace-nowrap rounded px-2 py-1 text-sm font-semibold focus-visible:outline focus-visible:outline-2 focus-visible:outline-indigo-600 ${activeSection === item ? "bg-indigo-50 text-indigo-800" : "text-slate-600"}`}
-            href={`#${item}`}
-            key={item}
-          >
-            {label}
-          </a>
-        ))}
-      </nav>
-      {error && (
-        <div role="alert" className="flex flex-wrap items-center justify-between gap-3 rounded-xl bg-rose-50 p-4 text-rose-700">
-          {error}
-          <button className={btn} onClick={() => void load()}>Retry report</button>
-        </div>
-      )}
-      {notice && (
-        <p
-          role="status"
-          className="rounded-xl bg-emerald-50 p-4 text-emerald-700"
-        >
-          {notice}
-        </p>
-      )}
-      <section id="summary" className="scroll-mt-20 space-y-4">
-        <h3 className="text-xl font-bold">Overview</h3>
-        <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-5">
-          <Metric
-            label="Placement Readiness Score"
-            value={comparable ? `${pri.score}/100` : "—"}
-            helper={
-              comparable
-                ? "70% interview performance + 30% Job Fit"
-                : "Review required before comparison"
-            }
-          />
-          <Metric
-            label="Interview Performance"
-            value={
-              report.overall_score == null ? "—" : `${report.overall_score}/100`
-            }
-          />
-          <Metric
-            label="Job Fit"
-            value={
-              typeof jobFit.score === "number" ? `${jobFit.score}/100` : "—"
-            }
-          />
-          <Metric
-            label="Readiness"
-            value={displayName(report.readiness || "Not assessed")}
-          />
-          <Metric
-            label="Evaluation Confidence"
-            value={
-              typeof confidence.score === "number"
-                ? `${confidence.score}/100`
-                : show(confidence.label, "—")
-            }
-            helper="Evidence gate; it does not add PRI points"
-          />
-        </div>
-        <div className="grid gap-4 lg:grid-cols-2">
-          <article className={`${panel} border-emerald-200`}><h4 className="mb-3 font-bold text-emerald-800">Interview strengths</h4><List items={detail.strengths} empty="No evidence-grounded strengths were recorded." /></article>
-          <article className={`${panel} border-amber-200`}><h4 className="mb-3 font-bold text-amber-900">Needs improvement</h4><List items={detail.priority_improvement_areas} empty="No improvement priorities were recorded." /></article>
-        </div>
-        <details className={panel}>
-          <summary className="cursor-pointer font-semibold">
-            How is PRI calculated?
-          </summary>
-          <p className="mt-3 text-sm">
-            PRI combines 70% released interview performance and 30% Job Fit.
-            Confidence, evidence coverage and configured-round completion
-            determine comparability and never add points.
-          </p>
-        </details>
-        <article className={panel}>
-          <h4 className="font-bold">Executive summary</h4>
-          <p className="mt-3 whitespace-pre-wrap text-sm">
-            {show(
-              detail.executive_summary || detail.not_assessed_notice,
-              "No executive summary was produced.",
-            )}
-          </p>
-        </article>
-        <div className="grid gap-4 lg:grid-cols-2">
-          <article className={panel}>
-            <p className="text-xs font-semibold uppercase text-slate-500">
-              AI recommendation · advisory
-            </p>
-            <strong className="mt-2 block text-2xl">
-              {show(recommendationLabels[String(hiring.label || "Review Required")] || hiring.label, "Review Required")}
-            </strong>
-            <List items={hiring.reasons} empty="No reasons were recorded." />
-          </article>
-          <article className={panel}>
-            <p className="text-xs font-semibold uppercase text-slate-500">
-              Officer decision · final
-            </p>
-            <strong className="mt-2 block text-2xl">
-              {decisionLabel((decisionData?.decision as Data)?.decision)}
-            </strong>
-            <p className="mt-2 text-sm text-slate-500">
-              Human placement workflow authority remains separate from the AI
-              recommendation.
-            </p>
-          </article>
-        </div>
-      </section>
-      <section id="integrity" className="scroll-mt-20 space-y-4">
-        <div className="flex flex-wrap justify-between gap-3">
-          <div>
-            <h3 className="text-xl font-bold">AI Proctor review</h3>
-            <p className="text-sm text-slate-500">
-              Review cues only. These observations are not proof of misconduct and do not determine placement.
-            </p>
-          </div>
-          <button
-            className={btn}
-            disabled={integrityLoading || !report.session_id}
-            onClick={() => void evidence("integrity-events")}
-          >
-            <ShieldCheck size={16} />
-            {integrityLoading ? "Loading events…" : integrity ? "Reload event timeline" : "Load event timeline"}
-          </button>
-        </div>
-        {integrityError && <div role="alert" className="rounded-xl bg-rose-50 p-3 text-sm text-rose-800">{integrityError}<button className={btn + " ml-3"} onClick={() => void evidence("integrity-events")}>Retry</button></div>}
-        <div className="grid gap-4 sm:grid-cols-3">
-          <Metric
-            label="AI Proctor Score"
-            value={
-              typeof proctor.overall_score === "number"
-                ? `${proctor.overall_score}/100`
-                : "Not available"
-            }
-          />
-          <Metric
-            label="Review status"
-            value={displayName(show(proctor.status))}
-          />
-          <Metric
-            label="Recorded observations"
-            value={proctor.total_events ?? 0}
-          />
-        </div>
-        {proctor.sub_scores != null && (
-          <article className={panel}>
-            <h4 className="font-bold">Integrity sub-scores</h4>
-            <dl className="mt-4 grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-              {Object.entries(proctor.sub_scores as Data).map(
-                ([key, value]) => (
-                  <div key={key}>
-                    <dt className="text-xs uppercase text-slate-500">
-                      {displayName(key)}
-                    </dt>
-                    <dd className="mt-1 text-xl font-semibold">
-                      {show(value)}/100
-                    </dd>
-                  </div>
-                ),
-              )}
-            </dl>
-          </article>
-        )}
-        {integrity && (
-          <article className={panel}>
-            <h4 className="font-bold">Event timeline</h4>
-            <div className="mt-4 space-y-3">
-              {events.length ? (
-                <div className="grid gap-4 lg:grid-cols-[minmax(14rem,0.8fr)_minmax(0,1.2fr)]">
-                  <div className="space-y-2" role="list" aria-label="Proctor observations">
-                    {events.map((event, index) => <button type="button" role="listitem" aria-pressed={activeEvent===index} key={String(event.event_id||index)} onClick={()=>{setActiveEvent(index);seekToEvent(event);}} className={"w-full rounded-xl border p-3 text-left text-sm focus-visible:outline focus-visible:outline-2 focus-visible:outline-indigo-600 " + (activeEvent===index?"border-indigo-500 bg-indigo-50":"border-slate-200")}>
-                      <strong className="block">{displayName(show(event.event_type || event.type, "Integrity event"))}</strong>
-                      <span className="mt-1 block text-xs text-slate-500">{stamp(event.occurred_at || event.created_at)}</span>
-                    </button>)}
-                  </div>
-                  {events[activeEvent] && <article className="rounded-xl border p-4 text-sm">
-                    <div className="flex flex-wrap items-center justify-between gap-2"><strong>{displayName(show(events[activeEvent].event_type || events[activeEvent].type, "Integrity event"))}</strong><span>{stamp(events[activeEvent].occurred_at || events[activeEvent].created_at)}</span></div>
-                    <p className="mt-3">{eventExplanation(events[activeEvent])}</p>
-                    <p className="mt-4 rounded-lg bg-slate-50 p-3 text-slate-600">No incident photo available. This proctoring event did not persist a camera frame.</p>
-                    <p className="mt-3 text-xs text-slate-500">Severity: {displayName(show(events[activeEvent].severity, "not specified"))}. This is an observation for reviewer context.</p>
-                  </article>}
-                </div>
-              ) : (
-                <p>No proctor observations were recorded.</p>
-              )}
-            </div>
-          </article>
-        )}
-      </section>
-      <section id="evidence" className="scroll-mt-20 space-y-4">
-        <div className="flex flex-wrap justify-between gap-3">
-          <div>
-            <h3 className="text-xl font-bold">Interview answers</h3>
-            <p className="text-sm text-slate-500">
-              Question review and persisted transcript.
-            </p>
-          </div>
-          <button
-            className={btn}
-            disabled={transcriptLoading || !report.session_id}
-            onClick={() => void evidence("transcript")}
-          >
-            <FileText size={16} />
-            {transcriptLoading ? "Loading transcript…" : transcript ? "Reload transcript" : "Load transcript"}
-          </button>
-        </div>
-        {transcriptError && <div role="alert" className="rounded-xl bg-rose-50 p-3 text-sm text-rose-800">{transcriptError}<button className={btn + " ml-3"} onClick={() => void evidence("transcript")}>Retry</button></div>}
-        {reviews.length ? (
-          reviews.map((review, index) => {
-            const turnId = show(review.turn_id, "");
-            return (
-              <details className={panel} key={index}>
-                <summary className="cursor-pointer list-none focus-visible:outline focus-visible:outline-2 focus-visible:outline-indigo-600">
-                <div className="flex justify-between gap-3">
-                  <p className="text-xs font-semibold uppercase text-indigo-600">
-                    {roundRole(review.agent_type || review.track)}
-                  </p>
-                  {(() => {
-                    const state = String(review.answer_state || review.evidence_status || review.status || "").toLowerCase();
-                    const answered = state === "answered";
-                    const unavailable = ["no_response", "explicit_dont_know", "irrelevant_answer", "capture_unavailable", "system_interrupted"].includes(state);
-                    const style = answered ? "bg-emerald-100 text-emerald-800" : unavailable ? "bg-rose-100 text-rose-800" : "bg-amber-100 text-amber-900";
-                    const label = answered ? "Answer recorded" : unavailable ? "Needs review" : displayName(show(state, "Status unavailable"));
-                    return <span className={`rounded-full px-2.5 py-1 text-xs font-semibold ${style}`}>{label}</span>;
-                  })()}
-                </div>
-                <h4 className="mt-2 font-bold">
-                  {show(review.question || review.question_text)}
-                </h4>
-                </summary>
-                <p className="mt-3 whitespace-pre-wrap text-sm">
-                  {show(
-                    review.answer || review.transcript,
-                    "No response text was captured.",
-                  )}
-                </p>
-                {Array.isArray(review.strength_feedback) && review.strength_feedback.length > 0 && <div className="mt-3 rounded-lg bg-emerald-50 p-3 text-sm text-emerald-900"><strong>Good evidence</strong><ul className="mt-1 list-disc space-y-1 pl-5">{(review.strength_feedback as unknown[]).map((item, i) => <li key={i}>{show(item)}</li>)}</ul></div>}
-                {Array.isArray(review.improvement_feedback) && review.improvement_feedback.length > 0 && <div className="mt-2 rounded-lg bg-amber-50 p-3 text-sm text-amber-950"><strong>Needs improvement</strong><ul className="mt-1 list-disc space-y-1 pl-5">{(review.improvement_feedback as unknown[]).map((item, i) => <li key={i}>{show(item)}</li>)}</ul></div>}
-                {(() => {
-                  const persistedTurn = turns.find(turn => String(turn.turn_id) === turnId);
-                  if (!persistedTurn) return transcript ? <p className="mt-3 text-xs text-slate-500">No persisted transcript was available for this answer.</p> : null;
-                  return <div className="mt-3 rounded-lg border border-slate-200 p-3"><p className="text-xs font-semibold uppercase text-slate-500">Persisted candidate transcript</p><p className="mt-1 whitespace-pre-wrap text-sm">{show(persistedTurn.transcript, "No response text was captured.")}</p></div>;
-                })()}
-                {(() => { const turn = turns.find(item => String(item.turn_id) === turnId); if (!turn?.asked_at || !recording?.playback_url || Number(recording.segment_count || 0) > 1) return null; return <button type="button" className={`${btn} mt-3`} onClick={() => seekToQuestion(turn.asked_at)}>Play this answer · {new Date(String(turn.asked_at)).toLocaleTimeString()}</button>; })()}
-                {turnId && report.session_id &&
-                  (String(review.answer || review.transcript || "").trim() ||
-                    String(review.answer_state || review.evidence_status || "").toLowerCase() === "answered") && (
-                  <Audio
-                    path={`students/${studentId}/reports/${report.session_id}/turns/${turnId}/audio`}
-                  />
-                )}
-              </details>
-            );
-          })
-        ) : (
-          <p className={panel}>No question review was generated.</p>
-        )}
-        {transcript && (
-          <article className={panel}>
-            <h4 className="font-bold">Transcript</h4>
-            <div className="mt-4 space-y-4">
-              {turns.map((turn, index) => {
-                const turnId = show(turn.turn_id, "");
-                return (
-                  <div
-                    className="border-l-2 border-indigo-200 pl-4"
-                    key={index}
-                  >
-                    <p className="text-xs font-semibold uppercase text-slate-500">
-                      Turn {show(turn.turn_index, String(index + 1))} ·{" "}
-                      {roundRole(turn.agent_type)} ·{" "}
-                      {displayName(show(turn.kind, "Question"))}
-                    </p>
-                    <p className="mt-2 font-semibold">
-                      {show(turn.question_text)}
-                    </p>
-                    <p className="mt-2 whitespace-pre-wrap text-sm">
-                      {show(turn.transcript, "No response text captured.")}
-                    </p>
-                    {turn.has_audio === true && turnId && report.session_id && (
-                      <Audio
-                        path={`students/${studentId}/reports/${report.session_id}/turns/${turnId}/audio`}
-                      />
-                    )}
-                  </div>
-                );
-              })}
-            </div>
-          </article>
-        )}
-      </section>
-      <section id="panel-rounds" className="scroll-mt-20 space-y-4">
-        <h3 className="text-xl font-bold">Rounds</h3>
-        <div className="grid gap-4 lg:grid-cols-2">
-          {rounds.length ? (
-            rounds.map((round, index) => {
-              const incomplete = [
-                "not_reached",
-                "incomplete",
-                "failed",
-              ].includes(show(round.status, "incomplete"));
-              return (
-                <article className={panel} key={index}>
-                  <div className="flex justify-between gap-3">
-                    <div>
-                      <p className="text-xs uppercase text-slate-500">
-                        Round {index + 1}
-                      </p>
-                      <strong>
-                        {roundRole(round.agent_type || round.track, round.interviewer_role)}
-                      </strong>
-                    </div>
-                    <span>
-                      {incomplete
-                        ? "Not Fully Assessed"
-                        : round.sub_score == null
-                          ? displayName(show(round.status))
-                          : `${round.sub_score}/100`}
-                    </span>
-                  </div>
-                  <p className="mt-3 text-sm">
-                    {show(
-                      round.summary || round.evidence,
-                      "No round summary was recorded.",
-                    )}
-                  </p>
-                </article>
-              );
-            })
-          ) : (
-            <p className={panel}>No round-level assessment was recorded.</p>
-          )}
-        </div>
-      </section>
-      <section id="competencies" className="scroll-mt-20 space-y-4">
-        <h3 className="text-xl font-bold">Competencies</h3>
-        <div className="grid gap-4 md:grid-cols-2">
-          {dimensions.map((item, index) => (
-            <article className={panel} key={index}>
-              <div className="flex justify-between gap-3">
-                <strong>
-                  {show(item.label || displayName(show(item.dimension)))}
-                </strong>
-                <span>
-                  {item.percentage == null && item.band == null
-                    ? "Not Assessed"
-                    : item.percentage != null
-                      ? `${item.percentage}/100`
-                      : `Band ${item.band}`}
-                </span>
-              </div>
-              {item.interpretation != null && (
-                <p className="mt-2 text-sm text-slate-500">
-                  {show(item.interpretation)}
-                </p>
-              )}
-            </article>
-          ))}
-        </div>
-        {detail.communication != null && (
-          <article className={panel}>
-            <h4 className="font-bold">Communication</h4>
-            <dl className="mt-3 grid gap-4 sm:grid-cols-3">
+
+      {error && <div role="alert" className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-rose-200 bg-rose-50 p-3 text-sm text-rose-800">{error}<button className={btn} onClick={() => void load()}>Retry report</button></div>}
+      {notice && <p role="status" className="rounded-lg border border-emerald-200 bg-emerald-50 px-3 py-2 text-sm text-emerald-800">{notice}</p>}
+
+      <div className="grid items-start gap-5 xl:grid-cols-[minmax(0,1fr)_340px]">
+        <main className="candidate-report-content min-w-0 space-y-5">
+          <section id="glance" className={`${reportPanel} scroll-mt-4`}>
+            <div className="mb-4 flex flex-wrap items-start justify-between gap-3">
               <div>
-                <dt className="text-xs text-slate-500">Speaking pace</dt>
-                <dd>
-                  {show(
-                    (detail.communication as Data).speaking_speed_wpm,
-                    "Not measured",
-                  )}
-                </dd>
+                <p className="text-[11px] font-bold uppercase tracking-wide text-slate-500">Decision summary</p>
+                <h2 className="mt-1 text-base font-bold">At a glance</h2>
+                <p className="mt-1 text-xs text-slate-500">Everything needed for a first call — details are in the tabs below.</p>
               </div>
-              <div>
-                <dt className="text-xs text-slate-500">Pace</dt>
-                <dd>{show((detail.communication as Data).pace_label)}</dd>
-              </div>
-              <div>
-                <dt className="text-xs text-slate-500">Filler words</dt>
-                <dd>{show((detail.communication as Data).filler_words)}</dd>
-              </div>
-            </dl>
-          </article>
-        )}
-      </section>
-      <section id="role-fit" className="scroll-mt-20 space-y-4">
-        <h3 className="text-xl font-bold">Job fit</h3>
-        <article className={panel}>
-          <div className="flex justify-between gap-3">
-            <div>
-              <strong className="text-2xl">
-                {typeof jobFit.score === "number"
-                  ? `${jobFit.score}/100`
-                  : "Not assessed"}
-              </strong>
-              <p className="text-sm text-slate-500">
-                Frozen interview-time role and JD evidence
-              </p>
+              <span className="rounded-full bg-amber-50 px-3 py-1 text-xs font-bold text-amber-800">{displayName(show(report.readiness, "Not assessed"))}</span>
             </div>
-            <span>
-              {displayName(show(jobFit.status, "insufficient evidence"))}
-            </span>
-          </div>
-          <div className="mt-5 space-y-5">
-            {requirements.length ? (["mandatory", "core", "preferred"] as const).map(category => {
-              const items = requirements.filter(item => String(item.priority || (item.critical ? "mandatory" : "core")).toLowerCase() === category);
-              if (!items.length) return null;
-              return <section key={category}><h5 className="mb-2 text-xs font-semibold uppercase tracking-wide text-slate-500">{displayName(category)}</h5><div className="overflow-x-auto rounded-xl border border-slate-200 dark:border-slate-700"><table className="w-full text-left text-sm"><thead className="bg-slate-50 dark:bg-slate-800"><tr><th className="p-3">Skill / requirement</th><th className="p-3">Category</th><th className="p-3">Evidence strength</th><th className="p-3">Evidence</th></tr></thead><tbody>{items.map((item,index) => { const strength = displayName(show(item.evidence_strength || item.status, "No Evidence")); const normalized = strength.toLowerCase(); const tone = /strong|full|good/.test(normalized) ? "bg-emerald-100 text-emerald-800" : /moderate|limited|partial/.test(normalized) ? "bg-amber-100 text-amber-800" : /no evidence|weak/.test(normalized) ? "bg-rose-100 text-rose-800" : "bg-slate-100 text-slate-700"; return <tr className="border-t dark:border-slate-700" key={index}><td className="p-3 font-semibold">{show(item.requirement || item.skill)}</td><td className="p-3">{displayName(category)}</td><td className="p-3"><span className={`rounded-full px-2.5 py-1 text-xs font-semibold ${tone}`}>{strength}</span></td><td className="max-w-md p-3 text-slate-600 dark:text-slate-300">{show(item.evidence || item.evidence_summary || item.reason, "No interview evidence recorded.")}</td></tr>; })}</tbody></table></div></section>;
-            }) : (
-              <p className="text-sm text-slate-500">
-                No frozen requirement evidence is available.
-              </p>
-            )}
-          </div>
-        </article>
-        <div className="grid gap-4 lg:grid-cols-2">
-          <article className={panel}>
-            <h4 className="font-bold">Suitable roles</h4>
-            <List
-              items={placement.suitable_roles}
-              empty="No suitable roles were recorded."
-            />
-          </article>
-          <article className={panel}>
-            <h4 className="font-bold">Recommended preparation</h4>
-            <List
-              items={
-                placement.recommended_preparation ||
-                placement.needs_improvement_before
-              }
-              empty="No preparation guidance was recorded."
-            />
-          </article>
-        </div>
-      </section>
-      <section id="decision" className="scroll-mt-20 space-y-4">
-        <h3 className="text-xl font-bold">Decision</h3>
-        {decisionError && <div role="alert" className="rounded-xl bg-rose-50 p-3 text-sm text-rose-800">Decision details could not be loaded: {decisionError}<button className={btn + " ml-3"} onClick={() => void load()}>Retry</button></div>}
-        <div className="grid gap-4 lg:grid-cols-2">
-          <form
-            className={panel}
-            onSubmit={(event) => {
-              event.preventDefault();
-              setConfirm("decision");
-            }}
-          >
-            <h4 className="font-bold">Officer decision</h4>
-            <label className="mt-4 block text-sm">
-              Decision
-              <select
-                className={field}
-                value={decision}
-                onChange={(event) => setDecision(event.target.value)}
-                required
-              >
-                <option value="">Select a decision</option>
-                <option value="shortlist">Shortlisted</option>
-                <option value="hold">Hold</option>
-                <option value="reject">Rejected</option>
-              </select>
-            </label>
-            <label className="mt-4 block text-sm">
-              Officer note (Optional)
-              <textarea
-                className={field}
-                maxLength={2000}
-                placeholder="Add context for this decision (optional)"
-                value={note}
-                onChange={(event) => setNote(event.target.value)}
-              />
-              <span className="mt-1 block text-right text-xs text-slate-500">{2000 - note.length} characters remaining</span>
-            </label>
-            <button className={`${btn} mt-4`} disabled={busy || !decision}>
-              Review decision
-            </button>
-          </form>
-          <article className={panel}>
-            <h4 className="font-bold">Student result publication</h4>
-            <p className="mt-3 text-2xl font-semibold">
-              {displayName(show(publication.state, "hidden"))}
-            </p>
-            {publication.scheduled_for != null && (
-              <p className="mt-2 text-sm">
-                Scheduled {stamp(publication.scheduled_for)}
-              </p>
-            )}
-            {publication.released_at != null && (
-              <p className="mt-2 text-sm">
-                Released {stamp(publication.released_at)}
-              </p>
-            )}
-            <div className="mt-4">
-              {publication.state !== "released" && (
-                <button className={btn} onClick={() => setConfirm("release")}>
-                  Release now
-                </button>
-              )}
-              {publication.state === "scheduled" ? (
-                <button
-                  className={`${btn} ml-2`}
-                  onClick={() => setConfirm("cancel_schedule")}
-                >
-                  Cancel schedule
-                </button>
-              ) : (
-                publication.state !== "released" && (
-                  <label className="mt-3 block text-sm">
-                    Schedule release
-                    <input
-                      className={field}
-                      type="datetime-local"
-                      value={schedule}
-                      onChange={(event) => setSchedule(event.target.value)}
-                    />
-                    <button
-                      className={`${btn} mt-2`}
-                      disabled={!schedule}
-                      onClick={() => setConfirm("schedule")}
-                    >
-                      Schedule result
-                    </button>
-                  </label>
-                )
-              )}
+            <div className="grid grid-cols-2 gap-2.5 lg:grid-cols-3 2xl:grid-cols-5">
+              {reportMetrics.map(metric => <article key={metric.label} className="min-w-0 rounded-xl bg-slate-50 p-3">
+                <p className="text-[10px] font-bold uppercase tracking-wide text-slate-500">{metric.label}</p>
+                <p className="mt-1 text-xl font-extrabold tracking-tight tabular-nums">{metric.value}<small className="ml-1 text-xs font-semibold text-slate-500">{metric.unit}</small></p>
+                {metric.score != null && <div className="mt-2 h-1.5 overflow-hidden rounded-full bg-slate-200"><div className={`h-full rounded-full ${metric.label === "Unanswered" ? "bg-rose-600" : metricTone(metric.score)}`} style={{ width: `${Math.max(0, Math.min(100, metric.score))}%` }}/></div>}
+                <p className="mt-1.5 text-[10px] leading-4 text-slate-500">{metric.note}</p>
+              </article>)}
             </div>
-          </article>
-        </div>
-        <article className={panel}>
-          <h4 className="font-bold">Decision history</h4>
-          <div className="mt-4 space-y-3">
-            {history.length ? (
-              orderedHistory.map((item, index) => (
-                <div className="rounded-xl border p-3 text-sm" key={index}>
-                  <div className="flex justify-between gap-3">
-                    <strong>{decisionLabel(item.decision)}</strong>
-                    <span>{stamp(item.decided_at || item.created_at)}</span>
-                  </div>
-                  <p className="mt-2">{show(item.note, "No officer note.")}</p>
-                  {item.actor_name != null && (
-                    <p className="mt-1 text-xs text-slate-500">
-                      Recorded by {show(item.actor_name)}
-                    </p>
-                  )}
-                </div>
-              ))
-            ) : (
-              <p>No officer decision has been recorded.</p>
-            )}
-          </div>
-        </article>
-      </section>
-      {confirm && (
-        <div className="fixed inset-0 z-50 grid place-items-center bg-slate-950/50 p-4">
-          <section
-            role="alertdialog"
-            aria-modal="true"
-            aria-labelledby="report-confirm-title"
-            className={`${panel} max-w-md`}
-          >
-            <h3 id="report-confirm-title" className="text-lg font-bold">
-              Confirm {displayName(confirm)}
-            </h3>
-            <p className="mt-2 text-sm">
-              {confirm === "decision"
-                ? `Record ${displayName(decision)} as the officer decision?`
-                : "This changes student access while preserving completed evidence."}
-            </p>
-            <div className="mt-5 flex justify-end gap-3">
-              <button
-                autoFocus
-                className={btn}
-                onClick={() => setConfirm(null)}
-              >
-                Cancel
-              </button>
-              <button
-                className={`${btn} bg-indigo-600 text-white`}
-                onClick={() => void perform()}
-              >
-                Confirm
-              </button>
+            <div className="mt-4 grid gap-3 md:grid-cols-3">
+              <article className="rounded-xl border border-slate-200 p-3.5">
+                <h3 className="mb-2 text-sm font-bold text-emerald-800"><span aria-hidden="true" className="mr-1.5">✓</span>Why consider</h3>
+                {strengths.length ? <ul className="space-y-2">{strengths.map((item, index) => <li key={index} className="relative pl-3 text-xs leading-5 text-slate-700 before:absolute before:left-0 before:top-2 before:h-1.5 before:w-1.5 before:rounded-full before:bg-emerald-600">{typeof item === "string" ? item : show((item as Data).label || (item as Data).summary || (item as Data).evidence || (item as Data).text)}</li>)}</ul> : <p className="text-xs text-slate-500">No strength statements were included in this report.</p>}
+              </article>
+              <article className="rounded-xl border border-slate-200 p-3.5">
+                <h3 className="mb-2 text-sm font-bold text-rose-800"><span aria-hidden="true" className="mr-1.5">!</span>Concerns</h3>
+                <ul className="space-y-2">
+                  {claimGaps.length > 0 && <li className="relative pl-3 text-xs leading-5 text-slate-700 before:absolute before:left-0 before:top-2 before:h-1.5 before:w-1.5 before:rounded-full before:bg-rose-600"><strong>{claimGaps.length} resume claim{claimGaps.length === 1 ? "" : "s"}</strong> were not demonstrated{claimGaps.length <= 3 ? ` (${claimGaps.map(item => String(item.skill || "")).filter(Boolean).join(", ")})` : ` (${claimGaps.slice(0, 3).map(item => String(item.skill || "")).filter(Boolean).join(", ")}, and others)`}.</li>}
+                  {reviews.length > 0 && <li className="relative pl-3 text-xs leading-5 text-slate-700 before:absolute before:left-0 before:top-2 before:h-1.5 before:w-1.5 before:rounded-full before:bg-rose-600"><strong>{dontKnowCount} of {reviews.length}</strong> answers were marked “I don’t know”.</li>}
+                  {weakestRound && <li className="relative pl-3 text-xs leading-5 text-slate-700 before:absolute before:left-0 before:top-2 before:h-1.5 before:w-1.5 before:rounded-full before:bg-rose-600">Lowest scored round: <strong>{roundRole(weakestRound.agent_type || weakestRound.track, weakestRound.interviewer_role)}</strong> ({String(weakestRound.sub_score)}/100).</li>}
+                  {lowCompetencies.map((item, index) => <li key={index} className="relative pl-3 text-xs leading-5 text-slate-700 before:absolute before:left-0 before:top-2 before:h-1.5 before:w-1.5 before:rounded-full before:bg-rose-600">Lower scored area: <strong>{show(item.label || displayName(show(item.dimension)))}</strong> ({String(item.percentage)}/100).</li>)}
+                  {!claimGaps.length && !reviews.length && !weakestRound && !lowCompetencies.length && <li className="text-xs leading-5 text-slate-500">No concern signals are available in this report.</li>}
+                </ul>
+              </article>
+              <article className="rounded-xl border border-slate-200 p-3.5">
+                <h3 className="mb-2 text-sm font-bold text-sky-800"><span aria-hidden="true" className="mr-1.5">?</span>Ask in next round</h3>
+                {nextRoundQuestions.length ? <ul className="space-y-2">{nextRoundQuestions.map((item, index) => <li key={index} className="relative pl-3 text-xs leading-5 text-slate-700 before:absolute before:left-0 before:top-2 before:h-1.5 before:w-1.5 before:rounded-full before:bg-sky-600">{typeof item === "string" ? item : show((item as Data).question || (item as Data).text || (item as Data).prompt)}</li>)}</ul> : <p className="text-xs text-slate-500">No next-round questions were included in this report.</p>}
+              </article>
             </div>
           </section>
-        </div>
-      )}
+
+          <section id="recording" className={`${reportPanel} scroll-mt-4`}>
+            <div className="flex flex-wrap items-start justify-between gap-3"><div><p className="text-xs font-semibold uppercase tracking-wide text-indigo-700">Evidence</p><h2 className="mt-1 text-lg font-bold">Interview recording & AI Proctor bookmarks</h2><p className="mt-1 text-xs text-slate-500">{recordingStatus === "ready" ? `Secure recording · ${durationLabel(recordingDuration)}${recording?.started_at || report.recording?.started_at ? ` · ${stamp(recording?.started_at ?? report.recording?.started_at)}` : ""}` : recordingStatus === "expired" ? "Recording retention period ended" : recordingStatus === "failed" ? "Video upload failed" : recordingStatus === "unavailable" || recordingStatus === "not_configured" ? "No recording is available for this attempt" : `Recording ${displayName(show(recordingStatus))}`}</p></div><span className="text-xs text-slate-500">{report.session_id ? `Session ${report.session_id}` : "Session ID unavailable"}</span></div>
+            <div className="mt-4 grid gap-5 2xl:grid-cols-[minmax(0,1.8fr)_minmax(17rem,1fr)]">
+              <div className="min-w-0">
+                <div className="relative aspect-video overflow-hidden rounded-xl bg-slate-950 text-white">
+                  {videoReady ? <video ref={videoRef} className="h-full w-full object-contain" src={recording.playback_url as string} crossOrigin="anonymous" playsInline preload="metadata" aria-label="Interview recording" onTimeUpdate={event => setPlaybackTime(event.currentTarget.currentTime)} onPlay={() => setIsPlaying(true)} onPause={() => setIsPlaying(false)} /> : <div className="absolute inset-0 grid place-items-center px-5 text-center"><div><p className="text-sm font-semibold">{recordingLoading ? "Loading private recording…" : recordingStatus === "expired" ? "Recording is no longer available" : recordingStatus === "failed" ? "Recording could not be saved" : "No recording is available"}</p><p className="mt-1 text-xs text-slate-400">{recordingStatus === "expired" || recordingStatus === "failed" ? "Transcript and assessment evidence remain available below." : recordingLoading ? "Secure playback is being requested." : "Video actions are unavailable for this attempt."}</p></div></div>}
+                  <button type="button" disabled={!videoReady} title={videoReady ? (isPlaying ? "Pause interview video" : "Play interview video") : "Video unavailable for this candidate"} aria-label={videoReady ? (isPlaying ? "Pause interview video" : "Play interview video") : "Video unavailable for this candidate"} className={`absolute inset-0 m-auto grid h-14 w-14 place-items-center rounded-full bg-white/90 text-xl text-slate-900 shadow transition disabled:cursor-not-allowed disabled:opacity-60 ${isPlaying ? "pointer-events-none opacity-0" : "hover:bg-white"}`} onClick={() => { if (!videoRef.current) return; if (videoRef.current.paused) void videoRef.current.play(); else videoRef.current.pause(); }}>{isPlaying ? "Ⅱ" : "▶"}</button>
+                  {videoReady && <span className="absolute left-3 top-3 rounded-md bg-black/60 px-2 py-1 text-[10px] font-semibold">Interview recording</span>}
+                </div>
+                {recordingError && <p role="alert" className="mt-2 text-xs text-rose-700">Recording error: {recordingError}<button className="ml-2 underline" onClick={() => void loadRecording()}>Retry</button></p>}
+                {!videoReady && report.recording?.status === "ready" && <button type="button" className={`${btn} mt-2`} disabled={recordingLoading} onClick={() => { setRecordingError(""); void loadRecording(); }}>{recordingLoading ? "Loading recording…" : "Retry secure recording"}</button>}
+                <div className="no-print mt-3 flex flex-wrap items-center gap-2">
+                  <button type="button" className={`${btn} h-[34px] w-[34px] justify-center p-0`} aria-label={isPlaying ? "Pause" : "Play"} title={isPlaying ? "Pause" : "Play"} disabled={!videoReady} onClick={() => { if (!videoRef.current) return; if (videoRef.current.paused) void videoRef.current.play(); else videoRef.current.pause(); }}>{isPlaying ? "Ⅱ" : "▶"}</button>
+                  <button type="button" className={`${btn} h-[34px] w-[34px] justify-center p-0`} aria-label="Back 10 seconds" title="Back 10 seconds" disabled={!videoReady} onClick={() => { if (videoRef.current) videoRef.current.currentTime = Math.max(0, videoRef.current.currentTime - 10); }}>↺</button>
+                  <button type="button" className={`${btn} h-[34px] w-[34px] justify-center p-0`} aria-label="Forward 10 seconds" title="Forward 10 seconds" disabled={!videoReady} onClick={() => { if (videoRef.current) videoRef.current.currentTime = Math.min(videoRef.current.duration || Infinity, videoRef.current.currentTime + 10); }}>↻</button>
+                  <span className="text-xs font-semibold tabular-nums text-slate-500">{timeLabel(playbackTime)} / {timeLabel(Number(recording?.duration_seconds ?? recordingDuration ?? 0))}</span>
+                  <span className="flex-1"/>
+                  <button type="button" className={btn} disabled={!videoReady || !events.length} onClick={() => jumpToAdjacentFlag(-1)}>‹ Flag</button>
+                  <button type="button" className={btn} disabled={!videoReady || !events.length} onClick={() => jumpToAdjacentFlag(1)}>Flag ›</button>
+                  <select aria-label="Playback speed" className="h-[34px] rounded-lg border border-slate-300 bg-white px-2 text-xs font-semibold disabled:cursor-not-allowed disabled:opacity-50" value={playbackRate} disabled={!videoReady} onChange={event => { const rate = Number(event.target.value); setPlaybackRate(rate); if (videoRef.current) videoRef.current.playbackRate = rate; }}><option value={1}>1×</option><option value={1.5}>1.5×</option><option value={2}>2×</option><option value={4}>4×</option></select>
+                </div>
+                <div className="relative mt-4 pt-3">
+                  <div className="flex items-center justify-between text-[10px] font-semibold text-slate-500"><span>Recording timeline</span><span>{recordingDuration != null ? timeLabel(Number(recordingDuration)) : "Not available"}</span></div>
+                  {videoReady && Number(recording?.segment_count || 0) <= 1 && Number(recording?.duration_seconds || 0) > 0 ? <><div className="relative mt-1 h-7 rounded-lg bg-slate-100" role="group" aria-label="Recording timeline"><div className="absolute inset-x-0 top-1/2 h-1 -translate-y-1/2 bg-slate-300"/>{turns.map((turn, index) => { const offset = recordingOffset(turn.asked_at); if (offset == null) return null; const left = Math.min(100, Math.max(0, offset / Number(recording.duration_seconds) * 100)); return <button key={String(turn.turn_id || index)} type="button" disabled={!videoReady} className="absolute top-1/2 z-10 h-3 w-3 -translate-x-1/2 -translate-y-1/2 rounded-sm border border-white bg-indigo-600 disabled:cursor-not-allowed" style={{ left: `${left}%` }} title={show(turn.question_text, `Question ${index + 1}`)} aria-label={`Jump to interview question ${index + 1}`} onClick={() => seekToQuestion(turn.asked_at)}/>; })}{events.map((event, index) => { const offset = recordingOffset(event.occurred_at || event.created_at); if (offset == null) return null; const left = Math.min(100, Math.max(0, offset / Number(recording.duration_seconds) * 100)); return <button key={String(event.event_id || index)} type="button" disabled={!videoReady} className="absolute top-1/2 z-20 h-3.5 w-3.5 -translate-x-1/2 -translate-y-1/2 rounded-full border-2 border-white bg-amber-600 disabled:cursor-not-allowed" style={{ left: `${left}%` }} title={`${displayName(show(event.event_type || event.type))} · ${stamp(event.occurred_at || event.created_at)}`} aria-label={`Jump to proctor bookmark ${index + 1}`} onClick={() => { setActiveEvent(index); seekToEvent(event); }}/>; })}{bookmarkNotes.map(item => <button key={item.id} type="button" disabled={!videoReady} className="absolute top-1/2 z-30 h-3.5 w-3.5 -translate-x-1/2 -translate-y-1/2 rotate-45 border-2 border-white bg-slate-700 disabled:cursor-not-allowed" style={{ left: `${Math.min(100, item.seconds / Number(recording.duration_seconds) * 100)}%` }} title={`My note · ${timeLabel(item.seconds)} · ${item.text}`} aria-label={`My note at ${timeLabel(item.seconds)}`} onClick={() => { if (videoRef.current) videoRef.current.currentTime = item.seconds; }}/>)}</div><div className="mt-1 flex justify-between text-[10px] text-slate-500"><span>0:00</span><span>{timeLabel(Number(recording.duration_seconds))}</span></div></> : <div className="mt-1 flex h-7 items-center rounded-lg bg-slate-100 px-3 text-[10px] text-slate-500">{Number(recording?.segment_count || 0) > 1 ? "Timeline alignment unavailable for combined recording segments." : "No recording timeline is available for this attempt."}</div>}
+                  <div className="mt-2 flex flex-wrap gap-3 text-[10px] text-slate-500"><span><i className="mr-1 inline-block h-2 w-2 rounded-sm bg-indigo-600"/>Question</span><span><i className="mr-1 inline-block h-2 w-2 rounded-full bg-amber-600"/>AI Proctor flag</span><span><i className="mr-1 inline-block h-2 w-2 rotate-45 bg-slate-700"/>My note</span></div>
+                </div>
+                {videoReady && Number(recording?.segment_count || 0) > 1 && <p className="mt-3 text-xs text-slate-500">This recording combines multiple capture segments, so wall-clock timeline markers cannot be aligned reliably.</p>}
+                {videoReady && Number(recording?.segment_count || 0) <= 1 && Number(recording?.duration_seconds || 0) > 0 && <div className="mt-4"><div className="flex items-center justify-between text-xs font-semibold text-slate-600"><span>Recording timeline</span><span>{durationLabel(recording.duration_seconds)}</span></div><div className="relative mt-2 h-8 rounded-md bg-slate-100" role="group" aria-label="Recording timeline"><div className="absolute inset-x-0 top-1/2 h-1 -translate-y-1/2 bg-slate-300"/>{turns.map((turn, index) => { const offset = recordingOffset(turn.asked_at); if (offset == null) return null; const left = Math.min(100, Math.max(0, offset / Number(recording.duration_seconds) * 100)); return <button key={String(turn.turn_id || index)} type="button" className="absolute top-1/2 z-10 h-3 w-3 -translate-x-1/2 -translate-y-1/2 rounded-sm border border-white bg-indigo-600" style={{ left: `${left}%` }} title={show(turn.question_text, `Question ${index + 1}`)} aria-label={`Jump to interview question ${index + 1}`} onClick={() => seekToQuestion(turn.asked_at)}/>; })}{events.map((event, index) => { const offset = recordingOffset(event.occurred_at || event.created_at); if (offset == null) return null; const left = Math.min(100, Math.max(0, offset / Number(recording.duration_seconds) * 100)); return <button key={String(event.event_id || index)} type="button" className="absolute top-1/2 z-20 h-3.5 w-3.5 -translate-x-1/2 -translate-y-1/2 rounded-full border-2 border-white bg-amber-600" style={{ left: `${left}%` }} title={`${displayName(show(event.event_type || event.type))} · ${stamp(event.occurred_at || event.created_at)}`} aria-label={`Jump to proctor bookmark ${index + 1}`} onClick={() => { setActiveEvent(index); seekToEvent(event); }}/>; })}{bookmarkNotes.map(item => <button key={item.id} type="button" className="absolute top-1/2 z-30 h-3.5 w-3.5 -translate-x-1/2 -translate-y-1/2 rotate-45 border-2 border-white bg-slate-700" style={{ left: `${Math.min(100, item.seconds / Number(recording.duration_seconds) * 100)}%` }} title={`My note · ${timeLabel(item.seconds)} · ${item.text}`} aria-label={`My note at ${timeLabel(item.seconds)}`} onClick={() => { if (videoRef.current) videoRef.current.currentTime = item.seconds; }}/>)}</div><div className="flex justify-between text-[10px] text-slate-500"><span>0:00</span><span>{durationLabel(recording.duration_seconds)}</span></div><div className="mt-2 flex flex-wrap gap-3 text-[10px] text-slate-500"><span><i className="mr-1 inline-block h-2 w-2 rounded-sm bg-indigo-600"/>Question</span><span><i className="mr-1 inline-block h-2 w-2 rounded-full bg-amber-600"/>Proctor event</span><span><i className="mr-1 inline-block h-2 w-2 rotate-45 bg-slate-700"/>My note</span></div></div>}
+              </div>
+              <div className="min-w-0">
+                <div className="flex flex-wrap gap-1 border-b border-slate-200 pb-2" role="tablist" aria-label="Recording bookmarks">{[["all", "All"], ["proctor", "AI Proctor"], ["note", "My notes"]].map(([value, label]) => <button key={value} type="button" role="tab" aria-selected={bookmarkFilter === value} className={`rounded-md px-2.5 py-1.5 text-xs font-semibold ${bookmarkFilter === value ? "bg-indigo-600 text-white" : "text-slate-600 hover:bg-slate-100"}`} onClick={() => setBookmarkFilter(value)}>{label}</button>)}</div>
+                <div className="mt-2 max-h-60 space-y-1 overflow-auto">{visibleBookmarks.length ? visibleBookmarks.map(item => <button key={item.id} type="button" className="flex w-full items-start gap-2 rounded-md border border-slate-200 p-2 text-left text-xs hover:bg-slate-50" onClick={() => { if (item.event) { setActiveEvent(events.indexOf(item.event)); seekToEvent(item.event); } else if (videoRef.current && item.seconds != null) videoRef.current.currentTime = item.seconds; }}><span className="min-w-10 font-bold tabular-nums text-slate-700">{item.seconds == null ? "—" : timeLabel(item.seconds)}</span><span className="min-w-0"><strong className="block">{item.text}</strong>{"detail" in item && <span className="mt-0.5 block text-slate-500">{item.detail}</span>}{"saved" in item && !item.saved && <span className="mt-0.5 block text-indigo-700">Draft · not saved</span>}</span></button>) : <p className="py-3 text-xs text-slate-500">{bookmarkFilter === "note" ? "No timestamped notes have been added." : bookmarkFilter === "proctor" ? "No proctor bookmarks are available." : "No recording bookmarks are available."}</p>}</div>
+                <form className="mt-3 rounded-lg border border-slate-200 p-3" onSubmit={event => { event.preventDefault(); addBookmarkNote(); }}><label htmlFor="bookmark-note" className="text-xs font-semibold">Add note at current time</label><div className="mt-2 flex gap-2"><input id="bookmark-note" className="min-w-0 flex-1 rounded-md border border-slate-300 px-2 py-1.5 text-xs" maxLength={120} placeholder={videoReady ? "Add a review note…" : "Load recording to timestamp a note"} value={bookmarkNote} onChange={event => setBookmarkNote(event.target.value)} disabled={!videoReady}/><button type="submit" className={`${btn} px-2 py-1 text-xs`} disabled={!videoReady || !bookmarkNote.trim()}>Add</button></div><p className="mt-1 text-[10px] leading-4 text-slate-500">Notes are draft-only until copied into the officer note and saved with a decision.</p><p className="mt-2 text-[10px] text-slate-400"><kbd>Space</kbd> play · <kbd>←</kbd>/<kbd>→</kbd> seek · <kbd>N</kbd> next flag · <kbd>B</kbd> note</p></form>
+              </div>
+            </div>
+          </section>
+
+          <section id="deep-dive" className={`${reportPanel} scroll-mt-4 p-0`}>
+            <div className="border-b border-slate-200 px-4 pt-4 sm:px-5"><p className="text-xs font-semibold uppercase tracking-wide text-indigo-700">Assessment details</p><h2 className="mt-1 text-lg font-bold">Interview deep dive</h2><nav className="report-nav mt-3 flex gap-1 overflow-x-auto" role="tablist" aria-label="Candidate report sections">{nav.map(([item, label]) => <button key={item} type="button" role="tab" aria-selected={activeTab === item} className={`whitespace-nowrap border-b-2 px-3 py-2.5 text-sm font-semibold ${activeTab === item ? "border-indigo-600 text-indigo-700" : "border-transparent text-slate-500 hover:text-slate-800"}`} onClick={() => setActiveTab(item)}>{label}{item === "answers" && <span className="ml-1.5 text-xs text-slate-400">{reviews.length}</span>}{item === "skills" && <span className="ml-1.5 text-xs text-slate-400">{claimGaps.length} gaps</span>}{item === "rounds" && rounds.length > 0 && <span className="ml-1.5 text-xs text-slate-400">{rounds.length}</span>}{item === "proctor" && events.length > 0 && <span className="ml-1.5 text-xs text-slate-400">{events.length}</span>}</button>)}</nav></div>
+            <div className="p-4 sm:p-5">
+              {activeTab === "answers" && <section id="evidence" className="space-y-4">
+                <div className="flex flex-wrap items-start justify-between gap-3"><div><h3 className="text-base font-bold">Interview answers</h3><p className="mt-1 text-xs text-slate-500">Candidate responses, AI assessment and persisted transcript.</p></div><button className={btn} disabled={transcriptLoading || !report.session_id} onClick={() => void evidence("transcript")}><FileText size={15}/>{transcriptLoading ? "Loading transcript…" : transcript ? "Reload transcript" : "Load transcript"}</button></div>
+                {transcriptError && <p role="alert" className="rounded-md bg-rose-50 p-2 text-xs text-rose-700">{transcriptError}<button className="ml-2 underline" onClick={() => void evidence("transcript")}>Retry</button></p>}
+                <div className="flex flex-wrap items-center gap-2"><div className="flex flex-wrap gap-1">{[["all", "All"], ["unanswered", "Weak / no answer"], ["strong", "Strong"], ["feedback", "Has AI feedback"], ...(followUpReviews.length ? [["followups", "Follow-ups"]] : [])].map(([value, label]) => <button key={value} type="button" aria-pressed={answerFilter === value} className={`rounded-md border px-2.5 py-1.5 text-xs font-semibold ${answerFilter === value ? "border-indigo-600 bg-indigo-600 text-white" : "border-slate-200 text-slate-600"}`} onClick={() => setAnswerFilter(value)}>{label}</button>)}</div><label className="relative ml-auto"><Search size={14} className="absolute left-2 top-1/2 -translate-y-1/2 text-slate-400"/><input type="search" aria-label="Search questions and answers" className="w-full rounded-md border border-slate-300 py-2 pl-7 pr-3 text-xs sm:w-56" placeholder="Search questions or answers" value={answerSearch} onChange={event => setAnswerSearch(event.target.value)}/></label></div>
+                <div className="flex flex-wrap items-center gap-2 text-[10px] text-slate-500"><span>Answer status:</span><span className="rounded-full bg-emerald-50 px-2 py-1 text-emerald-800">Recorded</span><span className="rounded-full bg-amber-50 px-2 py-1 text-amber-800">Limited</span><span className="rounded-full bg-rose-50 px-2 py-1 text-rose-800">No response / needs review</span></div>
+                <div className="flex flex-wrap gap-1">{filteredReviews.map(review => { const index = reviews.indexOf(review), state = answerState(review); const tone = answerIsMissing(review) ? "bg-rose-600" : state === "answered" ? "bg-emerald-600" : "bg-amber-500"; return <button key={String(review.turn_id || index)} type="button" className={`h-6 min-w-6 rounded px-1 text-[10px] font-bold text-white ${tone}`} title={`Question ${index + 1}: ${displayName(show(state))}`} onClick={() => document.getElementById(`answer-${index}`)?.scrollIntoView({ behavior: "smooth", block: "center" })}>{index + 1}</button>; })}</div>
+                {filteredReviews.length ? (expanded.answers ? filteredReviews : filteredReviews.slice(0, 4)).map((review, index) => { const absoluteIndex = reviews.indexOf(review), turnId = String(review.turn_id || ""), persistedTurn = turns.find(turn => String(turn.turn_id) === turnId), state = answerState(review); const feedbackItems = [...(Array.isArray(review.strength_feedback) ? review.strength_feedback : []), ...(Array.isArray(review.improvement_feedback) ? review.improvement_feedback : [])]; return <details id={`answer-${absoluteIndex}`} key={turnId || index} className="group rounded-lg border border-slate-200 p-3 open:border-indigo-300"><summary className="cursor-pointer list-none"><div className="flex flex-wrap items-center justify-between gap-2"><span className="text-xs font-semibold text-indigo-700">{roundRole(review.agent_type || review.track || review.round)}</span><span className={`rounded-full px-2 py-1 text-[10px] font-semibold ${answerIsMissing(review) ? "bg-rose-50 text-rose-800" : state === "answered" ? "bg-emerald-50 text-emerald-800" : "bg-amber-50 text-amber-800"}`}>{displayName(show(state, "Status unavailable"))}</span><ChevronDown size={14} className="text-slate-400 transition group-open:rotate-180"/></div><h4 className="mt-2 text-sm font-semibold">{show(review.question || review.question_text, `Question ${absoluteIndex + 1}`)}</h4></summary><p className="mt-3 whitespace-pre-wrap text-sm leading-6 text-slate-700">{show(review.answer || review.transcript, "No response text was captured.")}</p>{feedbackItems.length > 0 && <div className="mt-3 grid gap-2 sm:grid-cols-2">{Array.isArray(review.strength_feedback) && review.strength_feedback.length > 0 && <div className="rounded-md bg-emerald-50 p-3 text-xs text-emerald-900"><strong>Strengths noted</strong><ul className="mt-1 list-disc pl-4">{review.strength_feedback.map((item, i) => <li key={i}>{show(item)}</li>)}</ul></div>}{Array.isArray(review.improvement_feedback) && review.improvement_feedback.length > 0 && <div className="rounded-md bg-amber-50 p-3 text-xs text-amber-950"><strong>Improvement feedback</strong><ul className="mt-1 list-disc pl-4">{review.improvement_feedback.map((item, i) => <li key={i}>{show(item)}</li>)}</ul></div>}</div>}{persistedTurn && <div className="mt-3 rounded-md border border-slate-200 p-3"><p className="text-[10px] font-semibold uppercase tracking-wide text-slate-500">Persisted candidate transcript</p><p className="mt-1 whitespace-pre-wrap text-sm">{show(persistedTurn.transcript, "No response text was captured.")}</p></div>}{persistedTurn?.asked_at != null && videoReady && <button type="button" className={`${btn} mt-3`} onClick={() => seekToQuestion(persistedTurn.asked_at)}>Play this answer · {new Date(String(persistedTurn.asked_at)).toLocaleTimeString()}</button>}{turnId && report.session_id && String(review.answer || review.transcript || "").trim() && <Audio path={`students/${studentId}/reports/${report.session_id}/turns/${turnId}/audio`}/>}<dl className="mt-3 flex flex-wrap gap-x-5 gap-y-1 border-t border-slate-100 pt-2 text-[10px] text-slate-500">{review.word_count != null && <div><dt className="inline">Words: </dt><dd className="inline font-semibold">{String(review.word_count)}</dd></div>}{review.has_audio != null && <div><dt className="inline">Audio: </dt><dd className="inline font-semibold">{review.has_audio ? "Available" : "Unavailable"}</dd></div>}</dl></details>; }) : <p className="rounded-lg border border-slate-200 p-4 text-sm text-slate-500">{reviews.length ? "No answers match these filters." : "No question review was generated."}</p>}
+                <PreviewToggle shown={expanded.answers ? filteredReviews.length : Math.min(4, filteredReviews.length)} total={filteredReviews.length} onClick={() => toggleExpanded("answers")} noun="answers"/>
+                {transcript && <details className="rounded-lg border border-slate-200 p-3"><summary className="cursor-pointer font-semibold">Full transcript · {turns.length} turns</summary><div className="mt-3 space-y-3 border-t border-slate-100 pt-3">{(expanded.transcript ? turns : turns.slice(0, 4)).map((turn, index) => <article key={String(turn.turn_id || index)} className="border-l-2 border-indigo-200 pl-3"><p className="text-[10px] font-semibold uppercase text-slate-500">Turn {show(turn.turn_index, String(index + 1))} · {roundRole(turn.agent_type)} · {displayName(show(turn.kind, "Question"))}</p><p className="mt-1 text-sm font-semibold">{show(turn.question_text)}</p><p className="mt-1 whitespace-pre-wrap text-sm">{show(turn.transcript, "No response text captured.")}</p>{turn.has_audio === true && Boolean(turn.turn_id) && report.session_id && <Audio path={`students/${studentId}/reports/${report.session_id}/turns/${String(turn.turn_id)}/audio`}/>}</article>)}<PreviewToggle shown={expanded.transcript ? turns.length : Math.min(4, turns.length)} total={turns.length} onClick={() => toggleExpanded("transcript")} noun="turns"/></div></details>}
+              </section>}
+
+              {activeTab === "skills" && <section id="role-fit" className="space-y-4">
+                <div><h3 className="text-base font-bold">Skills proof</h3><p className="mt-1 text-xs text-slate-500">Resume claims are compared with evidence recorded in the interview.</p></div>
+                <div className="grid gap-3 rounded-lg border border-slate-200 p-3 sm:grid-cols-3"><div><p className="text-xs text-slate-500">Job fit</p><strong className="text-xl">{typeof jobFit.score === "number" ? `${jobFit.score}/100` : "Not assessed"}</strong><p className="text-[10px] text-slate-500">Role requirements vs interview evidence</p></div><div className="border-slate-200 sm:border-l sm:pl-3"><p className="text-xs text-slate-500">Resume credibility</p><strong className="text-xl">{resumeAlignment.credibility_score == null ? "—" : `${String(resumeAlignment.credibility_score)}/100`}</strong><p className="text-[10px] text-slate-500">Based on assessed resume claims</p></div><div className="border-slate-200 sm:border-l sm:pl-3"><p className="text-xs text-slate-500">Claims verified</p><strong className="text-xl">{testedResumeSkills.length ? `${verifiedResumeSkills.length}/${testedResumeSkills.length}` : "—"}</strong><p className="text-[10px] text-slate-500">{claimGaps.length} not demonstrated · {notTestedResumeSkills.length} not tested</p></div></div>
+                {claimGaps.length > 0 && <div className="rounded-lg border border-amber-200 bg-amber-50 p-3 text-xs leading-5 text-slate-700"><strong className="text-amber-900">Resume claims not demonstrated:</strong> {claimGaps.map(item => String(item.skill || "")).filter(Boolean).join(", ")}. Check the cited interview evidence before deciding.</div>}
+                <div className="flex flex-wrap gap-1" role="group" aria-label="Filter resume claim evidence">{[["all", `All (${resumeSkills.length})`], ["gaps", `Claim gaps (${claimGaps.length})`], ["verified", `Verified (${verifiedResumeSkills.length})`], ["not_tested", `Not tested (${notTestedResumeSkills.length})`]].map(([value, label]) => <button key={value} type="button" aria-pressed={resumeSkillFilter === value} className={`rounded-full border px-3 py-1.5 text-xs font-semibold ${resumeSkillFilter === value ? "border-slate-900 bg-slate-900 text-white" : "border-slate-200 text-slate-600"}`} onClick={() => setResumeSkillFilter(value)}>{label}</button>)}</div>
+                <div className="overflow-x-auto rounded-xl border border-slate-200"><table className="w-full min-w-[620px] text-left text-sm"><thead className="bg-slate-50 text-[10px] uppercase tracking-wide text-slate-500"><tr><th className="p-3">Skill / claim</th><th className="p-3">Resume says</th><th className="p-3">Interview showed</th><th className="p-3">Evidence</th></tr></thead><tbody>{filteredResumeSkills.length ? filteredResumeSkills.map((item, index) => { const level = String(item.evidence_level || "not_assessed").toLowerCase(); const matchingRequirements = requirements.filter(requirement => String(requirement.requirement || "").trim().toLowerCase() === String(item.skill || "").trim().toLowerCase()); const answerIds = matchingRequirements.flatMap(requirement => Array.isArray(requirement.answer_ids) ? requirement.answer_ids : []); const questionReviews = reviews.filter(review => answerIds.includes(review.answer_id)); const verdict = level === "verified" ? "Verified" : level === "weak" ? "Partial" : level === "not_demonstrated" ? "Not shown" : "Not tested"; return <tr key={String(item.claim_id || item.skill || index)} className={`border-t border-slate-100 align-top ${level === "not_demonstrated" ? "bg-rose-50/40" : ""}`}><th className="p-3 font-semibold">{show(item.skill, `Skill ${index + 1}`)}</th><td className="p-3 text-slate-600">Listed on resume</td><td className="p-3"><span className="font-semibold">{verdict}</span></td><td className="max-w-sm p-3 text-xs text-slate-600">{show(item.note, "No interview evidence note was included.")}{questionReviews.length > 0 && <div className="mt-1">{questionReviews.map((review, i) => <button key={i} type="button" className="mr-2 font-semibold text-indigo-700 underline" onClick={() => { setActiveTab("answers"); window.setTimeout(() => document.getElementById(`answer-${reviews.indexOf(review)}`)?.scrollIntoView({ behavior: "smooth", block: "center" }), 0); }}>Q{reviews.indexOf(review) + 1}</button>)}</div>}</td></tr>; }) : <tr><td colSpan={4} className="p-5 text-center text-sm text-slate-500">{resumeSkills.length ? "No resume claims match this filter." : "Resume claim analysis is not available for this report."}</td></tr>}</tbody></table></div>
+                <details className="rounded-lg border border-slate-200 p-3"><summary className="cursor-pointer text-sm font-semibold">Role requirements evidence · {requirements.length}</summary><div className="mt-3 space-y-3"><div className="flex flex-wrap gap-1" aria-label="Filter role requirement evidence">{[["all", "All"], ["gaps", "Gaps"], ["demonstrated", "Demonstrated"], ["not_asked", "Not asked"]].map(([value, label]) => <button key={value} type="button" aria-pressed={skillFilter === value} className={`rounded-full border px-3 py-1 text-xs font-semibold ${skillFilter === value ? "border-slate-900 bg-slate-900 text-white" : "border-slate-200 text-slate-600"}`} onClick={() => setSkillFilter(value)}>{label}</button>)}</div><div className="overflow-x-auto rounded-lg border border-slate-200"><table className="w-full min-w-[620px] text-left text-sm"><thead className="bg-slate-50 text-[10px] uppercase tracking-wide text-slate-500"><tr><th className="p-3">Requirement</th><th className="p-3">Status</th><th className="p-3">Evidence strength</th><th className="p-3">Questions</th></tr></thead><tbody>{filteredRequirements.length ? filteredRequirements.map((item, index) => { const linkedReviews = reviews.filter(review => (Array.isArray(item.answer_ids) ? item.answer_ids : []).includes(review.answer_id)); return <tr key={String(item.requirement_id || index)} className="border-t border-slate-100 align-top"><th className="p-3 font-semibold">{show(item.requirement, `Requirement ${index + 1}`)}{item.critical === true && <span className="ml-2 text-[10px] font-normal text-slate-500">Critical</span>}</th><td className="p-3 text-xs">{item.candidate_mentioned === true ? "Demonstrated" : item.requirement_was_asked === true ? "Asked · no evidence" : "Not asked"}</td><td className="p-3 text-xs">{displayName(show(item.evidence_strength || item.status, "Not assessed"))}</td><td className="p-3">{linkedReviews.length ? linkedReviews.map((review, i) => <button key={i} type="button" className="mr-1 text-xs font-semibold text-indigo-700 underline" onClick={() => { setActiveTab("answers"); window.setTimeout(() => document.getElementById(`answer-${reviews.indexOf(review)}`)?.scrollIntoView({ behavior: "smooth", block: "center" }), 0); }}>Q{reviews.indexOf(review) + 1}</button>) : Array.isArray(item.question_refs) && item.question_refs.length ? item.question_refs.join(", ") : <span className="text-xs text-slate-400">—</span>}</td></tr>; }) : <tr><td colSpan={4} className="p-5 text-center text-sm text-slate-500">No role requirement evidence matches this filter.</td></tr>}</tbody></table></div></div></details>
+                <div className="grid gap-3 md:grid-cols-2"><article className="rounded-lg border border-slate-200 p-3"><h4 className="text-sm font-bold">Suitable roles</h4><div className="mt-3"><List items={suitableRoles} empty="No suitable roles were recorded."/></div></article><article className="rounded-lg border border-slate-200 p-3"><h4 className="text-sm font-bold">Recommended preparation</h4><div className="mt-3"><List items={preparationSteps} empty="No preparation guidance was recorded."/></div></article></div>
+              </section>}
+
+              {activeTab === "rounds" && <section id="panel-rounds" className="space-y-5"><div><h3 className="text-base font-bold">Rounds & competencies</h3><p className="mt-1 text-xs text-slate-500">Round performance, scored dimensions and communication measures from the evaluation.</p></div><div className="grid gap-3 sm:grid-cols-2">{roundEntries.length ? roundEntries.map(({ round, index, label, roundReviews }) => <article key={String(round.agent_type || index)} className="rounded-lg border border-slate-200 p-3"><div className="flex items-start justify-between gap-3"><div><p className="text-[10px] uppercase tracking-wide text-slate-500">Round {index + 1}</p><h4 className="mt-1 text-sm font-bold">{label}</h4></div><strong className="text-sm tabular-nums">{round.sub_score == null ? displayName(show(round.status, "Not assessed")) : `${String(round.sub_score)}/100`}</strong></div>{typeof round.sub_score === "number" && <div className="mt-2 h-1.5 rounded bg-slate-100"><div className="h-full rounded bg-indigo-600" style={{ width: `${Math.max(0, Math.min(100, round.sub_score))}%` }}/></div>}<p className="mt-2 text-xs text-slate-600">{show(round.summary || round.evidence, "No round summary was recorded.")}</p><p className="mt-2 border-t border-slate-100 pt-2 text-[10px] text-slate-500">{roundReviews.length} reviewed answer{roundReviews.length === 1 ? "" : "s"}</p></article>) : <p className="text-sm text-slate-500">No round-level assessment was recorded.</p>}</div><div className="grid gap-4 lg:grid-cols-2"><article className="rounded-lg border border-slate-200 p-3"><h4 className="text-sm font-bold">Competencies</h4>{dimensions.length ? <div className="mt-3 space-y-3">{dimensions.map((item, index) => <div key={index}><div className="flex justify-between gap-3 text-xs"><span>{show(item.label || displayName(show(item.dimension)))}</span><span className="font-semibold">{item.percentage != null ? `${String(item.percentage)}/100` : item.band != null ? `Band ${String(item.band)}` : "Not assessed"}</span></div>{typeof item.percentage === "number" && <div className="mt-1 h-1.5 rounded bg-slate-100"><div className="h-full rounded bg-indigo-600" style={{ width: `${Math.max(0, Math.min(100, item.percentage))}%` }}/></div>}{item.interpretation != null && <p className="mt-1 text-xs text-slate-500">{String(item.interpretation)}</p>}</div>)}</div> : <p className="mt-3 text-sm text-slate-500">No competency scores were recorded.</p>}</article><article className="rounded-lg border border-slate-200 p-3"><h4 className="text-sm font-bold">Communication measures</h4>{Object.keys(communication).length ? <dl className="mt-3 divide-y divide-slate-100 text-sm">{[["Speaking speed", communication.speaking_speed_wpm == null ? null : `${String(communication.speaking_speed_wpm)} words/min`], ["Pace", communication.pace_label], ["Filler words", communication.filler_word_count], ["Timed answers", communication.timed_answer_count], ...Object.entries((communication.scores || {}) as Data).map(([key, value]) => [displayName(key), value == null ? null : `${String(value)}%`])].filter(([, value]) => value != null).map(([label, value]) => <div key={String(label)} className="flex justify-between gap-4 py-2"><dt className="text-slate-500">{String(label)}</dt><dd className="font-medium">{String(value)}</dd></div>)}</dl> : <p className="mt-3 text-sm text-slate-500">Communication measures are not available.</p>}{Array.isArray(communication.top_filler_words) && communication.top_filler_words.length > 0 && <p className="mt-2 text-xs text-slate-500">Recorded filler words: {communication.top_filler_words.map(String).join(", ")}</p>}</article></div><details className="rounded-lg border border-slate-200 p-3"><summary className="cursor-pointer text-sm font-semibold">Dimensions chart</summary>{dimensionsWithScore.length ? <div className="mt-3 space-y-2">{dimensionsWithScore.map((item, index) => <div key={index} className="grid grid-cols-[minmax(6rem,.6fr)_minmax(0,1fr)_2.5rem] items-center gap-2 text-xs"><span>{show(item.label || item.dimension)}</span><div className="h-2 rounded bg-slate-100"><div className="h-full rounded bg-indigo-600" style={{ width: `${Math.max(0, Math.min(100, Number(item.percentage)))}%` }}/></div><span className="text-right font-semibold">{String(item.percentage)}</span></div>)}</div> : <p className="mt-3 text-sm text-slate-500">There are no percentage scores to chart.</p>}</details></section>}
+
+              {activeTab === "proctor" && <section id="integrity" className="space-y-4"><div className="flex flex-wrap items-start justify-between gap-3"><div><h3 className="text-base font-bold">AI Proctor review</h3><p className="mt-1 text-xs text-slate-500">Recorded integrity signals for human review; events are not a final misconduct finding.</p></div><button className={btn} disabled={integrityLoading || !report.session_id} onClick={() => void evidence("integrity-events")}><ShieldCheck size={14}/>{integrityLoading ? "Loading…" : integrity ? "Reload events" : "Load events"}</button></div>{integrityError && <p role="alert" className="rounded-md bg-rose-50 p-2 text-xs text-rose-700">{integrityError}<button className="ml-2 underline" onClick={() => void evidence("integrity-events")}>Retry</button></p>}<div className="grid gap-3 sm:grid-cols-3"><div className="rounded-lg border border-slate-200 p-3"><p className="text-xs text-slate-500">Integrity score</p><strong className="text-xl">{proctor.score == null ? "—" : `${String(proctor.score)}/100`}</strong></div><div className="rounded-lg border border-slate-200 p-3"><p className="text-xs text-slate-500">Recorded events</p><strong className="text-xl">{events.length}</strong></div><div className="rounded-lg border border-slate-200 p-3"><p className="text-xs text-slate-500">Assessment status</p><strong className="text-sm">{displayName(show(proctor.status, "Not assessed"))}</strong></div></div>{proctorSubscores.length > 0 && <div className="grid gap-2 sm:grid-cols-2">{proctorSubscores.map(([key, value]) => <div key={key} className="flex justify-between rounded-md border border-slate-200 px-3 py-2 text-xs"><span>{displayName(key)}</span><strong>{show(value)}</strong></div>)}</div>}<div className="overflow-x-auto rounded-lg border border-slate-200"><table className="w-full min-w-[700px] text-left text-sm"><thead className="bg-slate-50 text-xs text-slate-600"><tr><th className="p-3">Time</th><th className="p-3">Event</th><th className="p-3">Severity</th><th className="p-3">Details</th><th className="p-3">Reviewer</th></tr></thead><tbody>{events.length ? events.map((event, index) => { const key = String(event.event_id || index); return <tr key={key} className="border-t border-slate-100 align-top"><td className="whitespace-nowrap p-3 text-xs">{stamp(event.occurred_at || event.created_at)}</td><th className="p-3 text-sm font-semibold">{displayName(show(event.event_type || event.type, "Proctor observation"))}</th><td className="p-3 text-xs">{displayName(show(event.severity, "Not specified"))}</td><td className="max-w-sm p-3 text-xs text-slate-600">{eventExplanation(event)}</td><td className="p-3"><select aria-label={`Reviewer assessment for event ${index + 1}`} className="rounded-md border border-slate-300 bg-white px-2 py-1.5 text-xs" value={eventReviews[key] || ""} onChange={change => { setEventReviews(current => ({ ...current, [key]: change.target.value })); setEventReviewSaved(false); }}><option value="">Unreviewed</option><option value="reviewed">Reviewed</option><option value="dismissed">Dismissed</option><option value="follow_up">Follow up</option></select></td></tr>; }) : <tr><td colSpan={5} className="p-5 text-center text-sm text-slate-500">{integrityLoading ? "Loading integrity events…" : integrity ? "No proctor observations were recorded." : "Integrity events have not been loaded."}</td></tr>}</tbody></table></div>{events.length > 0 && <div className="flex flex-wrap items-center justify-between gap-3"><p className="text-xs text-slate-500">Review choices are available for this session; the report API does not persist reviewer annotations.</p><button type="button" className={btn} disabled={!Object.values(eventReviews).some(Boolean)} onClick={() => { setEventReviewSaved(true); setNotice("Reviewer selections are recorded for this page session only; no persistence endpoint is available."); }}>Save review</button></div>}{eventReviewSaved && <p role="status" className="text-xs text-amber-700">Review selection captured for this page session. It is not saved to the backend.</p>}</section>}
+
+              {activeTab === "feedback" && <section id="student-feedback" className="space-y-4"><div><h3 className="text-base font-bold">Student feedback</h3><p className="mt-1 text-xs text-slate-500">Feedback and preparation guidance included with this saved evaluation.</p></div><article className="rounded-lg border border-slate-200 p-4"><h4 className="text-sm font-bold">Interview summary</h4><p className="mt-2 whitespace-pre-wrap text-sm leading-6 text-slate-700">{show(feedbackSummary, "No student-facing summary is available in this report.")}</p></article><div className="grid gap-3 lg:grid-cols-2"><article className="rounded-lg border border-slate-200 p-4"><h4 className="text-sm font-bold">Growth areas</h4><div className="mt-3"><List items={feedbackAreas} empty="No growth areas are available in this report."/></div></article><article className="rounded-lg border border-slate-200 p-4"><h4 className="text-sm font-bold">Preparation plan</h4><div className="mt-3"><List items={preparationSteps} empty="No preparation guidance is available in this report."/></div></article></div>{suitableRoles.length > 0 && <article className="rounded-lg border border-slate-200 p-4"><h4 className="text-sm font-bold">Roles aligned with this report</h4><div className="mt-3"><List items={suitableRoles} empty="No roles recorded."/></div></article>}</section>}
+            </div>
+          </section>
+        </main>
+
+        <aside className="order-first min-w-0 space-y-3 xl:sticky xl:top-[70px] xl:order-none xl:self-start xl:pr-1">
+          <article className="rounded-xl border border-slate-200 bg-white p-4">
+            <p className="text-[11px] font-bold uppercase tracking-wide text-slate-500">Placement readiness index</p>
+            <div className="mt-3 flex items-center gap-3">
+              <div className="relative h-[120px] w-[120px] shrink-0"><svg className="absolute inset-0 h-full w-full -rotate-90" viewBox="0 0 120 120" aria-label={comparable ? `Placement readiness ${String(pri.score)} out of 100` : "Placement readiness unavailable"}><circle cx="60" cy="60" r="46" fill="none" stroke="#e2e8f0" strokeWidth="10"/>{comparable && <circle cx="60" cy="60" r="46" fill="none" stroke="#f59e0b" strokeWidth="10" strokeLinecap="round" strokeDasharray={`${2 * Math.PI * 46}`} strokeDashoffset={`${2 * Math.PI * 46 * (1 - Number(pri.score) / 100)}`}/>}</svg><div className="absolute inset-0 flex flex-col items-center justify-center text-center text-2xl font-extrabold leading-none tabular-nums">{comparable ? <><span className="block whitespace-nowrap">{String(pri.score)}</span><small className="mt-1 block text-[10px] font-semibold leading-3 text-slate-500">/ 100</small></> : "—"}</div></div>
+              <div><p className="text-lg font-extrabold">{displayName(show(report.readiness, "Not assessed"))}</p><p className="text-xs text-slate-500">Evidence confidence {show(confidence.score, "—")}{confidence.score != null ? "/100" : ""}</p></div>
+            </div>
+            <div className="relative mt-3"><div className="flex h-2 overflow-hidden rounded-full"><i className="w-1/2 bg-rose-100"/><i className="w-1/4 bg-amber-100"/><i className="w-1/4 bg-emerald-100"/></div>{comparable && <span className="absolute -top-1 h-4 w-[3px] rounded bg-slate-900" style={{ left: `${Math.max(0, Math.min(100, Number(pri.score)))}%` }}/>}</div>
+            <div className="mt-1 flex justify-between text-[9px] font-semibold text-slate-500"><span>Not ready &lt;50</span><span>Developing</span><span>Ready ≥75</span></div>
+            <p className="mt-3 rounded-lg bg-slate-50 px-2.5 py-2 text-[10px] leading-5 text-slate-600">{priFormulaAvailable ? `${Math.round(Number(interviewComponent.weight) * 100)}% × ${String(interviewComponent.score)} interview + ${Math.round(Number(jobFitComponent.weight) * 100)}% × ${String(jobFitComponent.score)} job fit = ${comparable ? String(pri.score) : "score withheld"}` : show(pri.explanation, "Score components were not included in this report.")}</p>
+            {!comparable && Array.isArray(pri.blockers) && pri.blockers.length > 0 && <ul className="mt-2 list-disc pl-4 text-[10px] text-slate-500">{pri.blockers.map((blocker, index) => <li key={index}>{typeof blocker === "string" ? blocker : show((blocker as Data).message)}</li>)}</ul>}
+          </article>
+          <article className="rounded-xl border border-slate-200 bg-white p-4">
+            <div className="flex items-center justify-between gap-2"><div><p className="text-[11px] font-bold uppercase tracking-wide text-slate-500">AI recommendation · advisory</p><p className="mt-1 text-xl font-extrabold">{show(recommendationLabels[String(hiring.label || "Review Required")] || hiring.label, "Review required")}</p></div><span className="text-[10px] text-slate-500">Confidence {show(confidence.score, "—")}</span></div>
+            <ul className="mt-3 space-y-2 border-t border-slate-100 pt-3">{advisoryFlags.map((flag, index) => <li key={index} className="flex gap-2 text-xs leading-5 text-slate-700"><span className="grid h-4 w-4 shrink-0 place-items-center rounded-full bg-rose-50 text-[10px] font-bold text-rose-700">!</span>{flag}</li>)}</ul>
+            <details className="mt-3 border-t border-slate-100 pt-2 text-xs"><summary className="cursor-pointer font-semibold">Why this recommendation</summary><ul className="mt-2 list-disc space-y-1 pl-4 text-slate-600">{recommendationReasons.length ? recommendationReasons.map((reason, index) => <li key={index}>{show(reason)}</li>) : <li>No recommendation reasons were included in this report.</li>}</ul></details>
+          </article>
+          <section id="decision" className="space-y-3 scroll-mt-4"><div><p className="text-xs font-semibold uppercase tracking-wide text-indigo-700">Placement workflow</p><h2 className="mt-1 text-lg font-bold">Decision & publication</h2></div>{decisionError && <p role="alert" className="rounded-lg bg-rose-50 p-3 text-xs text-rose-800">Decision details could not be loaded: {decisionError}<button className="ml-2 underline" onClick={() => void load()}>Retry</button></p>}
+            <form className="rounded-xl border border-slate-200 bg-white p-4" onSubmit={event => { event.preventDefault(); setConfirm("decision"); }}><div className="flex items-center justify-between gap-2"><h3 className="text-sm font-bold">Officer decision</h3><span className="text-[10px] text-slate-500">{decision ? decisionLabel(decision) : "Not decided"}</span></div><fieldset className="mt-3"><legend className="mb-2 text-xs font-medium text-slate-600">Choose an outcome</legend><div className="grid grid-cols-3 gap-1">{[["shortlist", "Shortlist"], ["hold", "Hold"], ["reject", "Not selected"]].map(([value, label]) => <button key={value} type="button" aria-pressed={decision === value} onClick={() => setDecision(value)} className={`rounded-md border px-1.5 py-2 text-[10px] font-semibold sm:text-xs ${decision === value ? "border-indigo-600 bg-indigo-50 text-indigo-800" : "border-slate-200 text-slate-600 hover:bg-slate-50"}`}>{label}</button>)}</div></fieldset><label className="mt-3 block text-xs font-semibold">Officer note<textarea className={reportField} rows={4} maxLength={2000} placeholder="Add decision context or save timestamped notes" value={note} onChange={event => setNote(event.target.value)}/><span className="mt-1 block text-right text-[10px] font-normal text-slate-500">{2000 - note.length} characters remaining</span></label>{bookmarkNotes.length > 0 && <button type="button" className="mt-2 text-xs font-semibold text-indigo-700" onClick={() => setNote(current => [current.trim(), ...bookmarkNotes.map(item => `[Recording ${timeLabel(item.seconds)}] ${item.text}`)].filter(Boolean).join("\n"))}>Append {bookmarkNotes.length} timestamped note{bookmarkNotes.length === 1 ? "" : "s"}</button>}<button type="submit" className="mt-3 w-full rounded-lg bg-indigo-600 px-3 py-2 text-sm font-semibold text-white disabled:opacity-50" disabled={busy || !decision}>Record decision</button></form>
+            <article className="rounded-xl border border-slate-200 bg-white p-4"><h3 className="text-sm font-bold">Student result publication</h3><p className="mt-1 text-xs text-slate-500">Current status: {displayName(show(publication.state, "Hidden"))}</p>{publication.scheduled_for != null && <p className="mt-2 text-xs">Scheduled {stamp(publication.scheduled_for)}</p>}{publication.released_at != null && <p className="mt-2 text-xs">Released {stamp(publication.released_at)}</p>}<div className="mt-3 flex flex-wrap gap-2">{publication.state !== "released" && <button className={btn} onClick={() => setConfirm("release")}>Release now</button>}{publication.state === "scheduled" ? <button className={btn} onClick={() => setConfirm("cancel_schedule")}>Cancel schedule</button> : publication.state !== "released" && <button className={btn} onClick={() => setConfirm("schedule")}>Schedule release</button>}</div>{publication.state !== "scheduled" && publication.state !== "released" && <label className="mt-3 block text-xs font-medium">Schedule date/time<input className={reportField} type="datetime-local" value={schedule} onChange={event => setSchedule(event.target.value)}/></label>}</article>
+            <article className="rounded-xl border border-slate-200 bg-white p-4"><div className="flex items-center justify-between gap-2"><h3 className="text-sm font-bold">Decision history</h3><span className="text-xs text-slate-500">{history.length}</span></div><div className="mt-3 space-y-2">{orderedHistory.length ? (expanded.history ? orderedHistory : orderedHistory.slice(0, 4)).map((item, index) => <div key={String(item.decision_id || index)} className="border-t border-slate-100 pt-2 text-xs"><div className="flex justify-between gap-2"><strong>{decisionLabel(item.decision)}</strong><span className="text-slate-500">{stamp(item.decided_at || item.created_at)}</span></div><p className="mt-1 whitespace-pre-wrap text-slate-600">{show(item.note, "No officer note.")}</p>{item.actor_name != null && <p className="mt-1 text-[10px] text-slate-500">Recorded by {String(item.actor_name)}</p>}</div>) : <p className="text-xs text-slate-500">No officer decision has been recorded.</p>}</div><PreviewToggle shown={expanded.history ? history.length : Math.min(4, history.length)} total={history.length} onClick={() => toggleExpanded("history")} noun="history entries"/></article>
+          </section>
+        </aside>
+      </div>
+
+      {focusGroup && <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/45 p-3" onMouseDown={event => { if (event.target === event.currentTarget) setFocusGroup(null); }}><section role="dialog" aria-modal="true" aria-labelledby="focus-dialog-title" className="flex max-h-[85vh] w-full max-w-2xl flex-col overflow-hidden rounded-xl border border-slate-200 bg-white shadow-xl"><header className="flex items-center justify-between border-b border-slate-100 px-5 py-4"><div><p className="text-xs font-semibold uppercase tracking-wide text-indigo-700">Interview evidence</p><h2 id="focus-dialog-title" className="mt-1 text-lg font-bold">{focusGroup === "strengths" ? "Interview strengths" : "Growth areas"}</h2></div><button type="button" aria-label="Close details" onClick={() => setFocusGroup(null)} className="rounded p-2 text-slate-500 hover:bg-slate-100"><X size={18}/></button></header><div className="overflow-y-auto p-4"><List items={focusGroup === "strengths" ? strengths : growthAreas} empty="No evidence was recorded."/></div></section></div>}
+      {confirm && <div className="fixed inset-0 z-50 grid place-items-center bg-slate-950/50 p-4"><section role="alertdialog" aria-modal="true" aria-labelledby="report-confirm-title" className={`${reportPanel} max-w-md`}><h3 id="report-confirm-title" className="text-lg font-bold">Confirm {displayName(confirm)}</h3><p className="mt-2 text-sm">{confirm === "decision" ? `Record ${displayName(decision)} as the officer decision?` : confirm === "schedule" ? "Schedule student result publication for the selected date and time?" : confirm === "cancel_schedule" ? "Cancel the scheduled student result publication?" : "Release this result to the student now?"}</p>{confirm === "schedule" && !schedule && <p className="mt-2 text-xs text-rose-700">Choose a release date and time before continuing.</p>}<div className="mt-5 flex justify-end gap-2"><button className={btn} onClick={() => setConfirm(null)}>Cancel</button><button className="rounded-lg bg-indigo-600 px-4 py-2 text-sm font-semibold text-white disabled:opacity-50" disabled={confirm === "schedule" && !schedule} onClick={() => void perform()}>Confirm</button></div></section></div>}
     </section>
   );
 }
