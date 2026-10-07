@@ -716,7 +716,11 @@ function PlacementLanding({
             Active, upcoming, draft and completed opportunities.
           </p>
         </div>
-        <div className="flex gap-2">
+        <div className="flex flex-wrap items-center gap-2">
+          <div className="flex shrink-0" role="group" aria-label="Drive view">
+            <button type="button" className={`${button} ${driveView === "cards" ? "bg-violet-50 text-violet-700" : ""}`} aria-pressed={driveView === "cards"} onClick={() => setDriveView("cards")}><LayoutGrid size={16}/>Cards</button>
+            <button type="button" className={`${button} ${driveView === "table" ? "bg-violet-50 text-violet-700" : ""}`} aria-pressed={driveView === "table"} onClick={() => setDriveView("table")}><Table2 size={16}/>Table</button>
+          </div>
           <button className={button} disabled={loading} onClick={refresh}>
             <RefreshCw size={16} />
             Refresh
@@ -772,10 +776,6 @@ function PlacementLanding({
           <option value="ending">Ending soon</option>
           <option value="company">Company A–Z</option>
         </select>
-      </div>
-      <div className="flex justify-end" role="group" aria-label="Drive view">
-        <button type="button" className={`${button} ${driveView === "cards" ? "bg-violet-50 text-violet-700" : ""}`} aria-pressed={driveView === "cards"} onClick={() => setDriveView("cards")}><LayoutGrid size={16}/>Cards</button>
-        <button type="button" className={`${button} ${driveView === "table" ? "bg-violet-50 text-violet-700" : ""}`} aria-pressed={driveView === "table"} onClick={() => setDriveView("table")}><Table2 size={16}/>Table</button>
       </div>
       {loading ? (
         <p role="status">Loading placement drives…</p>
