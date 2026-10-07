@@ -1332,3 +1332,54 @@ test('drive interview setup offers resume-based dynamic difficulty', async ({pag
   await expect(page.getByLabel('Interview difficulty')).toHaveValue('dynamic');
   await expect(page.getByRole('option',{name:'Personalized'})).toHaveCount(1);
 });
+
+test('placement cards and table share active-first ordering, filters and drive actions', async ({page}) => {
+  const row = (id:string,status:string,start:string,created:string) => ({id,company_name:id,role_title:'Engineer',status,window_start_at:start,window_end_at:status==='closed'?'2020-01-02T00:00:00Z':'2099-02-01T00:00:00Z',created_at:created});
+  await setup(page,true,{initialPath:'/dashboard/placement-management',driveRows:[
+    row('Closed drive','closed','2020-01-01T00:00:00Z','2099-01-01T00:00:00Z'),
+    row('Scheduled drive','scheduled','2099-01-01T00:00:00Z','2026-01-01T00:00:00Z'),
+    row('Older active','active','2024-01-01T00:00:00Z','2026-01-01T00:00:00Z'),
+    row('Latest active','active','2025-01-01T00:00:00Z','2026-01-01T00:00:00Z'),
+  ]});
+  await expect(page.getByRole('heading',{level:3})).toHaveText(['Latest active','Older active','Scheduled drive','Closed drive']);
+  await page.getByRole('button',{name:'Table',exact:true}).click();
+  const table=page.getByRole('table',{name:'Placement drives'});
+  await expect(table.locator('tbody tr td:first-child')).toHaveText(['Latest activeEngineer','Older activeEngineer','Scheduled driveEngineer','Closed driveEngineer']);
+  for (const name of ['Manage drive','Edit drive','Lock drive','Delete drive']) await expect(table.getByRole('button',{name,exact:true})).toHaveCount(4);
+  await page.getByLabel('Drive status').selectOption('scheduled');
+  await expect(table.locator('tbody tr')).toHaveCount(1);
+  await expect(table).toContainText('Scheduled drive');
+  await page.getByLabel('Drive status').selectOption('');
+  await expect(table.locator('tbody tr')).toHaveCount(4);
+  let locked=false;
+  await page.route('**/v3/college/drives/Latest%20active/lock',route=>{locked=true;return route.fulfill({json:{is_locked:true}});});
+  await page.route('**/v3/college/drives/Latest active/lock',route=>{locked=true;return route.fulfill({json:{is_locked:true}});});
+  page.on('dialog',dialog=>dialog.accept());
+  await table.locator('tbody tr').first().getByRole('button',{name:'Lock drive',exact:true}).click();
+  await expect.poll(()=>locked).toBeTruthy();
+});
+
+test('placement KPI values refresh without changing drive cards', async ({page}) => {
+  await page.clock.install();
+  await setup(page,true,{initialPath:'/dashboard/placement-management'});
+  let live=0;
+  await page.route('**/v3/college/dashboard/overview',route=>route.fulfill({json:{active_drives:4,upcoming_drives:2,eligible_candidates:10,interviews_completed:3,live_interviews:live}}));
+  const kpi=page.locator('article').filter({has:page.getByText('Live interviews',{exact:true})});
+  await expect(kpi.locator('strong')).toHaveText('0');
+  live=2;
+  await page.clock.fastForward(16000);
+  await expect(kpi.locator('strong')).toHaveText('2');
+});
+
+test('deleting a cloud draft also removes its matching device copy', async ({page}) => {
+  await page.addInitScript(() => localStorage.setItem('voicedots:placement-drive-draft:v2',JSON.stringify({payload:{creationKey:'shared-key',form:{company_name:'Cloud and device draft'}}})));
+  await setup(page,true,{initialPath:'/dashboard/placement-management'});
+  let deleted=false;
+  await page.route('**/v3/college/drive-drafts',route=>route.fulfill({json:deleted?[]:[{id:'shared-draft',client_draft_key:'shared-key',step:0,payload:{form:{company_name:'Cloud and device draft'}}}]}));
+  await page.route('**/v3/college/drive-drafts/shared-draft',route=>{deleted=true;return route.fulfill({status:204});});
+  await page.reload();
+  await page.getByRole('button',{name:'Delete draft',exact:true}).click();
+  await expect.poll(()=>page.evaluate(()=>localStorage.getItem('voicedots:placement-drive-draft:v2'))).toBeNull();
+  await page.getByRole('button',{name:'Refresh',exact:true}).click();
+  await expect(page.getByRole('heading',{name:'Cloud and device draft'})).toHaveCount(0);
+});

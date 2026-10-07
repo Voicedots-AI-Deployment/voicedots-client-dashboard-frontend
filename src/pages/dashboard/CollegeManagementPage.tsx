@@ -4,6 +4,8 @@ import {
   ArrowUpRight,
   BriefcaseBusiness,
   CalendarClock,
+  LayoutGrid,
+  Table2,
   CheckCircle2,
   Plus,
   RefreshCw,
@@ -215,6 +217,23 @@ export default function CollegeManagementPage() {
     void requests;
     return () => c.abort();
   }, [access?.enabled, version, driveId]);
+  useEffect(() => {
+    if (!access?.enabled || driveId || creating || tab !== "placements") return;
+    const controller = new AbortController();
+    let pending = false;
+    const refreshOverview = async () => {
+      if (pending || document.visibilityState === "hidden") return;
+      pending = true;
+      try {
+        const value = await collegeApi.get<Landing>("dashboard/overview", controller.signal);
+        if (!controller.signal.aborted && isApiObject(value)) setOverview(value);
+      } catch { /* Keep the last successful counts; manual refresh reports failures. */ }
+      finally { pending = false; }
+    };
+    const timer = window.setInterval(() => void refreshOverview(), 15000);
+    document.addEventListener("visibilitychange", refreshOverview);
+    return () => { controller.abort(); window.clearInterval(timer); document.removeEventListener("visibilitychange", refreshOverview); };
+  }, [access?.enabled, driveId, creating, tab]);
   const filtered = useMemo(
     () =>
       drives
@@ -224,7 +243,7 @@ export default function CollegeManagementPage() {
               `${d.company_name} ${d.role_title}`
                 .toLowerCase()
                 .includes(query.toLowerCase())) &&
-            (!status || d.status === status) &&
+            (!status || effectiveStatus(d) === status) &&
             (!type || d.drive_type === type),
         )
         .sort((a, b) =>
@@ -234,7 +253,7 @@ export default function CollegeManagementPage() {
               ? compareAscendingDates(a.window_start_at, b.window_start_at)
               : sort === "ending"
                 ? compareAscendingDates(a.window_end_at, b.window_end_at)
-                : compareDates(a.created_at, b.created_at),
+                : (({active:0,scheduled:1,closed:2,draft:3,cancelled:4}[effectiveStatus(a)] ?? 5) - ({active:0,scheduled:1,closed:2,draft:3,cancelled:4}[effectiveStatus(b)] ?? 5)) || compareDates(a.window_start_at, b.window_start_at) || compareDates(a.created_at, b.created_at),
         ),
     [drives, query, status, type, sort],
   );
@@ -255,6 +274,24 @@ export default function CollegeManagementPage() {
       setNotice("Drive deleted.");
       setVersion(v => v + 1);
     } catch (e) { setError(collegeError(e)); }
+  }
+  async function deleteSavedDraft(id: string) {
+    const draft = drafts.find(item => item.id === id);
+    const clearLocal = () => {
+      const local = localDraftSummary();
+      if (id === "local-device" || (draft?.client_draft_key && draft.client_draft_key === local?.client_draft_key)) {
+        localStorage.removeItem("voicedots:placement-drive-draft:v2");
+      }
+      setDrafts(current => current.filter(item => item.id !== id));
+    };
+    try {
+      if (id !== "local-device") await collegeApi.remove(`drive-drafts/${id}`);
+      clearLocal(); setError("");
+    } catch (e) {
+      if (axios.isAxiosError(e) && e.response?.status === 404) {
+        clearLocal(); setError("Drive not found. This draft may already have been deleted.");
+      } else setError(`Could not delete draft: ${collegeError(e)}`);
+    }
   }
   if (accessLoading) return <p role="status">Loading placement management…</p>;
   if (accessError || !access?.enabled)
@@ -413,7 +450,7 @@ export default function CollegeManagementPage() {
             })
           }
           resumeDraft={(id) => setParams((p) => { p.set("create", "1"); if(id==="local-device")p.delete("draft");else p.set("draft", id); return p; })}
-          deleteDraft={async (id) => { if(id==="local-device"){localStorage.removeItem("voicedots:placement-drive-draft:v2");setDrafts(current=>current.filter(item=>item.id!==id));return;} try { await collegeApi.remove(`drive-drafts/${id}`); setDrafts(current=>current.filter(item=>item.id!==id)); setError(""); } catch (e) { if (axios.isAxiosError(e) && e.response?.status === 404) { setDrafts(current=>current.filter(item=>item.id!==id)); setError("Drive not found. This draft may already have been deleted."); } else { setError(`Could not delete draft: ${collegeError(e)}`); } } }}
+          deleteDraft={deleteSavedDraft}
           manage={(id) =>
             setParams((p) => {
               p.set("drive", id);
@@ -627,6 +664,7 @@ function PlacementLanding({
   manage: (id: string) => void;
   edit: (id: string) => void;
 }) {
+  const [driveView, setDriveView] = useState<"cards" | "table">("cards");
   return (
     <>
       <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-5">
@@ -729,15 +767,33 @@ function PlacementLanding({
           value={sort}
           onChange={(e) => setSort(e.target.value)}
         >
-          <option value="recent">Newest first</option>
+          <option value="recent">Active first · latest interview</option>
           <option value="starting">Starting soon</option>
           <option value="ending">Ending soon</option>
           <option value="company">Company A–Z</option>
         </select>
       </div>
+      <div className="flex justify-end" role="group" aria-label="Drive view">
+        <button type="button" className={`${button} ${driveView === "cards" ? "bg-violet-50 text-violet-700" : ""}`} aria-pressed={driveView === "cards"} onClick={() => setDriveView("cards")}><LayoutGrid size={16}/>Cards</button>
+        <button type="button" className={`${button} ${driveView === "table" ? "bg-violet-50 text-violet-700" : ""}`} aria-pressed={driveView === "table"} onClick={() => setDriveView("table")}><Table2 size={16}/>Table</button>
+      </div>
       {loading ? (
         <p role="status">Loading placement drives…</p>
-      ) : drives.length ? (
+      ) : drives.length ? driveView === "table" ? (
+        <div className="overflow-x-auto rounded-2xl border border-slate-200 bg-white dark:border-slate-800 dark:bg-slate-900">
+          <table className="w-full min-w-[1000px] text-left text-sm" aria-label="Placement drives">
+            <thead className="bg-violet-50 text-xs text-slate-500 dark:bg-slate-800"><tr>{["Company & role", "Status", "Interview window · IST", "Eligible", "Completed", "Actions"].map(title => <th key={title} scope="col" className="px-5 py-3 font-medium">{title}</th>)}</tr></thead>
+            <tbody>{drives.map(d => <tr key={d.id} className="border-t border-slate-100 dark:border-slate-800">
+              <td className="px-5 py-4"><span className="block font-medium">{d.company_name}</span><span className="text-slate-500">{d.role_title}</span></td>
+              <td className="px-5 py-4">{displayName(effectiveStatus(d))}{d.is_locked && <span className="mt-1 block text-xs text-slate-500">Locked</span>}</td>
+              <td className="px-5 py-4"><span className="block">{date(d.window_start_at)}</span><span className="text-xs text-slate-500">to {date(d.window_end_at)}</span></td>
+              <td className="px-5 py-4">{d.latest_snapshot_eligible_count ?? "—"}</td>
+              <td className="px-5 py-4">{d.completed_count || 0} / {d.assignment_count || 0}</td>
+              <td className="px-5 py-4"><div className="flex flex-wrap gap-2"><button className={primary} onClick={() => manage(d.id)}>Manage drive</button><button className={button} onClick={() => edit(d.id)}>Edit drive</button><button className={button} onClick={() => toggleLock(d)}>{d.is_locked ? "Unlock drive" : "Lock drive"}</button><button className={`${button} text-rose-700`} onClick={() => deleteDrive(d)}>Delete drive</button></div></td>
+            </tr>)}</tbody>
+          </table>
+        </div>
+      ) : (
         <div className="grid gap-4 xl:grid-cols-2">
           {drives.map((d) => (
             <DriveCard
