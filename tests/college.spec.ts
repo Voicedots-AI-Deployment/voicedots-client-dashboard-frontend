@@ -1,5 +1,5 @@
 import { test, expect, type Page } from '@playwright/test';
-async function setup(page: Page, enabled = true, options: { notFound?: string[]; driveRows?: unknown[]; driveDetails?: unknown; companyProfiles?: unknown[]; initialPath?: string; portalRole?: string } = {}) {
+async function setup(page: Page, enabled = true, options: { notFound?: string[]; driveRows?: unknown[]; driveDetails?: unknown; companyProfiles?: unknown[]; academicCatalog?: unknown; initialPath?: string; portalRole?: string } = {}) {
   await page.addInitScript(() => localStorage.setItem('access_token', 'test-session'));
   await page.route(/\/v[13]\//, route => {
     const path = new URL(route.request().url()).pathname;
@@ -19,7 +19,7 @@ async function setup(page: Page, enabled = true, options: { notFound?: string[];
       '/v3/college/drives/drive-1': options.driveDetails ?? {},
       '/v3/college/students': { items: [], total: 0 },
       '/v3/college/attendance/setup': { classes: [], students: [], staff: [] },
-      '/v3/college/academic-catalog': { programs: [{ code: 'B.Tech', display_name: 'Bachelor of Technology', duration_years: 4, departments: [{ code: 'CSE', display_name: 'Computer Science' },{ code: 'IT', display_name: 'Information Technology' }] }], graduation_years:[2027,2028] },
+      '/v3/college/academic-catalog': options.academicCatalog ?? { programs: [{ code: 'B.Tech', display_name: 'Bachelor of Technology', duration_years: 4, departments: [{ code: 'CSE', display_name: 'Computer Science' },{ code: 'IT', display_name: 'Information Technology' }] }], graduation_years:[2027,2028] },
     };
     return route.fulfill({ json: values[path] || {} });
   });
@@ -1312,4 +1312,25 @@ test('program without configured departments can preview and create a placement 
   await page.getByRole('button',{name:'Create placement drive'}).click();
   await expect(page.getByText('Drive created (draft).')).toBeVisible();
   expect(created?.eligible_departments).toEqual([]);
+});
+
+test('interview date and time fields render required markers while department requirement follows program configuration', async ({page})=>{
+  await setup(page,true,{initialPath:'/dashboard/placement-management',academicCatalog:{programs:[{code:'B.Tech',display_name:'Bachelor of Technology',duration_years:4,departments:[{code:'CSE',display_name:'Computer Science'}]},{code:'NO_DEPTS',display_name:'Program without departments',duration_years:3,departments:[]}],graduation_years:[2027,2028]}});
+  await page.getByRole('button',{name:'Create drive',exact:true}).click();
+  await page.getByLabel('Company name').fill('Campus Employer');
+  await page.locator('#role_title').fill('Software Engineer');
+  await page.getByLabel('Location').fill('Chennai');
+  await page.getByLabel('Job description').fill('Build and maintain accessible web applications.');
+  await page.getByRole('button',{name:'Continue'}).click();
+  await expect(page.locator('fieldset.dw-datetime').first()).toContainText('*');
+  await page.getByLabel('Interview starts date').fill('2027-01-10');
+  await page.getByLabel('Interview ends date').fill('2027-01-11');
+  await page.getByRole('button',{name:'4. Questions'}).click();
+  await page.getByRole('button',{name:'5. Eligibility'}).click();
+  await page.getByRole('checkbox',{name:/Bachelor Of Technology B\.Tech/}).check();
+  const departments=page.locator('fieldset[aria-label="Eligible departments"]');
+  await expect(departments.locator('legend')).toContainText('Eligible departments*');
+  await page.getByRole('checkbox',{name:/Bachelor Of Technology B\.Tech/}).uncheck();
+  await page.getByRole('checkbox',{name:/NO_DEPTS/}).check();
+  await expect(departments).toContainText('Optional');
 });

@@ -34,7 +34,7 @@ async function setup(page: Page, enabled = true, options: { notFound?: string[];
 
 async function visitRoster(page: Page, studentRows: unknown[] = []) {
   await setup(page, true, { initialPath: '/dashboard/attendance', studentRows });
-  await page.getByRole('button', { name: 'Student roster', exact: true }).click();
+  await page.getByRole('button', { name: 'Student Roster', exact: true }).click();
 }
 
 async function openRoster(page: Page) {
