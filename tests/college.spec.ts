@@ -458,16 +458,16 @@ test('custom interviewer appends into an available sequence slot and can start a
   await page.getByRole('button',{name:'3. Interview roles'}).click();
   await expect(page.getByRole('button',{name:'Remove Talent Acquisition Specialist'})).toBeVisible();
   for(const role of ['Senior Domain Specialist','Practical Interviewer','Hiring Manager']) await page.getByRole('button',{name:`Remove ${role}`}).click();
-  await page.getByLabel(/Add a saved custom interview role/).selectOption('custom-problem');
+  await page.getByLabel(/Add an interview role/).selectOption('custom-problem');
   await expect(page.getByRole('heading',{name:'Problem Solving Specialist'})).toBeVisible();
   await expect(page.getByRole('heading',{name:'Talent Acquisition Specialist'})).toBeVisible();
   await expect(page.getByRole('heading',{name:'Problem Solving Specialist'})).toBeVisible();
   await page.getByRole('button',{name:'Remove Talent Acquisition Specialist'}).click();
   await page.getByRole('button',{name:'Remove Problem Solving Specialist'}).click();
   await expect(page.getByRole('button',{name:/Talent Acquisition Specialist Add this interview role/})).toBeVisible();
-  await page.getByLabel(/Add a saved custom interview role/).selectOption('custom-problem');
-  await page.getByRole('button',{name:/Senior Domain Specialist Add this interview role/}).click();
-  await expect(page.getByLabel(/Add a saved custom interview role/).locator('option')).toHaveCount(1);
+  await page.getByLabel(/Add an interview role/).selectOption('custom-problem');
+  await page.getByLabel(/Add an interview role/).selectOption('default:domain');
+  await expect(page.getByLabel(/Add an interview role/).locator('option')).toHaveCount(5);
   await expect(page.getByRole('heading',{name:'Problem Solving Specialist'})).toHaveCount(1);
   await expect(page.getByRole('heading',{name:'Senior Domain Specialist'})).toHaveCount(1);
 });
@@ -1330,5 +1330,5 @@ test('drive interview setup offers resume-based dynamic difficulty', async ({pag
   await page.getByRole('button',{name:'2. Interview setup'}).click();
   await page.getByLabel('Interview difficulty').selectOption('dynamic');
   await expect(page.getByLabel('Interview difficulty')).toHaveValue('dynamic');
-  await expect(page.getByRole('option',{name:'Dynamic · resume experience'})).toHaveCount(1);
+  await expect(page.getByRole('option',{name:'Personalized'})).toHaveCount(1);
 });

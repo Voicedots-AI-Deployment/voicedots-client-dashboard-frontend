@@ -75,3 +75,5 @@ body {
 .client-brand img { width: 33px; height: 33px; margin-right: -7px; flex-shrink: 0; }
 .client-brand span { position: relative; }
 .dark .client-brand { color: #f1f5f9; }
+
+.drive-wizard select { appearance: none; padding-right: 2rem; background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='16' height='16' viewBox='0 0 24 24' fill='none' stroke='%23777184' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='m6 9 6 6 6-6'/%3E%3C/svg%3E"); background-repeat: no-repeat; background-position: right .65rem center; background-size: 16px; }

@@ -22,6 +22,7 @@ export function formatPlacementDateTime(value?: string | null, timeZone = PLACEM
 export function displayName(value?: string) {
  const text=(value || '').trim().toLocaleLowerCase().replace(/[-_]+/g, ' ');
  const exact: Record<string, string> = {
+  dynamic: 'Personalized',
   official: 'Official Placement',
   'official placement': 'Official Placement',
   'college practice': 'College Practice',
