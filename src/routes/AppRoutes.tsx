@@ -7,6 +7,7 @@ import ProtectedRoute from "@/routes/ProtectedRoute";
 import EmailFeatureGuard from "@/routes/EmailFeatureGuard";
 
 const ErpPage = lazy(() => import("@/pages/dashboard/ErpPage"));
+const QuestionPaperPage = lazy(() => import("@/pages/dashboard/QuestionPaperPage"));
 const AttendancePage = lazy(() => import("@/pages/dashboard/AttendancePage"));
 const TeacherStudentRecords = lazy(() => import("@/pages/dashboard/TeacherStudentRecords"));
 const CollegeManagementPage = lazy(() => import("@/pages/dashboard/CollegeManagementPage"));
@@ -91,6 +92,7 @@ const AppRoutes = () => {
           <Route path="college" element={<Navigate to="/dashboard/placement-management" replace />} />
           <Route path="placement-management" element={<CollegeManagementPage />} />
           <Route path="erp" element={<ErpPage />} />
+          <Route path="question-papers" element={<QuestionPaperPage />} />
           <Route path="attendance" element={<AttendanceView />} />
           <Route path="attendance/teacher" element={<TeacherStudentRecords />} />
 

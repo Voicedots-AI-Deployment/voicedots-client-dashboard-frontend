@@ -43,6 +43,7 @@ export function Sidebar({ isOpen, onClose, isCollapsed }: SidebarProps) {
     { id: "agents", icon: Mic, label: "Interview agents", path: "/dashboard/placement-management?view=agents" },
     { id: "placement-settings", icon: Settings, label: "Placement settings", path: "/dashboard/placement-management?view=settings" },
     { id: "erp", icon: BookOpen, label: "ERP", path: "/dashboard/erp" },
+    { id: "question-papers", icon: BookOpen, label: "Question Paper Generation", path: "/dashboard/question-papers" },
     { id: "attendance", icon: GraduationCap, label: "Institution Management", path: "/dashboard/attendance" },
   ] : [
     { id: "home", icon: Home, label: "Home", path: "/dashboard" },
@@ -59,6 +60,7 @@ export function Sidebar({ isOpen, onClose, isCollapsed }: SidebarProps) {
       ],
     },
     ...(collegeAccess?.enabled ? [{ id: "college", icon: GraduationCap, label: "Placement management", path: "/dashboard/placement-management" }, { id: "attendance", icon: GraduationCap, label: "Institution Management", path: "/dashboard/attendance" }, { id: "erp", icon: BookOpen, label: "ERP", path: "/dashboard/erp" }] : []),
+    ...(collegeAccess?.enabled ? [{ id: "question-papers", icon: BookOpen, label: "Question Paper Generation", path: "/dashboard/question-papers" }] : []),
     { id: "settings", icon: Settings, label: "Settings", path: "/dashboard/settings" },
   ];
 
