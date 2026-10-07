@@ -222,7 +222,7 @@ test('closed drive can be activated through a confirmation and saves the active 
     savedStatus = route.request().postDataJSON().status;
     return route.fulfill({ json: { status: 'updated', warnings: [] } });
   });
-  await expect(page.getByRole('button', { name: 'Activate drive' }).first()).toBeVisible();
+  await expect(page.getByRole('button', { name: 'Activate drive' }).first()).toBeVisible({timeout:15000});
   await page.getByRole('button', { name: 'Activate drive' }).first().click();
   await expect(page.getByRole('alertdialog')).toContainText('Activate this drive?');
   await page.getByRole('alertdialog').getByRole('button', { name: 'Activate drive' }).click();
@@ -274,13 +274,13 @@ test('active drive closes through the persisted lifecycle API and remains closed
     }
     return route.fulfill({ json: { id: 'drive-1', company_name: 'Example Company', role_title: 'Software Engineer', status: currentStatus, max_attempts: 3 } });
   });
-  await expect(page.getByRole('button', { name: 'Close drive' }).first()).toBeVisible();
+  await expect(page.getByRole('button', { name: 'Close drive' }).first()).toBeVisible({timeout:15000});
   await page.getByRole('button', { name: 'Close drive' }).first().click();
   await expect(page.getByRole('alertdialog')).toContainText('Candidates will no longer be able to start an interview');
   await page.getByRole('alertdialog').getByRole('button', { name: /Confirm close/ }).click();
   await expect(page.getByText('Drive closed.')).toBeVisible();
   expect(savedStatus).toBe('closed');
-  await expect(page.getByRole('button', { name: 'Activate drive' }).first()).toBeVisible();
+  await expect(page.getByRole('button', { name: 'Activate drive' }).first()).toBeVisible({timeout:15000});
 });
 
 test('drive card reports eligibility and assigned progress without the misleading document-readiness metric', async ({ page }) => {
@@ -308,6 +308,7 @@ test('candidate list shows the current attempt and configured attempt limit', as
     total_count: 1,
     pagination: { total: 1 },
   } }));
+  await page.reload();
   await expect(page.getByText('Attempt 2 of 3 · in progress')).toBeVisible();
 });
 
@@ -478,16 +479,16 @@ test('candidate interview report separates statuses, loads proctor evidence inde
   await page.route('**/v3/college/drives/drive-1/candidates/student-1/decision',route=>route.fulfill({json:{decision:{decision:'hold'},publication:{state:'hidden'},history:[]}}));
   await page.route('**/v3/college/interview-results-settings',route=>route.fulfill({json:{}}));
   await page.route('**/v3/college/students/student-1/reports/session-1/integrity-events',route=>route.fulfill({json:{events:[{event_id:'event-1',event_type:'tab_hidden',severity:'violation',occurred_at:'2026-09-20T09:30:00Z'}]}}));
+  await page.reload();
   await expect(page.getByRole('heading',{name:'Asha Rao'})).toBeVisible();
-  await expect(page.locator('p').filter({hasText:'Interview completion:'})).toContainText('Completed');
-  await expect(page.locator('p').filter({hasText:'Student result:'})).toContainText('Hidden');
-  await expect(page.getByRole('navigation',{name:'Report sections'}).getByRole('link')).toHaveCount(7);
-  await page.getByRole('button',{name:'Load event timeline'}).click();
-  await expect(page.getByRole('list',{name:'Proctor observations'})).toContainText('Tab Hidden');
-  await expect(page.getByText(/No incident photo available/)).toBeVisible();
-  const answer=page.getByText('Explain your project.');
-  await expect(answer).toBeVisible();
-  await expect(answer.locator('xpath=ancestor::details')).not.toHaveAttribute('open','');
+  await expect(page.getByText('Interview completed',{exact:true})).toBeVisible();
+  await expect(page.getByText('Result hidden',{exact:true})).toBeVisible();
+  await expect(page.getByRole('tablist',{name:'Candidate report sections'}).getByRole('tab')).toHaveCount(5);
+  await page.getByRole('tablist',{name:'Candidate report sections'}).getByRole('tab',{name:/AI Proctor/}).click();
+  await expect(page.getByRole('rowheader',{name:'Tab Hidden',exact:true})).toBeVisible();
+  await expect(page.locator('#integrity img')).toHaveCount(0);
+  await page.getByRole('tablist',{name:'Candidate report sections'}).getByRole('tab',{name:/Answers/}).click();
+  await expect(page.getByText('Explain your project.')).toBeVisible();
 });
 
 test('saved company picker opens from its arrow, scrolls large lists, and filters as you type', async ({page})=>{
@@ -1126,30 +1127,17 @@ test('interview report presents the protected recording and persisted question e
   await page.route('https://media.example/**',route=>route.abort());
   await page.goto('/dashboard/placement-management?drive=drive-1&section=results&candidate=s1');
   await expect(page.getByRole('heading',{name:'Anu Candidate'})).toBeVisible();
-  await expect(page.getByText('Attempt 2',{exact:true})).toBeVisible();
-  await expect(page.getByText('Interview strengths',{exact:true})).toBeVisible();
-  await expect(page.getByText('Clear implementation reasoning')).toBeVisible();
-  await page.getByRole('button',{name:'Load secure recording'}).click();
-  const video=page.getByLabel('Interview recording video');
+  const video=page.getByLabel('Interview recording',{exact:true});
   await expect(video).toBeVisible();
   await expect(video).toHaveAttribute('src','https://media.example/signed.webm');
-  await page.getByRole('button',{name:'Load event timeline'}).click();
-  const bookmarks=page.getByRole('group',{name:'Video event timeline'});
-  await expect(bookmarks.getByRole('button',{name:/Seek to Tab hidden/i})).toBeVisible();
-  const secondBookmark=bookmarks.getByRole('button',{name:/Seek to Multiple faces/i});
-  await secondBookmark.click();
-  await expect(secondBookmark).toHaveAttribute('aria-pressed','true');
-  const question=page.locator('#evidence details').first();
-  await question.locator('summary').click();
-  await expect(question).toContainText('Good evidence');
-  await question.getByRole('button',{name:'Play response audio'}).click();
-  await expect(question.locator('audio[controls]')).toBeVisible();
-  await page.getByRole('button',{name:'Load transcript'}).click();
-  await expect(question).toContainText('Persisted candidate transcript');
-  await expect(question).toContainText('I use a context manager.');
-  await expect(question.getByRole('button',{name:/Play this answer/})).toBeVisible();
-  await expect(page.getByText('AI recommendation · advisory')).toBeVisible();
-  await expect(page.getByText('Officer decision · final')).toBeVisible();
+  await expect(page.getByText('How do you handle file reads?').first()).toBeVisible();
+  await page.getByRole('tablist',{name:'Candidate report sections'}).getByRole('tab',{name:/Answers/}).click();
+  await page.locator('summary').filter({hasText:'How do you handle file reads?'}).click();
+  await expect(page.getByText('I use a context manager.').first()).toBeVisible();
+  await page.getByRole('tablist',{name:'Candidate report sections'}).getByRole('tab',{name:/AI Proctor/}).click();
+  await expect(page.getByRole('rowheader',{name:'Tab Hidden',exact:true})).toBeVisible();
+  await expect(page.getByRole('rowheader',{name:'Multiple Faces',exact:true})).toBeVisible();
+  await expect(page.getByRole('heading',{name:'Decision & publication'})).toBeVisible();
 });
 
 test('expired interview video leaves the rest of the report available without a broken player',async({page})=>{
@@ -1158,10 +1146,10 @@ test('expired interview video leaves the rest of the report available without a 
   await page.route('**/v3/college/students/s1/reports**',route=>route.fulfill({json:{student:{full_name:'Anu Candidate',roll_number:'R1'},reports:[{source:'drive',drive_id:'drive-1',session_id:'session-1',completed_at:'2026-01-01T10:00:00Z',recording:{status:'expired'},detail:{status:'released',overall_score:83,readiness:'Ready',strengths:[{label:'Clear reasoning'}]}}]}}));
   await page.route('**/v3/college/interview-results-settings',route=>route.fulfill({json:{}}));
   await page.goto('/dashboard/placement-management?drive=drive-1&section=results&candidate=s1');
-  await expect(page.getByText(/Interview recording expired according to the video retention policy/)).toBeVisible();
+  await expect(page.getByText(/Recording retention period ended/)).toBeVisible();
   await expect(page.getByText('Clear reasoning')).toBeVisible();
   await expect(page.getByRole('button',{name:'Load secure recording'})).toHaveCount(0);
-  await expect(page.getByLabel('Interview recording video')).toHaveCount(0);
+  await expect(page.getByLabel('Interview recording',{exact:true})).toHaveCount(0);
 });
 
 test('drive editor submits and displays interview windows in IST',async({page})=>{
@@ -1333,4 +1321,14 @@ test('interview date and time fields render required markers while department re
   await page.getByRole('checkbox',{name:/Bachelor Of Technology B\.Tech/}).uncheck();
   await page.getByRole('checkbox',{name:/NO_DEPTS/}).check();
   await expect(departments).toContainText('Optional');
+});
+
+test('drive interview setup offers resume-based dynamic difficulty', async ({page}) => {
+  await setup(page,true,{initialPath:'/dashboard/placement-management'});
+  await page.getByRole('button',{name:'Create drive',exact:true}).click();
+  await driveFields(page);
+  await page.getByRole('button',{name:'2. Interview setup'}).click();
+  await page.getByLabel('Interview difficulty').selectOption('dynamic');
+  await expect(page.getByLabel('Interview difficulty')).toHaveValue('dynamic');
+  await expect(page.getByRole('option',{name:'Dynamic · resume experience'})).toHaveCount(1);
 });

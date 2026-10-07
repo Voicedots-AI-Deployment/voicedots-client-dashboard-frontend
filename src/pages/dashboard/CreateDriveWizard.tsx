@@ -16,7 +16,7 @@ const CURRENCIES = [['INR','INR · ₹'],['USD','USD · $'],['EUR','EUR · €']
 const HOURS = Array.from({length:12},(_,i)=>String(i+1));
 const TRACKS = ['hr','domain','industry','manager'];
 
-type Difficulty = 'beginner'|'intermediate'|'advanced';
+type Difficulty = 'dynamic'|'beginner'|'intermediate'|'advanced';
 type ScoreAttemptRule = {min_score:number;max_score:number;max_attempts:number;require_coach:boolean};
 type FormState = {
   company_profile_id:string; drive_type:string; company_name:string; company_description:string; company_website:string; company_linkedin:string;
@@ -80,7 +80,7 @@ export default function CreateDriveWizard({programs,drive,draftId,collegeTimezon
     })));
   },[selectedYears,programIds,programs]);
   const recommendation=recommendations.size===1?[...recommendations][0] as Difficulty:null;
-  const ambiguousDifficulty=recommendations.size>1;
+  const ambiguousDifficulty=form.difficulty_tier!=='dynamic'&&recommendations.size>1;
 
   useEffect(()=>{
     collegeApi.get<AgentLibrary>('agents').then(setLibrary).catch(e=>setFormError(collegeError(e)));
@@ -371,7 +371,7 @@ export default function CreateDriveWizard({programs,drive,draftId,collegeTimezon
           <div className="grid gap-4 md:grid-cols-2">{inputField('Application deadline','application_deadline','date')}{inputField('Drive date','drive_date','date')}<p className="md:col-span-2 -mt-2 text-xs text-slate-500">Application deadline must be before the interview start date. Drive date is optional when the drive does not have a separate event date.</p></div>
         </Section>
         <Section title="Interview format" description="Set a fixed attempt limit, or define maximum attempts by the student's latest interview score.">
-          <div className="grid gap-4 md:grid-cols-3">{selectField('Interview duration','duration',[['15','15 minutes'],['30','30 minutes'],['45','45 minutes']],true)}{inputField('Default attempts per student','max_attempts','number',true,'1–5')}{selectField('Interview difficulty','difficulty_tier',[['beginner','Beginner'],['intermediate','Intermediate'],['advanced','Advanced']],true)}</div>
+          <div className="grid gap-4 md:grid-cols-3">{selectField('Interview duration','duration',[['15','15 minutes'],['30','30 minutes'],['45','45 minutes']],true)}{inputField('Default attempts per student','max_attempts','number',true,'1–5')}{selectField('Interview difficulty','difficulty_tier',[['dynamic','Dynamic · resume experience'],['beginner','Beginner'],['intermediate','Intermediate'],['advanced','Advanced']],true)}</div>
           <div className="mt-6 space-y-3 rounded-xl border border-slate-200 p-4 dark:border-slate-700">
             <div className="flex flex-wrap items-start justify-between gap-3"><div><h3 className="font-semibold">Score-based attempt rules</h3><p className="mt-1 max-w-2xl text-xs text-slate-500">Score ranges include both endpoints. A matching rule overrides the default attempt limit. If a rule requires AI Coach, the next attempt stays locked until the student completes Coach teaching, the linked practice interview, and independent validation. Opening AI Coach alone does not unlock it.</p></div><button type="button" className={button} onClick={()=>setForm(current=>({...current,score_attempt_rules:[...current.score_attempt_rules,{min_score:79,max_score:100,max_attempts:2,require_coach:false}]}))}><Plus size={15}/> Add score rule</button></div>
             {form.score_attempt_rules.map((rule,index)=><div key={index} className="grid items-end gap-3 rounded-lg bg-slate-50 p-3 dark:bg-slate-800 sm:grid-cols-[1fr_1fr_1fr_auto_auto]">

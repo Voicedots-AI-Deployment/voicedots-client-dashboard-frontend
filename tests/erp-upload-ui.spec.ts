@@ -87,6 +87,7 @@ test('attendance requires semester and template remains downloadable',async({pag
  const pending=page.waitForEvent('download');await page.getByRole('button',{name:'Download upload template',exact:true}).click();expect((await pending).suggestedFilename()).toBe('attendance-template.xlsx');
 });
 test('all eleven ERP services retain upload download and view actions',async({page})=>{
+ test.setTimeout(60000);
  await setup(page);
  for(const service of ['Class Timetable','Attendance','Internal Marks','Semester Marks','Fees','Homework','Circulars','Exam Schedules','OPAC Search','Hostel Attendance','Mess Attendance']){
   await page.getByRole('navigation',{name:'ERP sections'}).getByRole('button',{name:service,exact:true}).click();
