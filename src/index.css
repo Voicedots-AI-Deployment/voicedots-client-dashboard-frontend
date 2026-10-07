@@ -30,8 +30,8 @@
 }
 
 body {
-  font-family: "Poppins", sans-serif;
-  font-family: "Poppins", sans-serif;
+  font-family: "Manrope", sans-serif;
+  font-weight: 400;
 }
 
 .custom-scrollbar::-webkit-scrollbar {
@@ -55,3 +55,17 @@ body {
 .drive-tab-ats table input[type="checkbox"] {
   display: none;
 }
+
+/* Restore the pre-Poppins portal typeface and retain its existing size scale.
+   Body copy stays regular; controls are medium; headings and key values carry
+   emphasis. Limit these rules to the dashboard rather than exported documents. */
+.client-dashboard :where(.font-bold, .font-extrabold, .font-black) { font-weight: 600; }
+.client-dashboard :is(main, aside, header)[class] :is(h1, h2, h3, h4, h5, h6, strong, b) { font-weight: 600; }
+.client-dashboard :is(main, aside, header)[class] :is(p, td, dd, small, input, textarea, select) { font-weight: 400; }
+.client-dashboard :is(main, aside, header)[class] :is(button, label, th, legend) { font-weight: 500; }
+.client-dashboard :is(p, td, dd) :is(strong, b) { font-weight: 600; }
+.client-dashboard :is(.dw-step-title, .dw-step-number, .dw-company-avatar,
+  .dw-role-index, .dw-question-row > span, .dw-year-range label) { font-weight: 500; }
+.client-dashboard .dw-step-intro .eyebrow { font-weight: 500; }
+.client-dashboard .dw-salary-summary > span { font-weight: 600; }
+.client-dashboard .recharts-cartesian-axis-tick-value { font-weight: 400; }
