@@ -1277,3 +1277,39 @@ test('Student Roster exposes the photo permission during add and edit flows', as
   await permission.check();
   await expect(permission).toBeChecked();
 });
+
+test('program without configured departments can preview and create a placement drive', async ({page}) => {
+  await setup(page,true,{initialPath:'/dashboard/placement-management'});
+  await page.route('**/v3/college/academic-catalog',route=>route.fulfill({json:{programs:[{code:'BCA',display_name:'Bachelor of Computer Applications',duration_years:3,departments:[]}],graduation_years:[2027,2028]}}));
+  let preview:Record<string,unknown>|undefined,created:Record<string,unknown>|undefined;
+  await page.route('**/v3/college/drives/eligibility/preview',route=>{preview=route.request().postDataJSON();return route.fulfill({json:{total_students:0,eligible_count:0,not_eligible_count:0,missing_photo_count:0,candidates:[]}})});
+  await page.route('**/v3/college/drives',route=>{
+    if(route.request().method()!=='POST')return route.fallback();
+    created=route.request().postDataJSON();return route.fulfill({json:{drive_id:'new-drive',status:'draft',warnings:[]}});
+  });
+  await page.getByRole('button',{name:'Create drive',exact:true}).click();
+  await page.getByLabel('Company name').fill('Campus Employer');
+  await page.locator('#role_title').fill('Business Analyst');
+  await page.getByLabel('Location').fill('Chennai');
+  await page.getByLabel('Job description').fill('Analyze business requirements and document solutions.');
+  await page.getByRole('button',{name:'Continue'}).click();
+  await page.getByLabel('Interview starts date').fill('2027-01-10');
+  await page.getByLabel('Interview starts hour').selectOption('9');
+  await page.getByLabel('Interview starts AM / PM').selectOption('AM');
+  await page.getByLabel('Interview ends date').fill('2027-01-11');
+  await page.getByLabel('Interview ends hour').selectOption('6');
+  await page.getByLabel('Interview ends AM / PM').selectOption('PM');
+  await page.getByRole('button',{name:'4. Questions'}).click();
+  await page.getByRole('button',{name:'5. Eligibility'}).click();
+  await page.getByRole('checkbox',{name:/Bachelor Of Computer Applications BCA/}).check();
+  const departmentGroup=page.getByRole('group',{name:'Eligible departments'});
+  await expect(departmentGroup).toContainText('Optional');
+  await expect(departmentGroup).toContainText('Selected programs have no departments configured');
+  await page.locator('#graduation_from').selectOption('2027');
+  await page.locator('#graduation_to').selectOption('2027');
+  await expect.poll(()=>preview?.eligible_departments).toEqual([]);
+  await page.getByRole('button',{name:'Continue'}).click();
+  await page.getByRole('button',{name:'Create placement drive'}).click();
+  await expect(page.getByText('Drive created (draft).')).toBeVisible();
+  expect(created?.eligible_departments).toEqual([]);
+});
