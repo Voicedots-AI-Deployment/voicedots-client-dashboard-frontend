@@ -1302,7 +1302,7 @@ test('program without configured departments can preview and create a placement 
   await page.getByRole('button',{name:'4. Questions'}).click();
   await page.getByRole('button',{name:'5. Eligibility'}).click();
   await page.getByRole('checkbox',{name:/Bachelor Of Computer Applications BCA/}).check();
-  const departmentGroup=page.getByRole('group',{name:'Eligible departments'});
+  const departmentGroup=page.locator('fieldset[aria-label="Eligible departments"]');
   await expect(departmentGroup).toContainText('Optional');
   await expect(departmentGroup).toContainText('Selected programs have no departments configured');
   await page.locator('#graduation_from').selectOption('2027');
