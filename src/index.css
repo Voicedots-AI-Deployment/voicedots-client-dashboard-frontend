@@ -77,3 +77,14 @@ body {
 .dark .client-brand { color: #f1f5f9; }
 
 .drive-wizard select { appearance: none; padding-right: 2rem; background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='16' height='16' viewBox='0 0 24 24' fill='none' stroke='%23777184' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='m6 9 6 6 6-6'/%3E%3C/svg%3E"); background-repeat: no-repeat; background-position: right .65rem center; background-size: 16px; }
+
+.drive-tab-candidates table, .drive-tab-ats table { border-collapse: separate; border-spacing: 0; font-size: 13px; width: 100%; }
+:is(.drive-tab-candidates,.drive-tab-ats) thead { background: #f5f0ff; }
+:is(.drive-tab-candidates,.drive-tab-ats) th { padding: 14px 16px; font-size: 12px; font-weight: 500; color: #777184; text-transform: none; letter-spacing: 0; white-space: nowrap; }
+:is(.drive-tab-candidates,.drive-tab-ats) td { padding: 16px; border-bottom: 1px solid #f0edf5; vertical-align: middle; }
+:is(.drive-tab-candidates,.drive-tab-ats) tbody tr:hover { background: #faf8ff; }
+.drive-overview article { border-radius: 18px; box-shadow: 0 3px 16px #34215405; }
+.drive-overview h3 { font-size: 16px; font-weight: 500; }
+.drive-overview dl { line-height: 1.6; }
+.dark :is(.drive-tab-candidates,.drive-tab-ats) thead { background: #251b39; }
+.dark :is(.drive-tab-candidates,.drive-tab-ats) tbody tr:hover { background: #201a2c; }

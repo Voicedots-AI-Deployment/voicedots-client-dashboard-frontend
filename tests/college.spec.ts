@@ -979,7 +979,7 @@ test('manage drive opens the selected overview and results without evaluating el
   });
   await page.getByRole('button',{name:'Manage drive',exact:true}).click();
   await expect(page).toHaveURL(/drive=drive-1/);
-  await expect(page.getByText('17',{exact:true})).toBeVisible();
+  await expect(page.getByLabel('17 assigned candidates')).toBeVisible();
   await page.getByRole('button',{name:'Interview results',exact:true}).click();
   await expect(page.getByText('Anu',{exact:true})).toBeVisible();
   const selectBox=await page.getByLabel('Select Anu').boundingBox();
@@ -1382,4 +1382,56 @@ test('deleting a cloud draft also removes its matching device copy', async ({pag
   await expect.poll(()=>page.evaluate(()=>localStorage.getItem('voicedots:placement-drive-draft:v2'))).toBeNull();
   await page.getByRole('button',{name:'Refresh',exact:true}).click();
   await expect(page.getByRole('heading',{name:'Cloud and device draft'})).toHaveCount(0);
+});
+
+test('drive overview uses a progress chart without Other and keeps navigation separate from actions', async ({page}) => {
+  await setup(page,true,{initialPath:'/dashboard/placement-management?drive=drive-1',driveDetails:{id:'drive-1',company_name:'Example',role_title:'Engineer',status:'active',window_start_at:'2026-01-01T00:00:00Z',window_end_at:'2099-01-01T00:00:00Z'}});
+  await page.route('**/v3/college/drives/drive-1/dashboard/overview**',route=>route.fulfill({json:{metrics:{total_assigned:10,interview_completed:3,interview_progress:{completed:3,in_progress:2,not_started:5,other:0}}}}));
+  await page.reload();
+  await expect(page.getByLabel('10 assigned candidates')).toBeVisible();
+  await expect(page.getByText('Other',{exact:true})).toHaveCount(0);
+  await expect(page.getByRole('button',{name:'Edit drive',exact:true})).toBeVisible();
+});
+
+test('candidate stopped by proctor has an ended label and attempt policy controls', async ({page}) => {
+  await setup(page,true,{initialPath:'/dashboard/placement-management?drive=drive-1&section=candidates',driveDetails:{id:'drive-1',company_name:'Example',role_title:'Engineer',status:'active',max_attempts:2,score_attempt_rules:[{min_score:0,max_score:50,max_attempts:3,require_coach:true}]}});
+  await page.route('**/v3/college/drives/drive-1/dashboard/ranking**',route=>route.fulfill({json:{candidates:[{student_id:'s1',full_name:'Ended Candidate',roll_number:'R1',assignment_status:'expired',preparation_status:'ready',live_session_status:'candidate_ended',live_session_termination_source:'proctor'}],pagination:{total:1}}}));
+  await page.reload();
+  await expect(page.getByText('Ended by proctor',{exact:true})).toBeVisible();
+  await page.getByRole('button',{name:'View details',exact:true}).click();
+  await expect(page.getByText('Attempt policy & AI Coach')).toBeVisible();
+  await expect(page.getByRole('button',{name:'Configure attempt & Coach rules'})).toBeVisible();
+});
+
+test('modify drive offers all Create Drive fields through the complete editor', async ({page}) => {
+  await setup(page,true,{initialPath:'/dashboard/placement-management?drive=drive-1&section=settings',driveDetails:{id:'drive-1',company_name:'Example',role_title:'Engineer',location:'Remote',jd_raw_text:'Build Python backend services.',status:'draft',difficulty_tier:'dynamic',window_start_at:'2099-01-01T00:00:00Z',window_end_at:'2099-01-02T00:00:00Z'}});
+  await page.getByRole('button',{name:'Edit complete setup'}).click();
+  await expect(page.getByRole('navigation',{name:'Drive creation steps'})).toBeVisible();
+  await page.getByRole('button',{name:'2. Interview setup'}).click();
+  await expect(page.getByRole('option',{name:'Personalized',exact:true})).toHaveCount(1);
+  await expect(page.getByText('Score-based attempt rules',{exact:false}).first()).toBeVisible();
+});
+
+test('ATS filters reset pagination and clear back to all candidates', async ({page}) => {
+  await setup(page,true,{initialPath:'/dashboard/placement-management?drive=drive-1&section=ats',driveDetails:{id:'drive-1',company_name:'Example',role_title:'Engineer',status:'active'}});
+  let requested='';
+  await page.route('**/v3/college/drives/drive-1/dashboard/ats-fit**',route=>{requested=route.request().url();return route.fulfill({json:{candidates:[{student_id:'s1',full_name:'Filter Candidate',roll_number:'R1',assignment_status:'invited'}],pagination:{total:26}}});});
+  await page.reload();
+  await page.getByRole('button',{name:'Next',exact:true}).click();
+  await expect.poll(()=>new URL(requested).searchParams.get('offset')).toBe('25');
+  await page.getByLabel('Eligibility',{exact:false}).selectOption('eligible');
+  await expect.poll(()=>new URL(requested).searchParams.get('offset')).toBe('0');
+  await expect.poll(()=>new URL(requested).searchParams.get('eligible')).toBe('true');
+  await page.getByRole('button',{name:'Clear filters',exact:true}).click();
+  await expect.poll(()=>new URL(requested).searchParams.has('eligible')).toBe(false);
+});
+
+test('ATS popup reuses already loaded evidence without another matching request', async ({page}) => {
+  await setup(page,true,{initialPath:'/dashboard/placement-management?drive=drive-1&section=ats',driveDetails:{id:'drive-1',company_name:'Example',role_title:'Engineer',status:'active'}});
+  let requests=0;
+  await page.route('**/v3/college/drives/drive-1/dashboard/ats-fit**',route=>{requests++;return route.fulfill({json:{candidates:[{student_id:'s1',full_name:'Evidence Candidate',roll_number:'R1',assignment_status:'completed',ats_fit_score:82,skills:[{skill:'Python',match_status:'FULL_MATCH',evidence_text:'Built Python services'}]}],pagination:{total:1}}});});
+  await page.reload();
+  await page.getByRole('button',{name:'AI resume match'}).focus();
+  await expect(page.getByRole('dialog',{name:'Resume match for Evidence Candidate'})).toContainText('82/100');
+  expect(requests).toBe(1);
 });

@@ -242,7 +242,7 @@ export default function CreateDriveWizard({programs,drive,draftId,collegeTimezon
       const startInstant=form.window_start?wallTimeToInstant(form.window_start,collegeTimezone):Number.NaN;
       const endInstant=form.window_end?wallTimeToInstant(form.window_end,collegeTimezone):Number.NaN;
       if(form.window_start&&!Number.isFinite(startInstant))errors.window_start='Choose a valid local interview start time.';
-      else if(form.window_start&&startInstant<Date.now())errors.window_start='Interview start must be in the present or future.';
+      else if(form.window_start&&startInstant<Date.now()&&(!drive||form.window_start!==wallTimeFromInstant(drive.window_start_at,collegeTimezone)))errors.window_start='Interview start must be in the present or future.';
       if(form.window_end&&!Number.isFinite(endInstant))errors.window_end='Choose a valid local interview end time.';
       else if(form.window_start&&form.window_end&&endInstant<=startInstant)errors.window_end='Interview end must be later than interview start.';
       if(form.application_deadline&&form.window_start&&form.application_deadline>=form.window_start.slice(0,10))errors.application_deadline='Application deadline must be before the interview start date.';
@@ -315,7 +315,7 @@ export default function CreateDriveWizard({programs,drive,draftId,collegeTimezon
     return <label className="block text-sm font-medium" key={key}>{label(title,required)}<input id={key} className={`${input} ${fieldErrors[key]?'border-rose-500 focus:border-rose-500 focus:ring-rose-100':''}`} type={type} value={form[key]} placeholder={placeholder} aria-invalid={Boolean(fieldErrors[key])} aria-describedby={fieldErrors[key]?`${key}-error`:undefined} onChange={event=>update(key,event.target.value as never)}/>{fieldError(key)}</label>;
   }
   function selectField(title:string,key:Exclude<keyof FormState,'score_attempt_rules'>,options:[string,string][],required=false){
-    return <label className="block text-sm font-medium" key={key}>{label(title,required)}<select id={key} className={input} value={form[key]} onChange={event=>update(key,event.target.value as never)}>{options.map(([value,text])=><option key={value} value={value}>{text}</option>)}</select>{fieldError(key)}</label>;
+    return <label className="block text-sm font-medium" key={key}>{label(title,required)}<select id={key} className={input} disabled={key==='difficulty_tier'&&Boolean(drive&&drive.status!=='draft')} value={form[key]} onChange={event=>update(key,event.target.value as never)}>{options.map(([value,text])=><option key={value} value={value}>{text}</option>)}</select>{fieldError(key)}</label>;
   }
   function companyDetailsField(key:'company_description'|'jd_text',title:string,required=false,rows=4){
     const placeholder=key==='jd_text'?'Paste the role responsibilities, required skills, and experience criteria here.': 'Share a short overview of the company (optional).';

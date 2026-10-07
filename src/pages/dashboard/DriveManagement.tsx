@@ -22,6 +22,7 @@ import { displayName, formatPlacementDateTime, wallTimeFromInstant, wallTimeToIn
 import CandidateReport from "./CandidateReport";
 import ResultCohortBuilder, {type ResultFilterOptions,type ResultRule} from "./ResultCohortBuilder";
 import DriveQuestionBank from "./DriveQuestionBank";
+import CreateDriveWizard from "./CreateDriveWizard";
 
 type Data = Record<string, unknown>;
 type Candidate = Data & {
@@ -248,8 +249,8 @@ function StatusBadge({ value }: { value?: string | null }) {
 
 function InterviewStatusBadge({ value }: { value?: string | null }) {
   const raw = String(value || "not_started").toLowerCase().replace(/[- ]/g, "_");
-  const label = raw === "failed" ? "Failed" : raw === "expired" ? "Expired" : displayName(raw);
-  const tone = raw === "completed" ? "bg-emerald-100 text-emerald-800" : raw === "in_progress" ? "bg-amber-100 text-amber-800" : ["failed", "expired"].includes(raw) ? "bg-rose-100 text-rose-800" : raw === "needs_review" ? "bg-purple-100 text-purple-800" : "bg-slate-100 text-slate-700";
+  const label = raw === "proctor_terminated" ? "Ended by proctor" : raw === "ended_early" ? "Ended early" : raw === "failed" ? "Failed" : raw === "expired" ? "Expired" : displayName(raw);
+  const tone = raw === "completed" ? "bg-emerald-100 text-emerald-800" : raw === "in_progress" ? "bg-amber-100 text-amber-800" : ["failed", "expired", "proctor_terminated", "ended_early"].includes(raw) ? "bg-rose-100 text-rose-800" : raw === "needs_review" ? "bg-purple-100 text-purple-800" : "bg-slate-100 text-slate-700";
   return <span className={`inline-flex rounded-full px-2.5 py-1 text-xs font-semibold ${tone}`}>{label}</span>;
 }
 
@@ -258,10 +259,37 @@ function questionSourceLabel(value: string) { return value === "ai_generated" ? 
 function interviewerRole(drive: Drive | null | undefined, track: string) { return drive?.agent_selection?.find(item => item.track === track)?.profile?.role || roleLabels[track] || "Interviewer role not configured"; }
 function StudentAvatar({ student, size = "h-10 w-10" }: { student: Candidate; size?: string }) { const [photo, setPhoto] = useState(""); const initials=String(student.full_name||"?").trim().split(/\s+/).slice(0,2).map(part=>part[0]||"").join("").toUpperCase(); useEffect(()=>{let active=true;collegeApi.get<{photo?:string}>(`attendance/photos/students/${student.student_id}`).then(result=>{if(active)setPhoto(result.photo||"")}).catch(()=>{if(active)setPhoto("")});return()=>{active=false}},[student.student_id]);return photo?<img src={photo} alt={`${student.full_name} profile`} className={`${size} shrink-0 rounded-full object-cover`}/>:<span aria-label={`${student.full_name} initials`} className={`${size} inline-flex shrink-0 items-center justify-center rounded-full bg-violet-100 text-xs font-bold text-violet-800`}>{initials}</span>; }
 
+function candidateInterviewStatus(candidate: Candidate): string {
+  if (candidate.live_session_status === 'candidate_ended') return candidate.live_session_termination_source === 'proctor' ? 'proctor_terminated' : 'ended_early';
+  if (candidate.evaluation_status === 'held_for_review') return 'needs_review';
+  if (['assigned','invited','cancelled','completed','expired','in_progress'].includes(String(candidate.assignment_status))) return String(candidate.assignment_status);
+  return candidate.preparation_status === 'failed' ? 'failed' : 'not_started';
+}
+
+function InterviewProgressChart({assigned, progress}:{assigned:number;progress:Data}) {
+  const rows = [ ['not_started','Not started','#cbd5e1'],['in_progress','In progress','#8b5cf6'],['completed','Completed','#10b981'],['needs_review','Needs review','#f59e0b'],['failed','Failed','#f43f5e'],['expired','Ended / expired','#f97316'] ];
+  let cursor=0;
+  const slices=rows.map(([key,,color]) => {const start=cursor;cursor += assigned ? Number(progress[key] || 0)/assigned*100 : 0;return `${color} ${start}% ${cursor}%`;});
+  const background=assigned ? `conic-gradient(${slices.join(',')}, #f1f5f9 ${cursor}% 100%)` : '#f1f5f9';
+  return <div className="grid items-center gap-6 sm:grid-cols-[180px_1fr]"><div className="relative mx-auto grid h-44 w-44 place-items-center rounded-full" style={{background}} aria-label={`${assigned} assigned candidates`}><div className="grid h-32 w-32 place-content-center rounded-full bg-white text-center dark:bg-slate-900"><strong className="text-3xl font-medium">{assigned}</strong><span className="text-xs text-slate-500">Assigned</span></div></div><dl className="space-y-2">{rows.map(([key,label,color]) => <div key={key} className="flex items-center justify-between gap-3 border-b border-slate-100 py-2"><dt className="flex items-center gap-2 text-sm text-slate-600"><span className="h-2.5 w-2.5 rounded-full" style={{backgroundColor:color}}/>{label}</dt><dd className="text-sm font-medium">{Number(progress[key] || 0)}<span className="ml-2 text-xs text-slate-400">{assigned ? Math.round(Number(progress[key] || 0)/assigned*100) : 0}%</span></dd></div>)}</dl></div>;
+}
+
+const resumeMatchRequests = new Map<string, {expires:number; request:Promise<Data>}>();
+function loadResumeMatch(driveId:string,studentId:string) {
+  const key=`${driveId}:${studentId}`;
+  const cached=resumeMatchRequests.get(key);
+  if(cached && cached.expires>Date.now()) return cached.request;
+  if(resumeMatchRequests.size>100) resumeMatchRequests.clear();
+  const request=collegeApi.get<Data>(`drives/${encodeURIComponent(driveId)}/dashboard/ats-fit?student_id=${encodeURIComponent(studentId)}&limit=1`);
+  resumeMatchRequests.set(key,{expires:Date.now()+30000,request});
+  request.catch(()=>resumeMatchRequests.delete(key));
+  return request;
+}
+
 function ResumeMatchSummary({ driveId, candidate }: { driveId: string; candidate: Candidate }) {
   const [open,setOpen]=useState(false),[loading,setLoading]=useState(false),[error,setError]=useState(""),[summary,setSummary]=useState<Data|null>(null),[side,setSide]=useState<"left"|"right">("left");
   const timer=useRef<ReturnType<typeof setTimeout>|null>(null),closeTimer=useRef<ReturnType<typeof setTimeout>|null>(null),loaded=useRef(false),button=useRef<HTMLButtonElement|null>(null);
-  const load=async()=>{setOpen(true);if(loaded.current||loading)return;loaded.current=true;setLoading(true);setError("");try{const result=await collegeApi.get<Data>(`drives/${encodeURIComponent(driveId)}/dashboard/ats-fit?student_id=${encodeURIComponent(candidate.student_id)}&limit=1`);setSummary(((result.candidates||[]) as Data[])[0]||null)}catch{setError("Resume match could not be loaded. Try again.");loaded.current=false}finally{setLoading(false)}};
+  const load=async()=>{setOpen(true);if(loaded.current||loading)return;loaded.current=true;setLoading(true);setError("");try{const result=Array.isArray(candidate.skills) ? {candidates:[candidate]} : await loadResumeMatch(driveId,candidate.student_id);setSummary(((result.candidates||[]) as Data[])[0]||null)}catch{setError("Resume match could not be loaded. Try again.");loaded.current=false}finally{setLoading(false)}};
   const show=()=>{if(timer.current)clearTimeout(timer.current);if(closeTimer.current)clearTimeout(closeTimer.current);const rect=button.current?.getBoundingClientRect();setSide(rect&&window.innerWidth-rect.left<380?"right":"left");void load()};
   const close=()=>{if(closeTimer.current)clearTimeout(closeTimer.current);closeTimer.current=setTimeout(()=>setOpen(false),160)};
   const rows=Array.isArray(summary?.skills)?summary!.skills as Data[]:[];
@@ -420,7 +448,7 @@ function CandidateDetails({
           <>
             <div>
               <dt className="text-slate-500">Interview status</dt>
-              <dd className="mt-1"><InterviewStatusBadge value={candidate.assignment_status} /></dd>
+              <dd className="mt-1"><InterviewStatusBadge value={candidateInterviewStatus(candidate)} /></dd>
             </div>
             <div>
               <dt className="text-slate-500">ATS Fit</dt>
@@ -1032,7 +1060,7 @@ function DriveSettings({
       const end=wallTimeToInstant(String(form.window_end||""),collegeTimezone);
       const errors:Record<string,string>={};
       if(!Number.isFinite(start))errors.window_start="Choose a valid local interview start time.";
-      else if(start<=Date.now())errors.window_start="Interview start must be in the future.";
+      else if(start<=Date.now()&&String(form.window_start)!==wallTimeFromInstant(drive.window_start_at,collegeTimezone))errors.window_start="Interview start must be in the future.";
       if(!Number.isFinite(end))errors.window_end="Choose a valid local interview end time.";
       else if(Number.isFinite(start)&&end<=start)errors.window_end="Interview end must be later than interview start.";
       if(Object.keys(errors).length){setFieldErrors(errors);document.getElementById(Object.keys(errors)[0])?.focus();
@@ -1250,6 +1278,7 @@ function DriveSettings({
               }))
             }
           >
+            <option value="dynamic">Personalized</option>
             <option value="beginner">Beginner</option>
             <option value="intermediate">Intermediate</option>
             <option value="advanced">Advanced</option>
@@ -1485,7 +1514,7 @@ function DriveSettings({
     );
   return (
     <div className="space-y-4">
-      {drive.is_locked && <p role="status" className="rounded-xl border border-amber-200 bg-amber-50 p-3 text-sm text-amber-800">This drive is locked for editing. Unlock it from the drive list to edit configuration when its lifecycle allows.</p>}
+      {drive.is_locked && <p role="status" className="rounded-xl border border-amber-200 bg-amber-50 p-3 text-sm text-amber-800">This drive is locked for editing. Unlock it to edit configuration when its lifecycle allows.<button className={`${btn} ml-3`} disabled={busy} onClick={() => void collegeApi.save(`drives/${drive.id}/lock`, {is_locked:false}).then(() => save({})).catch(error => setWarning(collegeError(error)))}>Unlock drive</button></p>}
       {warning && (
         <p role="alert" className="rounded-xl bg-amber-50 p-3 text-amber-800">
           {warning}
@@ -1611,6 +1640,7 @@ export default function DriveManagement({
   const [checked, setChecked] = useState<string[]>([]),
     [attempts, setAttempts] = useState(2);
   const [schedule, setSchedule] = useState("");
+  const [fullEditor, setFullEditor] = useState(false);
   const [resultSort, setResultSort] = useState("rank");
   const [resultsLayout, setResultsLayout] = useState<"cards" | "table">("cards");
   const [resultQuickView, setResultQuickView] = useState("all");
@@ -1754,6 +1784,30 @@ export default function DriveManagement({
     resultSort,
     resultQuickView,
   ]);
+  useEffect(() => {
+    if (!['overview','candidates'].includes(tab)) return;
+    const controller = new AbortController();
+    let pending = false;
+    const timer = window.setInterval(async () => {
+      if (pending || document.visibilityState === 'hidden') return;
+      pending = true;
+      const query = new URLSearchParams({limit:'25',offset:String(offset),q:search});
+      if (departmentFilter) query.set('department',departmentFilter);
+      if (programFilter) query.set('program',programFilter);
+      if (statusFilter) query.set('assignment_status',statusFilter);
+      if (tab === 'candidates') query.set('sort_by',listSort);
+      try {
+        const result = await collegeApi.get<Data>(`drives/${driveId}/${paths[tab]}?${query}`,controller.signal);
+        if (!controller.signal.aborted) {
+          setData(result);
+          setSelected(current => current ? ((result.candidates || []) as Candidate[]).find(row => row.student_id === current.student_id) || current : current);
+        }
+      } catch { /* Manual refresh exposes request failures; retain the last successful view. */ }
+      finally { pending = false; }
+    },15000);
+    return () => {controller.abort();window.clearInterval(timer);};
+  },[tab,driveId,offset,search,departmentFilter,programFilter,statusFilter,listSort]);
+  useEffect(() => {resumeMatchRequests.clear();},[version,driveId]);
   async function act(path: string, body: unknown = {}, put = true) {
     setBusy(true);
     setError("");
@@ -1905,48 +1959,14 @@ export default function DriveManagement({
     );
   return (
     <section className={`space-y-5 drive-tab-${tab}`}>
-      <div className="flex flex-wrap gap-3">
-        <button className={btn} onClick={back}>
-          ← Placement drives
-        </button>
-        {drive && (
-          <button
-            className={btn}
-            disabled={busy || loading}
-            onClick={() =>
-              setParams((p) => {
-                p.set("section", "settings");
-                p.set("edit", "company");
-                return p;
-              })
-            }
-          >
-            Edit drive
-          </button>
-        )}
-        <button
-          className={btn}
-          disabled={busy || loading}
-          onClick={() => setVersion((v) => v + 1)}
-        >
-          Refresh
-        </button>
-        {drive && (
-          <LifecycleActions
-            drive={drive}
-            busy={busy || loading}
-            onRequest={setLifecycleRequest}
-          />
-        )}
-        {drive && (
-          <button
-            className={`${btn} border-rose-200 text-rose-700 hover:bg-rose-50`}
-            disabled={busy || loading}
-            onClick={() => setLifecycleRequest("removed")}
-          >
-            Delete drive
-          </button>
-        )}
+      <div className="flex flex-wrap items-center justify-between gap-3 border-b border-slate-200 pb-4">
+        <button className={btn} onClick={back}>← Placement drives</button>
+        <div className="flex flex-wrap items-center gap-2">
+          <button className={btn} disabled={busy || loading} onClick={() => setVersion(v => v + 1)}>Refresh</button>
+          {drive && <button className={`${btn} bg-violet-600 text-white`} disabled={busy || loading} onClick={() => setParams(p => {p.set("section", "settings");p.set("edit", "company");return p;})}>Edit drive</button>}
+          {drive && <LifecycleActions drive={drive} busy={busy || loading} onRequest={setLifecycleRequest}/>}
+          {drive && <button className={`${btn} border-rose-200 text-rose-700 hover:bg-rose-50`} disabled={busy || loading} onClick={() => setLifecycleRequest("removed")}>Delete drive</button>}
+        </div>
       </div>
       <header>
         <p className="text-sm text-indigo-600">{drive?.company_name}</p>
@@ -2006,8 +2026,8 @@ export default function DriveManagement({
               0,
             );
           return (
-            <div className="space-y-5">
-              <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-5">
+            <div className="drive-overview space-y-5">
+              <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-5">
                 <Metric label="Assigned Candidates" value={assigned} />
                 <Metric label="Interviews Completed" value={completed} />
                 <Metric
@@ -2048,48 +2068,7 @@ export default function DriveManagement({
                   <p className="mb-5 text-sm text-slate-500">
                     Operational state of assigned candidates.
                   </p>
-                  <div className="space-y-4">
-                    <Bar
-                      label="Not Started"
-                      value={Number(progress.not_started || 0)}
-                      total={assigned}
-                    />
-                    <Bar
-                      label="In Progress"
-                      value={Number(progress.in_progress || 0)}
-                      total={assigned}
-                      tone="bg-indigo-500"
-                    />
-                    <Bar
-                      label="Completed"
-                      value={Number(progress.completed || 0)}
-                      total={assigned}
-                      tone="bg-emerald-500"
-                    />
-                    <Bar
-                      label="Needs Review"
-                      value={Number(progress.needs_review || 0)}
-                      total={assigned}
-                      tone="bg-amber-500"
-                    />
-                    <Bar
-                      label="Failed"
-                      value={Number(progress.failed || 0)}
-                      total={assigned}
-                      tone="bg-rose-500"
-                    />
-                    <Bar
-                      label="Expired"
-                      value={Number(progress.expired || 0)}
-                      total={assigned}
-                      tone="bg-orange-500"
-                    />
-                    <Bar
-                      label="Other"
-                      value={Number(progress.other || 0)}
-                      total={assigned}
-                    />
-                  </div>
+                  <InterviewProgressChart assigned={assigned} progress={progress}/>
                 </article>
                 <article className={panel}>
                   <h3 className="font-bold">Readiness Distribution</h3>
@@ -2266,7 +2245,7 @@ export default function DriveManagement({
               <select
                 className={field}
                 value={departmentFilter}
-                onChange={(e) => setDepartmentFilter(e.target.value)}
+                onChange={(e) => {setOffset(0);setDepartmentFilter(e.target.value);}}
               >
                 <option value="">All departments</option>
                 {departmentOptions.map((v) => (
@@ -2276,7 +2255,7 @@ export default function DriveManagement({
                 ))}
               </select>
             </label>
-            {tab === "candidates" && <label className="text-sm">Program<select className={field} value={programFilter} onChange={e=>setProgramFilter(e.target.value)}><option value="">All programs</option>{programOptions.map(program=><option key={program.code} value={program.code}>{displayName(program.display_name)}</option>)}</select></label>}
+            {tab === "candidates" && <label className="text-sm">Program<select className={field} value={programFilter} onChange={e=>{setOffset(0);setProgramFilter(e.target.value);}}><option value="">All programs</option>{programOptions.map(program=><option key={program.code} value={program.code}>{displayName(program.display_name)}</option>)}</select></label>}
             {tab === "candidates" ? (
               <>
                 <label className="text-sm">
@@ -2284,7 +2263,7 @@ export default function DriveManagement({
                   <select
                     className={field}
                     value={statusFilter}
-                    onChange={(e) => setStatusFilter(e.target.value)}
+                    onChange={(e) => {setOffset(0);setStatusFilter(e.target.value);}}
                   >
                     <option value="">All statuses</option>
                     {["assigned", "invited", "in_progress", "completed", "expired", "cancelled"].map((v) => (
@@ -2302,18 +2281,18 @@ export default function DriveManagement({
                   <select
                     className={field}
                     value={atsEligibility}
-                    onChange={(e) => setAtsEligibility(e.target.value)}
+                    onChange={(e) => {setOffset(0);setAtsEligibility(e.target.value);}}
                   >
                     <option value="">All candidates</option>
                     <option value="eligible">Eligible</option>
                     <option value="ineligible">Not eligible</option>
                   </select>
                 </label>
-                <label className="text-sm">Minimum ATS<input className={field} type="number" min="0" max="100" placeholder="0–100" value={atsMinimum} onChange={(e) => setAtsMinimum(e.target.value)} /></label>
+                <label className="text-sm">Minimum ATS<input className={field} type="number" min="0" max="100" placeholder="0–100" value={atsMinimum} onChange={(e) => {setOffset(0);setAtsMinimum(e.target.value);}} /></label>
               </>
             ) : null}
-            <label className="text-sm">Sort by<select className={field} value={listSort} onChange={event=>setListSort(event.target.value)}><option value="name">Candidate name</option><option value="department">Department</option><option value="status">Interview status</option>{tab === "ats" && <><option value="ats_desc">ATS: high to low</option><option value="ats_asc">ATS: low to high</option></>}</select></label>
-            {tab === "candidates" && (search||departmentFilter||programFilter||statusFilter) && <button type="button" className={`${btn} self-end`} onClick={()=>{setSearch("");setDepartmentFilter("");setProgramFilter("");setStatusFilter("");setOffset(0);}}>Clear filters</button>}
+            <label className="text-sm">Sort by<select className={field} value={listSort} onChange={event=>{setOffset(0);setListSort(event.target.value);}}><option value="name">Candidate name</option><option value="department">Department</option><option value="status">Interview status</option>{tab === "ats" && <><option value="ats_desc">ATS: high to low</option><option value="ats_asc">ATS: low to high</option></>}</select></label>
+            {(search||departmentFilter||programFilter||statusFilter||atsEligibility||atsMinimum) && <button type="button" className={`${btn} self-end`} onClick={()=>{setSearch("");setDepartmentFilter("");setProgramFilter("");setStatusFilter("");setAtsEligibility("");setAtsMinimum("");setOffset(0);}}>Clear filters</button>}
           </div>}
           {tab === "results" && (
             <section aria-labelledby="results-heading" className="space-y-4">
@@ -2494,7 +2473,7 @@ export default function DriveManagement({
                         <div className="flex min-w-0 items-center gap-3"><StudentAvatar student={c}/><div className="min-w-0"><strong>{c.full_name}</strong><p className="text-xs text-slate-500">
                           {c.roll_number}
                           {c.email ? ` · ${c.email}` : ""}
-                        </p>{tab==="candidates"&&drive&&<ResumeMatchSummary driveId={driveId} candidate={c}/>}</div></div>
+                        </p>{(tab==="candidates"||tab==="ats")&&drive&&<ResumeMatchSummary driveId={driveId} candidate={c}/>}</div></div>
                         </div>
                       </td>
                       {tab === "results" ? (
@@ -2531,7 +2510,7 @@ export default function DriveManagement({
                           <td className="p-3">
                             {c.department_code || "—"} / {c.program || "—"}
                           </td>
-                          <td className="p-3"><InterviewStatusBadge value={c.assignment_status} /></td>
+                          <td className="p-3"><InterviewStatusBadge value={candidateInterviewStatus(c)} /></td>
                           <td className="p-3">
                             <ScoreBadge score={c.ats_fit_score} />
                           </td>
@@ -2548,7 +2527,7 @@ export default function DriveManagement({
                             {c.department_code || "—"} / {c.program || "—"}
                           </td>
                           <td className="p-3">
-                            <InterviewStatusBadge value={c.assignment_status === "in_progress" ? "in_progress" : c.evaluation_status === "held_for_review" ? "needs_review" : c.evaluation_status === "released" ? "completed" : c.preparation_status || "not_started"} />
+                            <InterviewStatusBadge value={candidateInterviewStatus(c)} />
                           </td>
                           <td className="p-3">
                             <AttemptBadge candidate={c} driveMaxAttempts={drive?.max_attempts} />
@@ -2625,7 +2604,10 @@ export default function DriveManagement({
       {tab === "skills" && data && <SkillView data={data} />}{" "}
       {tab === "departments" && data && <DepartmentView data={data} onViewReport={(student) => setParams(current => { current.set("section", "results"); current.set("candidate", String(student.student_id)); return current; })} />}{" "}
       {tab === "settings" && drive && (
-        <div className="space-y-5"><DriveSettings
+        <div className="space-y-5">
+          <div className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-violet-200 bg-violet-50 p-4"><div><h3 className="font-medium">Complete drive setup</h3><p className="text-sm text-slate-500">Edit all Create Drive fields, eligibility, roles, questions and attempt rules.</p></div><button className={btn} disabled={Boolean(drive.is_locked) || ['closed','cancelled'].includes(drive.status)} onClick={() => setFullEditor(value => !value)}>{fullEditor ? 'Close complete editor' : 'Edit complete setup'}</button></div>
+          {fullEditor && <CreateDriveWizard programs={programOptions} drive={drive} collegeTimezone={collegeTimezone} onCancel={() => setFullEditor(false)} onSaved={message => {setNotice(message);setFullEditor(false);setVersion(v => v + 1);}}/>}
+          {!fullEditor && <DriveSettings
           drive={drive}
           collegeTimezone={collegeTimezone}
           busy={busy}
@@ -2649,7 +2631,7 @@ export default function DriveManagement({
               setBusy(false);
             }
           }}
-        /></div>
+        />}</div>
       )}
       {selected && (
         <div
@@ -2710,6 +2692,7 @@ export default function DriveManagement({
                       View attempt history
                     </button>
                   </div>
+                  <section className="rounded-xl border border-slate-200 bg-slate-50 p-4"><h4 className="font-medium">Attempt policy & AI Coach</h4><p className="mt-1 text-sm text-slate-500">Drive default: {drive?.max_attempts || 1} attempt(s). Manual limits apply only to this candidate.</p>{(drive?.score_attempt_rules || []).map((rule,index) => <p key={index} className="mt-2 text-sm">Score {rule.min_score}–{rule.max_score}: {rule.max_attempts} attempt(s){rule.require_coach ? ' · Complete AI Coach before the next attempt' : ''}</p>)}{!(drive?.score_attempt_rules || []).length && <p className="mt-2 text-sm text-slate-500">No score-based rules configured.</p>}<button className={`${btn} mt-3`} onClick={() => {setSelected(null);setDetail(null);setFullEditor(true);setParams(p => {p.set('section','settings');return p;});}}>Configure attempt & Coach rules</button></section>
                   {drive && ["scheduled", "active"].includes(drive.status) && String(selected.assignment_status) !== "in_progress" && (
                       <>
                         <label className="block max-w-xs text-sm">
