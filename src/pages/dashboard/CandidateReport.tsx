@@ -189,15 +189,15 @@ function ReportKeyboardShortcuts({
   useEffect(() => {
     const handler = (event: KeyboardEvent) => {
       const target = event.target as HTMLElement | null;
-      if (target && ["INPUT", "TEXTAREA", "SELECT"].includes(target.tagName)) return;
+      if (target?.closest("button,a,input,textarea,select,[contenteditable]")) return;
       const video = videoRef.current;
       if (event.code === "Space" && video) {
         event.preventDefault();
-        if (video.paused) void video.play();
+        if (video.paused) void video.play().catch(() => {});
         else video.pause();
       }
-      if (event.key === "ArrowLeft" && video) video.currentTime = Math.max(0, video.currentTime - 5);
-      if (event.key === "ArrowRight" && video) video.currentTime = Math.min(video.duration || Infinity, video.currentTime + 5);
+      if (event.key === "ArrowLeft" && video && video.readyState >= 1) video.currentTime = Math.max(0, video.currentTime - 5);
+      if (event.key === "ArrowRight" && video && video.readyState >= 1) video.currentTime = Math.min(video.duration || Infinity, video.currentTime + 5);
       if (event.key.toLowerCase() === "n") onNextFlag();
       if (event.key.toLowerCase() === "b") document.getElementById("bookmark-note")?.focus();
     };
@@ -266,7 +266,15 @@ export default function CandidateReport({
     [busy, setBusy] = useState(true),
     [error, setError] = useState(""),
     [notice, setNotice] = useState("");
+  const loadRequest = useRef(0);
+  const reportIdentity = `${driveId}:${studentId}`;
+  const currentIdentity = useRef(reportIdentity);
+  currentIdentity.current = reportIdentity;
   async function load() {
+    const identity = reportIdentity;
+    if (identity !== currentIdentity.current) return;
+    const request = ++loadRequest.current;
+    const isCurrent = () => identity === currentIdentity.current && request === loadRequest.current;
     setBusy(true);
     setError("");
     try {
@@ -278,6 +286,7 @@ export default function CandidateReport({
         ),
         collegeApi.get<Data>("interview-results-settings"),
       ]);
+      if (!isCurrent()) return;
       if (reports.status === "fulfilled") setBundle(reports.value);
       else setError(`Interview report could not be loaded: ${collegeError(reports.reason)}`);
       if (driveValue.status === "fulfilled") { setDrive(driveValue.value); setDriveError(""); }
@@ -291,13 +300,15 @@ export default function CandidateReport({
       } else setDecisionError(collegeError(decisionValue.reason));
       if (settingsValue.status === "fulfilled") setResultSettings(settingsValue.value);
     } catch (e) {
-      setError(collegeError(e));
+      if (isCurrent()) setError(collegeError(e));
     } finally {
-      setBusy(false);
+      if (isCurrent()) setBusy(false);
     }
   }
   useEffect(() => {
     setBundle(null);
+    setDrive(null);
+    setDecision(""); setNote(""); setSchedule(""); setNotice(""); setConfirm(null);
     setDecisionData(null);
     setTranscript(null);
     setIntegrity(null);
@@ -310,6 +321,7 @@ export default function CandidateReport({
     setIsPlaying(false);
     setBookmarkNote("");
     void load();
+    return () => { loadRequest.current += 1; };
   }, [driveId, studentId]);
   const report = useMemo(
     () =>
@@ -367,11 +379,17 @@ export default function CandidateReport({
     const offset = (question - start) / 1000;
     const duration = Number(recording?.duration_seconds || 0);
     if (offset < 0 || (duration > 0 && offset > duration)) return;
+    seekToOffset(offset);
+  }
+  function seekToOffset(offset: number) {
     const video = videoRef.current;
+    if (!video || !Number.isFinite(offset) || offset < 0) return;
+    const identity = reportIdentity;
     video.scrollIntoView({ behavior: "smooth", block: "center" });
     const seekAndPlay = () => {
+      if (videoRef.current !== video || identity !== currentIdentity.current) return;
       try {
-        video.currentTime = offset;
+        video.currentTime = Number.isFinite(video.duration) ? Math.min(offset, video.duration) : offset;
         void video.play().catch(() => undefined);
       } catch {
         // A secure video URL may still be loading; the one-shot metadata
@@ -425,6 +443,7 @@ export default function CandidateReport({
   async function perform() {
     if (!confirm) return;
     const action = confirm;
+    const identity = reportIdentity;
     setConfirm(null);
     setBusy(true);
     try {
@@ -450,6 +469,7 @@ export default function CandidateReport({
         await collegeApi.remove(
           `drives/${driveId}/candidates/${studentId}/release/schedule`,
         );
+      if (identity !== currentIdentity.current) return;
       if (action === "decision") setBookmarkNotes([]);
       setNotice(
         action === "decision"
@@ -458,9 +478,9 @@ export default function CandidateReport({
       );
       await load();
     } catch (e) {
-      setError(collegeError(e));
+      if (identity === currentIdentity.current) setError(collegeError(e));
     } finally {
-      setBusy(false);
+      if (identity === currentIdentity.current) setBusy(false);
     }
   }
   if (busy && !bundle) return <section role="status" className="mx-auto max-w-7xl animate-pulse rounded-2xl border border-slate-200 bg-white p-6 text-sm text-slate-500 shadow-sm">Loading candidate report…</section>;
@@ -514,6 +534,7 @@ export default function CandidateReport({
     if (!Number.isFinite(bTime)) return -1;
     return bTime - aTime;
   });
+  const interviewEnded = Boolean(report.completed_at) || ["released", "held_for_review", "incomplete"].includes(String(detail.status || ""));
   const comparable = pri.comparable !== false && typeof pri.score === "number";
   const recordingStatus = recording?.status || report.recording?.status || "unavailable";
   const recordingDuration = recording?.duration_seconds ?? report.recording?.duration_seconds;
@@ -648,12 +669,12 @@ export default function CandidateReport({
             {[student.program, student.department_code, student.graduation_year ?? candidateProfile.graduation_year].some(value => value != null && value !== "") && <span>{[student.program, student.department_code, student.graduation_year ?? candidateProfile.graduation_year].filter(value => value != null && value !== "").map(String).join(" · ")}</span>}
             <span>{show(drive?.company_name, "Placement drive")} — {show(drive?.role_title, "Role")}</span>
             {report.attempt_number != null && <span>Attempt {report.attempt_number}</span>}
-            <span>{report.completed_at ? `Completed ${stamp(report.completed_at)}` : "Interview in progress"}</span>
+            <span>{report.completed_at ? `Completed ${stamp(report.completed_at)}` : interviewEnded ? "Interview ended" : "Interview in progress"}</span>
           </div>
           <details className="mt-1 text-xs text-slate-500"><summary className="inline-flex cursor-pointer items-center gap-1 font-semibold text-slate-600">Candidate details <ChevronDown size={13}/></summary><dl className="mt-2 grid max-w-3xl gap-x-8 gap-y-2 rounded-lg border border-slate-200 bg-white p-3 sm:grid-cols-2">{studentDetailRows.map(([label, value]) => <div key={String(label)} className="flex justify-between gap-4"><dt>{String(label)}</dt><dd className="text-right font-medium text-slate-800">{String(value)}</dd></div>)}</dl></details>
         </div>
         <div className="flex flex-wrap items-center gap-1.5 text-xs">
-          <span className="rounded-full bg-emerald-50 px-2.5 py-1 font-semibold text-emerald-800">{report.completed_at ? "Interview completed" : "Interview in progress"}</span>
+          <span className="rounded-full bg-emerald-50 px-2.5 py-1 font-semibold text-emerald-800">{report.completed_at ? "Interview completed" : interviewEnded ? "Interview ended" : "Interview in progress"}</span>
           <span className={`rounded-full px-2.5 py-1 ${publication.state === "released" ? "bg-indigo-50 text-indigo-800" : "bg-slate-100 text-slate-700"}`}>Result {displayName(show(publication.state, "hidden")).toLowerCase()}</span>
           <span className="rounded-full bg-slate-100 px-2.5 py-1">{decision ? `Officer: ${decisionLabel(decision)}` : "Decision pending"}</span>
           {driveError && <span role="alert" className="text-rose-700">Drive details: {driveError} <button className="underline" onClick={() => void load()}>Retry</button></span>}
@@ -672,7 +693,7 @@ export default function CandidateReport({
                 <h2 className="mt-1 text-base font-bold">Decision brief</h2>
                 <p className="mt-1 text-xs text-slate-500">Assessed evidence, confidence and open questions for your hiring decision.</p>
               </div>
-              <span className={`rounded-full px-3 py-1 text-xs font-medium ${!comparable ? "bg-slate-100 text-slate-600" : Number(pri.score) >= 75 ? "bg-emerald-50 text-emerald-800" : Number(pri.score) >= 50 ? "bg-amber-50 text-amber-800" : "bg-rose-50 text-rose-800"}`}>{comparable ? displayName(show(report.readiness, "Not assessed")) : "Needs evidence review"}</span>
+              <span className={`rounded-full px-3 py-1 text-xs font-medium ${!comparable ? "bg-slate-100 text-slate-600" : Number(pri.score) >= 75 ? "bg-emerald-50 text-emerald-800" : Number(pri.score) >= 50 ? "bg-amber-50 text-amber-800" : "bg-rose-50 text-rose-800"}`}>{comparable ? (Number(pri.score) >= 75 ? "Ready" : Number(pri.score) >= 50 ? "Developing" : "Not Ready") : "Needs evidence review"}</span>
             </div>
             <div className="report-score-grid">
               {reportMetrics.map((metric) => <article key={metric.label} className="report-score-card">
@@ -714,7 +735,7 @@ export default function CandidateReport({
                 </div>
                 <div className="relative mt-4 pt-3">
                   <div className="flex items-center justify-between text-[10px] font-semibold text-slate-500"><span>Recording timeline</span><span>{recordingDuration != null ? timeLabel(Number(recordingDuration)) : "Not available"}</span></div>
-                  {videoReady && Number(recording?.segment_count || 0) <= 1 && Number(recording?.duration_seconds || 0) > 0 ? <><div className="relative mt-1 h-7 rounded-lg bg-slate-100" role="group" aria-label="Recording timeline"><div className="absolute inset-x-0 top-1/2 h-1 -translate-y-1/2 bg-slate-300"/>{turns.map((turn, index) => { const offset = recordingOffset(turn.asked_at); if (offset == null) return null; const left = Math.min(100, Math.max(0, offset / Number(recording.duration_seconds) * 100)); return <button key={String(turn.turn_id || index)} type="button" disabled={!videoReady} className="absolute top-1/2 z-10 h-3 w-3 -translate-x-1/2 -translate-y-1/2 rounded-sm border border-white bg-indigo-600 disabled:cursor-not-allowed" style={{ left: `${left}%` }} title={show(turn.question_text, `Question ${index + 1}`)} aria-label={`Jump to interview question ${index + 1}`} onClick={() => seekToQuestion(turn.asked_at)}/>; })}{events.map((event, index) => { const offset = recordingOffset(event.occurred_at || event.created_at); if (offset == null) return null; const left = Math.min(100, Math.max(0, offset / Number(recording.duration_seconds) * 100)); return <button key={String(event.event_id || index)} type="button" disabled={!videoReady} className="absolute top-1/2 z-20 h-3.5 w-3.5 -translate-x-1/2 -translate-y-1/2 rounded-full border-2 border-white bg-amber-600 disabled:cursor-not-allowed" style={{ left: `${left}%` }} title={`${displayName(show(event.event_type || event.type))} · ${stamp(event.occurred_at || event.created_at)}`} aria-label={`Jump to proctor bookmark ${index + 1}`} onClick={() => { setActiveEvent(index); seekToEvent(event); }}/>; })}{bookmarkNotes.map(item => <button key={item.id} type="button" disabled={!videoReady} className="absolute top-1/2 z-30 h-3.5 w-3.5 -translate-x-1/2 -translate-y-1/2 rotate-45 border-2 border-white bg-slate-700 disabled:cursor-not-allowed" style={{ left: `${Math.min(100, item.seconds / Number(recording.duration_seconds) * 100)}%` }} title={`My note · ${timeLabel(item.seconds)} · ${item.text}`} aria-label={`My note at ${timeLabel(item.seconds)}`} onClick={() => { if (videoRef.current) videoRef.current.currentTime = item.seconds; }}/>)}</div><div className="mt-1 flex justify-between text-[10px] text-slate-500"><span>0:00</span><span>{timeLabel(Number(recording.duration_seconds))}</span></div></> : <div className="mt-1 flex h-7 items-center rounded-lg bg-slate-100 px-3 text-[10px] text-slate-500">{Number(recording?.segment_count || 0) > 1 ? "Timeline alignment unavailable for combined recording segments." : "No recording timeline is available for this attempt."}</div>}
+                  {videoReady && Number(recording?.segment_count || 0) <= 1 && Number(recording?.duration_seconds || 0) > 0 ? <><div className="relative mt-1 h-7 rounded-lg bg-slate-100" role="group" aria-label="Recording timeline"><div className="absolute inset-x-0 top-1/2 h-1 -translate-y-1/2 bg-slate-300"/>{turns.map((turn, index) => { const offset = recordingOffset(turn.asked_at); if (offset == null) return null; const left = Math.min(100, Math.max(0, offset / Number(recording.duration_seconds) * 100)); return <button key={String(turn.turn_id || index)} type="button" disabled={!videoReady} className="absolute top-1/2 z-10 h-3 w-3 -translate-x-1/2 -translate-y-1/2 rounded-sm border border-white bg-indigo-600 disabled:cursor-not-allowed" style={{ left: `${left}%` }} title={show(turn.question_text, `Question ${index + 1}`)} aria-label={`Jump to interview question ${index + 1}`} onClick={() => seekToQuestion(turn.asked_at)}/>; })}{events.map((event, index) => { const offset = recordingOffset(event.occurred_at || event.created_at); if (offset == null) return null; const left = Math.min(100, Math.max(0, offset / Number(recording.duration_seconds) * 100)); return <button key={String(event.event_id || index)} type="button" disabled={!videoReady} className="absolute top-1/2 z-20 h-3.5 w-3.5 -translate-x-1/2 -translate-y-1/2 rounded-full border-2 border-white bg-amber-600 disabled:cursor-not-allowed" style={{ left: `${left}%` }} title={`${displayName(show(event.event_type || event.type))} · ${stamp(event.occurred_at || event.created_at)}`} aria-label={`Jump to proctor bookmark ${index + 1}`} onClick={() => { setActiveEvent(index); seekToEvent(event); }}/>; })}{bookmarkNotes.map(item => <button key={item.id} type="button" disabled={!videoReady} className="absolute top-1/2 z-30 h-3.5 w-3.5 -translate-x-1/2 -translate-y-1/2 rotate-45 border-2 border-white bg-slate-700 disabled:cursor-not-allowed" style={{ left: `${Math.min(100, item.seconds / Number(recording.duration_seconds) * 100)}%` }} title={`My note · ${timeLabel(item.seconds)} · ${item.text}`} aria-label={`My note at ${timeLabel(item.seconds)}`} onClick={() => { seekToOffset(item.seconds); }}/>)}</div><div className="mt-1 flex justify-between text-[10px] text-slate-500"><span>0:00</span><span>{timeLabel(Number(recording.duration_seconds))}</span></div></> : <div className="mt-1 flex h-7 items-center rounded-lg bg-slate-100 px-3 text-[10px] text-slate-500">{Number(recording?.segment_count || 0) > 1 ? "Timeline alignment unavailable for combined recording segments." : "No recording timeline is available for this attempt."}</div>}
                   <div className="mt-2 flex flex-wrap gap-3 text-[10px] text-slate-500"><span><i className="mr-1 inline-block h-2 w-2 rounded-sm bg-indigo-600"/>Question</span><span><i className="mr-1 inline-block h-2 w-2 rounded-full bg-amber-600"/>AI Proctor flag</span><span><i className="mr-1 inline-block h-2 w-2 rotate-45 bg-slate-700"/>My note</span></div>
                 </div>
                 {videoReady && Number(recording?.segment_count || 0) > 1 && <p className="mt-3 text-xs text-slate-500">This recording combines multiple capture segments, so wall-clock timeline markers cannot be aligned reliably.</p>}
@@ -722,7 +743,7 @@ export default function CandidateReport({
               </div>
               <div className="min-w-0">
                 <div className="flex flex-wrap gap-1 border-b border-slate-200 pb-2" role="tablist" aria-label="Recording bookmarks">{[["all", "All"], ["question", "Questions"], ["proctor", "AI Proctor"], ["note", "My notes"]].map(([value, label]) => <button key={value} type="button" role="tab" aria-selected={bookmarkFilter === value} className={`rounded-md px-2.5 py-1.5 text-xs font-semibold ${bookmarkFilter === value ? "bg-indigo-600 text-white" : "text-slate-600 hover:bg-slate-100"}`} onClick={() => setBookmarkFilter(value)}>{label}</button>)}</div>
-                <div className="mt-2 max-h-60 space-y-1 overflow-auto">{visibleBookmarks.length ? visibleBookmarks.map(item => <button key={item.id} type="button" className="flex w-full items-start gap-2 rounded-md border border-slate-200 p-2 text-left text-xs hover:bg-slate-50" onClick={() => { if(item.questionIndex != null){openAnswer(item.questionIndex);if(item.seconds!=null && videoRef.current){videoRef.current.currentTime=item.seconds;void videoRef.current.play().catch(()=>undefined);}} else if (item.event) { setActiveEvent(events.indexOf(item.event)); seekToEvent(item.event); } else if (videoRef.current && item.seconds != null) videoRef.current.currentTime = item.seconds; }}><span className="min-w-10 font-bold tabular-nums text-slate-700">{item.seconds == null ? "—" : timeLabel(item.seconds)}</span><span className="min-w-0"><strong className="block">{item.text}</strong>{"detail" in item && <span className="mt-0.5 block text-slate-500">{item.detail}</span>}{"saved" in item && !item.saved && <span className="mt-0.5 block text-indigo-700">Draft · not saved</span>}</span></button>) : <p className="py-3 text-xs text-slate-500">{bookmarkFilter === "note" ? "No timestamped notes have been added." : bookmarkFilter === "proctor" ? "No proctor bookmarks are available." : "No recording bookmarks are available."}</p>}</div>
+                <div className="mt-2 max-h-60 space-y-1 overflow-auto">{visibleBookmarks.length ? visibleBookmarks.map(item => <button key={item.id} type="button" className="flex w-full items-start gap-2 rounded-md border border-slate-200 p-2 text-left text-xs hover:bg-slate-50" onClick={() => { if(item.questionIndex != null){openAnswer(item.questionIndex);if(item.seconds!=null) seekToOffset(item.seconds);} else if (item.event) { setActiveEvent(events.indexOf(item.event)); seekToEvent(item.event); } else if (item.seconds != null) seekToOffset(item.seconds); }}><span className="min-w-10 font-bold tabular-nums text-slate-700">{item.seconds == null ? "—" : timeLabel(item.seconds)}</span><span className="min-w-0"><strong className="block">{item.text}</strong>{"detail" in item && <span className="mt-0.5 block text-slate-500">{item.detail}</span>}{"saved" in item && !item.saved && <span className="mt-0.5 block text-indigo-700">Draft · not saved</span>}</span></button>) : <p className="py-3 text-xs text-slate-500">{bookmarkFilter === "note" ? "No timestamped notes have been added." : bookmarkFilter === "proctor" ? "No proctor bookmarks are available." : "No recording bookmarks are available."}</p>}</div>
                 <form className="mt-3 rounded-lg border border-slate-200 p-3" onSubmit={event => { event.preventDefault(); addBookmarkNote(); }}><label htmlFor="bookmark-note" className="text-xs font-semibold">Add note at current time</label><div className="mt-2 flex gap-2"><input id="bookmark-note" className="min-w-0 flex-1 rounded-md border border-slate-300 px-2 py-1.5 text-xs" maxLength={120} placeholder={videoReady ? "Add a review note…" : "Load recording to timestamp a note"} value={bookmarkNote} onChange={event => setBookmarkNote(event.target.value)} disabled={!videoReady}/><button type="submit" className={`${btn} px-2 py-1 text-xs`} disabled={!videoReady || !bookmarkNote.trim()}>Add</button></div><p className="mt-1 text-[10px] leading-4 text-slate-500">Notes are draft-only until copied into the officer note and saved with a decision.</p><p className="mt-2 text-[10px] text-slate-400"><kbd>Space</kbd> play · <kbd>←</kbd>/<kbd>→</kbd> seek · <kbd>N</kbd> next flag · <kbd>B</kbd> note</p></form>
               </div>
             </div>
@@ -767,7 +788,7 @@ export default function CandidateReport({
             <p className="text-[11px] font-bold uppercase tracking-wide text-slate-500">Placement readiness index</p>
             <div className="mt-3 flex items-center gap-3">
               <div className="relative h-[120px] w-[120px] shrink-0"><svg className="absolute inset-0 h-full w-full -rotate-90" viewBox="0 0 120 120" aria-label={comparable ? `Placement readiness ${String(pri.score)} out of 100` : "Placement readiness unavailable"}><circle cx="60" cy="60" r="46" fill="none" stroke="#e2e8f0" strokeWidth="10"/>{comparable && <circle cx="60" cy="60" r="46" fill="none" stroke={Number(pri.score) >= 75 ? "#059669" : Number(pri.score) >= 50 ? "#f59e0b" : "#e11d48"} strokeWidth="10" strokeLinecap="round" strokeDasharray={`${2 * Math.PI * 46}`} strokeDashoffset={`${2 * Math.PI * 46 * (1 - Number(pri.score) / 100)}`}/>}</svg><div className="absolute inset-0 flex flex-col items-center justify-center text-center text-2xl font-extrabold leading-none tabular-nums">{comparable ? <><span className="block whitespace-nowrap">{String(pri.score)}</span><small className="mt-1 block text-[10px] font-semibold leading-3 text-slate-500">/ 100</small></> : "—"}</div></div>
-              <div><p className="text-lg font-extrabold">{comparable ? displayName(show(report.readiness, "Not assessed")) : "Needs evidence review"}</p><p className="text-xs text-slate-500">Evidence confidence {show(confidence.score, "—")}{confidence.score != null ? "/100" : ""}</p></div>
+              <div><p className="text-lg font-extrabold">{comparable ? (Number(pri.score) >= 75 ? "Ready" : Number(pri.score) >= 50 ? "Developing" : "Not Ready") : "Needs evidence review"}</p><p className="text-xs text-slate-500">Evidence confidence {show(confidence.score, "—")}{confidence.score != null ? "/100" : ""}</p></div>
             </div>
             <div className="relative mt-3"><div className="flex h-2 overflow-hidden rounded-full"><i className="w-1/2 bg-rose-100"/><i className="w-1/4 bg-amber-100"/><i className="w-1/4 bg-emerald-100"/></div>{comparable && <span className="absolute -top-1 h-4 w-[3px] rounded bg-slate-900" style={{ left: `${Math.max(0, Math.min(100, Number(pri.score)))}%` }}/>}</div>
             <div className="mt-1 flex justify-between text-[9px] font-semibold text-slate-500"><span>Not ready &lt;50</span><span>Developing</span><span>Ready ≥75</span></div>

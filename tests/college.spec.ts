@@ -1813,7 +1813,8 @@ test('report shows one labeled transcript and answer playback scrolls to the vid
   await page.locator('#answer-0 summary').click();
   await expect(page.locator('#answer-0').getByText('Saved candidate transcript',{exact:true})).toHaveCount(1);
   await expect(page.locator('#answer-0').getByText('I checked the logs and fixed the timeout.',{exact:true})).toHaveCount(1);
-  await page.getByRole('button',{name:/Play this answer/}).click();
+  await page.getByRole('button',{name:/Play this answer/}).focus();
+  await page.keyboard.press('Space');
   await expect.poll(()=>video.evaluate(element=>{const r=element.getBoundingClientRect();return r.top<innerHeight&&r.bottom>0;})).toBe(true);
   await expect.poll(()=>video.evaluate(element=>(element as HTMLVideoElement).currentTime)).toBeGreaterThanOrEqual(.5);
 });
@@ -1933,4 +1934,33 @@ test('neutral full report renders canonical round evidence and opens skills and 
  const video=page.getByLabel('Interview recording',{exact:true});await video.evaluate((element:any)=>{Object.defineProperty(element,'readyState',{value:4});Object.defineProperty(element,'currentTime',{value:0,writable:true});element.play=()=>Promise.resolve();});await page.getByRole('button',{name:'Watch event',exact:true}).click();expect(await video.evaluate((element:any)=>element.currentTime)).toBe(20);
  await page.setViewportSize({width:1706,height:960});await page.evaluate(()=>{window.scrollTo(0,0);document.querySelectorAll('*').forEach(e=>e.scrollTop=0);});await page.screenshot({path:'/root/voicedots/artifacts/report-review-redesign-20261008/client-report-desktop.png',fullPage:true});
  await page.setViewportSize({width:390,height:844});await expect.poll(()=>page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth)).toBe(true);await page.screenshot({path:'/root/voicedots/artifacts/report-review-redesign-20261008/client-report-mobile.png',fullPage:true});
+});
+
+test('PRI category follows the index rather than the interview score category', async ({page}) => {
+  await setup(page,true,{initialPath:'/dashboard/placement-management?drive=drive-1&section=results&candidate=s1'});
+  await page.route('**/v3/college/students/s1/reports', route => route.fulfill({json:{student:{full_name:'Index Candidate'},reports:[{source:'drive',drive_id:'drive-1',session_id:'session-1',readiness:'Not Ready',detail:{status:'released',placement_readiness:{score:76,comparable:true},question_reviews:[]}}]}}));
+  await page.reload();
+  await expect(page.getByRole('heading',{name:'Index Candidate',exact:true})).toBeVisible();
+  await expect(page.getByText('Ready',{exact:true})).toHaveCount(2);
+  await expect(page.getByText('Not Ready',{exact:true})).toHaveCount(0);
+  await expect(page.getByText('Interview in progress',{exact:true})).toHaveCount(0);
+  await page.screenshot({path:'/root/voicedots/artifacts/interview-complete-audit-20261008/client-pri-report.png',fullPage:true});
+});
+
+test('switching candidates ignores a delayed main report refresh', async ({page}) => {
+  await setup(page,true,{initialPath:'/dashboard/placement-management?drive=drive-1&section=results&candidate=s1'});
+  let release!:()=>void; const gate=new Promise<void>(resolve=>{release=resolve;}); let hold=false;let pending=false;
+  await page.route("**/v3/college/drives/drive-1/candidates/s1/decision",route=>route.fulfill({status:503,json:{detail:"Temporary decision load failure"}}));
+  await page.route('**/v3/college/drives/drive-1/dashboard/ranking**',route=>route.fulfill({json:{candidates:[{student_id:'s1',full_name:'First Candidate'},{student_id:'s2',full_name:'Second Candidate'}],pagination:{total:2}}}));
+  for(const id of ['s1','s2']) await page.route(`**/v3/college/students/${id}/reports`,async route=>{
+    if(id==='s1' && hold){pending=true;await gate;}
+    await route.fulfill({json:{student:{full_name:id==='s1'?'First Candidate':'Second Candidate'},reports:[{source:'drive',drive_id:'drive-1',session_id:`session-${id}`,detail:{status:'released',question_reviews:[]}}]}});
+  });
+  await page.reload();await expect(page.getByRole('heading',{name:'First Candidate',exact:true})).toBeVisible();
+  hold=true;await page.getByRole('button',{name:'Retry',exact:true}).click();await expect.poll(()=>pending).toBe(true);
+  await page.getByRole('button',{name:'Next candidate',exact:true}).click();
+  await expect(page.getByRole('heading',{name:'Second Candidate',exact:true})).toBeVisible();
+  release();await page.waitForTimeout(300);
+  await expect(page.getByRole('heading',{name:'Second Candidate',exact:true})).toBeVisible();
+  await expect(page.getByRole('heading',{name:'First Candidate',exact:true})).toHaveCount(0);
 });
