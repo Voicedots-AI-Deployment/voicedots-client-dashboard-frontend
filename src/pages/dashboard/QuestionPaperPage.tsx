@@ -1,7 +1,13 @@
+import QpgReportsPanel from './QpgReportsPanel';
+import QpgTemplatesPanel from './QpgTemplatesPanel';
+import QpgQuestionIntelligencePanel from './QpgQuestionIntelligencePanel';
+import QpgRepetitionPanel from './QpgRepetitionPanel';
+import QpgGeneratePanel from './QpgGeneratePanel';
+import QpgReviewPanel from './QpgReviewPanel';
 import QpgPaperPanel from './QpgPaperPanel';
 import { useEffect, useState } from 'react';
 import type { FormEvent, ReactNode } from 'react';
-import { BookOpen, FileText, Plus } from 'lucide-react';
+import { Plus } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Field, FieldLabel } from '@/components/ui/field';
 import { useCollegeAccess } from '@/hooks/useCollegeAccess';
@@ -30,7 +36,12 @@ export default function QuestionPaperPage(){
 }
 
 function QuestionWorkspace({institution}:{institution:string}){
-  const [tab,setTab]=useState('home');
+  const [tab,setTabState]=useState(()=>new URLSearchParams(window.location.search).get('view')==='home'?'academic':new URLSearchParams(window.location.search).get('view')||'academic');
+  const [changingContext,setChangingContext]=useState(false);
+  const [paperView,setPaperView]=useState<'create'|'drafts'|'review'|'final'>('create');
+  const module= ['academic','syllabus'].includes(tab)?'academic':['bank','drafts','generate','review','intelligence','imports'].includes(tab)?'bank':['blueprint','papers'].includes(tab)?'papers':tab;
+  function setTab(value:string){setTabState(value);setError('');setOffset(0);const url=new URL(window.location.href);url.searchParams.set('view',value);window.history.replaceState(null,'',url);}
+  useEffect(()=>{const back=()=>setTabState(new URLSearchParams(window.location.search).get('view')==='home'?'academic':new URLSearchParams(window.location.search).get('view')||'academic');window.addEventListener('popstate',back);return()=>window.removeEventListener('popstate',back);},[]);
   const [options,setOptions]=useState<Options|null>(null);
   const [context,setContext]=useState<Context>({program:'',branch:'',year:'',semester:'',subject:''});
   const [subjects,setSubjects]=useState<Subject[]>([]);
@@ -93,16 +104,15 @@ function QuestionWorkspace({institution}:{institution:string}){
   }
   return <main className="erp-workspace min-w-0">
     <header className="mb-6"><p className="text-sm text-slate-500">{institution}</p><h1 className="mt-1 text-2xl font-bold">Question Paper Generation</h1><p className="mt-2 text-sm text-slate-500">Manage your subject syllabus and faculty question bank.</p></header>
-    <nav aria-label="Question paper sections" className="mb-6 flex flex-wrap gap-2">{[['home','Overview'],['academic','Academic Context'],['syllabus','Syllabus'],['blueprint','Blueprint'],['papers','Paper Assembly'],['bank','Question Bank'],['drafts','Drafts']].map(([key,title])=><Button key={key} variant={tab===key?'default':'outline'} onClick={()=>{setTab(key);setOffset(0);setError('');}}>{title}</Button>)}</nav>
+    <nav aria-label="Question paper sections" className="mb-4 flex gap-1 overflow-x-auto border-b border-slate-200 pb-2">{[['academic','Subject Master'],['syllabus','Syllabus Master'],['papers','Question Papers'],['templates','Templates'],['reports','Reports']].map(([key,title])=><Button key={key} className="shrink-0 focus-visible:ring-2 focus-visible:ring-indigo-600" aria-current={(key==='academic'||key==='syllabus'?tab===key:key==='papers'?module==='papers'||module==='bank':module===key)?'page':undefined} variant={(key==='academic'||key==='syllabus'?tab===key:key==='papers'?module==='papers'||module==='bank':module===key)?'default':'ghost'} onClick={()=>setTab(key)}>{title}</Button>)}</nav>
+    {['bank','papers'].includes(module)&&<nav aria-label="Question Papers workspace" className="mb-4 flex gap-2"><Button variant={module==='bank'?'default':'outline'} onClick={()=>setTab('bank')}>Question Bank</Button><Button variant={module==='papers'?'default':'outline'} onClick={()=>setTab('papers')}>Paper Assembly</Button></nav>}
+    {module==='bank'&&<nav aria-label="Question bank views" className="mb-4 flex gap-2 overflow-x-auto">{[['bank','Questions'],['imports','Import PYQ'],['generate','AI Generate'],['review','Review'],['intelligence','Intelligence'],['drafts','Question Drafts']].map(([key,title])=><Button key={key} className="shrink-0" aria-label={key==='review'?'Question bank review':undefined} aria-current={tab===key?'page':undefined} variant={tab===key?'default':'outline'} onClick={()=>setTab(key)}>{title}</Button>)}</nav>}
+    {module==='papers'&&<nav aria-label="Question paper views" className="mb-4 flex gap-2 overflow-x-auto"><Button className="shrink-0" variant={tab==='blueprint'?'default':'outline'} onClick={()=>setTab('blueprint')}>Paper Patterns</Button>{([['create','Create Paper'],['drafts','Drafts'],['review','Review'],['final','Final Papers']] as const).map(([key,title])=><Button key={key} className="shrink-0" aria-label={key==='create'?'Create paper view':key==='review'?'Paper review view':undefined} aria-current={tab==='papers'&&paperView===key?'page':undefined} variant={tab==='papers'&&paperView===key?'default':'outline'} onClick={()=>{setPaperView(key);setTab('papers');}}>{title}</Button>)}</nav>}
     {error&&<p role="alert" className="mb-4 rounded-xl bg-red-50 p-3 text-sm text-red-700">{error}</p>}
     {notice&&<p role="status" className="mb-4 rounded-xl bg-indigo-50 p-3 text-sm text-indigo-700">{notice}</p>}
     {loading?<p role="status">Loading academic options…</p>:options&&<>
-      {tab==='home'&&<div className="grid gap-4 md:grid-cols-3">
-        <section className="erp-card"><FileText className="text-indigo-600"/><h2 className="mt-3!">New Paper</h2><p>Assemble approved questions using your published syllabus and blueprint.</p><Button variant="outline" onClick={()=>setTab('papers')}>Create paper</Button></section>
-        <section className="erp-card"><BookOpen className="text-indigo-600"/><h2 className="mt-3!">Question Bank</h2><p>Add, organize and update questions for your subjects.</p><Button onClick={()=>setTab('bank')}>Open Question Bank</Button></section>
-        <section className="erp-card"><FileText className="text-indigo-600"/><h2 className="mt-3!">Drafts</h2><p>Continue editing your draft questions.</p><Button variant="outline" onClick={()=>setTab('drafts')}>View drafts</Button></section>
-      </div>}
-      <section className="erp-card"><h2>Academic Context</h2><div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-5">
+      {tab!=='home'&&tab!=='reports'&&selectedSubject&&<section aria-label="Selected academic context" className="mb-4 flex items-center justify-between gap-3 rounded-lg border border-slate-200 px-4 py-3"><p className="text-sm">{program?.display_name||selectedSubject.program_code} › {context.branch} › Year {context.year} › Semester {context.semester} › {selectedSubject.code} · {selectedSubject.name}</p><Button variant="outline" size="sm" onClick={()=>setChangingContext(v=>!v)}>{changingContext?'Close context':'Change context'}</Button></section>}
+      {(tab==='academic'||tab==='reports'||!context.subject||changingContext)&&!['home','templates'].includes(tab)&&<section className="erp-card"><h2>Subject Master</h2><div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-5">
         <Select title="Program" value={context.program} onChange={v=>changeContext('program',v)} items={options.programs.map(p=>({value:p.code,title:p.display_name}))}/>
         <Select title="Branch" value={context.branch} disabled={!program} onChange={v=>changeContext('branch',v)} items={(program?.departments||[]).map(d=>({value:d.code,title:d.display_name}))}/>
         <Select title="Year" value={context.year} disabled={!context.branch} onChange={v=>changeContext('year',v)} items={Array.from({length:program?.duration_years||0},(_,i)=>({value:String(i+1),title:`Year ${i+1}`}))}/>
@@ -111,13 +121,21 @@ function QuestionWorkspace({institution}:{institution:string}){
       </div>{options.can_setup&&context.semester&&<Button className="mt-4" variant="outline" onClick={()=>setDialog('subject')}><Plus size={15}/>Link existing ERP subject</Button>}
       {context.semester&&!subjects.length&&<p className="mt-3">No subjects are linked to this context yet. An institution administrator can link an existing ERP subject.</p>}
       {!options.programs.length&&<p>No academic program/branch is available to your account. Ask your institution administrator to configure or assign it in Institution Management.</p>}
-      </section>
-      {['academic','syllabus'].includes(tab)&&selectedSubject&&<QpgSyllabusPanel key={selectedSubject.id} subject={selectedSubject} onChange={()=>setRefresh(v=>v+1)}/>}
-      {tab==='papers'&&selectedSubject&&<QpgPaperPanel key={selectedSubject.id} subject={selectedSubject}/>}
+      </section>}
+      {tab==='syllabus'&&selectedSubject&&<QpgSyllabusPanel key={selectedSubject.id} subject={selectedSubject} onChange={()=>setRefresh(v=>v+1)}/>}
+      {tab==='templates'&&<QpgTemplatesPanel/>}
+      {tab==='reports'&&<QpgReportsPanel key={context.subject} subject={selectedSubject}/>}
+      {tab==='imports'&&<section className="erp-card"><h2>Import PYQ / Questions</h2><p>Upload Excel, CSV, PDF or DOCX; map, preview and correct before confirming. Imported questions still require faculty review.</p><Button disabled={!selectedSubject||!options.can_write} onClick={()=>setDialog('imports')}>Import Questions</Button></section>}
+      {tab==='papers'&&selectedSubject&&<QpgPaperPanel key={selectedSubject.id+paperView} subject={selectedSubject} view={paperView} onCreate={()=>setPaperView('create')} onReview={()=>setTab('review')}/>}
       {tab==='papers'&&!context.subject&&<p>Select your academic context and subject to assemble a paper.</p>}
       {tab==='blueprint'&&selectedSubject&&<QpgBlueprintPanel key={selectedSubject.id} subject={selectedSubject}/>}
       {tab==='blueprint'&&!context.subject&&<p>Select your academic context and subject to configure a blueprint.</p>}
-      {['bank','drafts'].includes(tab)&&<section className="erp-card"><div className="flex flex-wrap items-center justify-between gap-3"><h2>{tab==='drafts'?'Draft Questions':'Question Bank'}</h2>{options.can_write&&<Button variant="outline" disabled={!context.subject} onClick={()=>setDialog('imports')}>Import Questions</Button>}{options.can_write&&<Button disabled={!context.subject} onClick={()=>{setSelected(null);setDialog('question');}}><Plus size={16}/>Add Question</Button>}</div>
+      {tab==='generate'&&selectedSubject&&<QpgGeneratePanel key={selectedSubject.id} subject={selectedSubject} canWrite={options.can_write} onAccepted={()=>setRefresh(v=>v+1)} onReview={()=>setTab('review')}/>}
+      {tab==='generate'&&!selectedSubject&&<p>Select a subject to generate questions.</p>}
+      {tab==='intelligence'&&selectedSubject&&<QpgRepetitionPanel key={selectedSubject.id} subject={selectedSubject}/>}
+      {tab==='review'&&selectedSubject&&<QpgReviewPanel key={selectedSubject.id+refresh} subject={selectedSubject} cos={cos} units={units} topics={topics} canWrite={options.can_write} onEdit={q=>{setSelected(q);setDialog('question');}}/>}
+      {tab==='review'&&!selectedSubject&&<p>Select a subject to review questions.</p>}
+      {['bank','drafts'].includes(tab)&&<section className="erp-card"><div className="flex flex-wrap items-center justify-between gap-3"><h2>{tab==='drafts'?'Draft Questions':'Question Bank'}</h2>{options.can_write&&<Button disabled={!context.subject} onClick={()=>{setSelected(null);setDialog('question');}}><Plus size={16}/>Add Question</Button>}</div>
         {!context.subject?<p>Select your academic context and subject to view questions.</p>:<>
           <div className="my-4 grid gap-3 sm:grid-cols-2 lg:grid-cols-4"><Field><FieldLabel htmlFor="qpg-search">Search questions</FieldLabel><input id="qpg-search" className={inputClass} value={filters.q} onChange={e=>filter('q',e.target.value)} placeholder="Search question text"/></Field>
           <Select title="Unit filter" value={filters.unit_id} onChange={v=>filter('unit_id',v)} items={units.map(x=>({value:x.id,title:x.code+' · '+x.title}))}/>
@@ -133,9 +151,9 @@ function QuestionWorkspace({institution}:{institution:string}){
           </tr>)}</tbody></table></div>{!questions.length&&!error&&<p className="py-6">No questions match these filters.</p>}<div className="mt-4 flex items-center justify-between"><p className="text-sm text-slate-500">{total} questions</p><div className="flex gap-2"><Button variant="outline" disabled={offset===0} onClick={()=>setOffset(v=>Math.max(0,v-50))}>Previous</Button><Button variant="outline" disabled={offset+50>=total} onClick={()=>setOffset(v=>v+50)}>Next</Button></div></div></>}
         </>}
       </section>}
-      {dialog==='imports'&&selectedSubject&&<QpgImportPanel subject={selectedSubject} cos={cos} units={units} topics={topics} onClose={()=>{setDialog(null);setRefresh(v=>v+1);}}/>}
+      {dialog==='imports'&&selectedSubject&&<QpgImportPanel subject={selectedSubject} cos={cos} units={units} topics={topics} onClose={()=>{setDialog(null);if(tab==='imports')setTab('bank');setRefresh(v=>v+1);}}/>}
       {dialog==='question'&&selectedSubject&&<QuestionForm subject={selectedSubject} question={selected} cos={cos} units={units} topics={topics} onClose={()=>setDialog(null)} onSaved={saved}/>}
-      {dialog==='details'&&selected&&<QuestionDetails question={selected} cos={cos} units={units} topics={topics} onClose={()=>setDialog(null)}/>}
+      {dialog==='details'&&selected&&<QuestionDetails question={selected} cos={cos} units={units} topics={topics} canWrite={options.can_write} onClose={()=>setDialog(null)}/>}
       {dialog==='subject'&&<SetupForm title="Link existing ERP subject" onClose={()=>setDialog(null)} onSubmit={async data=>{await qpgApi.save('subjects',{erp_subject_id:data.subject,program_code:context.program,branch_code:context.branch,year_number:Number(context.year),semester_number:Number(context.semester)});saved();}}>
         <label className="grid gap-2 text-sm">ERP subject<select className={inputClass} name="subject" required><option value="">Select subject</option>{options.erp_subjects.filter(s=>!s.department_code||s.department_code===context.branch).map(s=><option key={s.id} value={s.id}>{s.code} · {s.name}</option>)}</select></label><p className="text-sm text-slate-500">Create new subject identities in Institution Management. This links an existing subject to the selected year and semester.</p>
       </SetupForm>}
@@ -168,7 +186,7 @@ function QuestionForm({subject,question,cos,units,topics,onClose,onSaved}:{subje
     setBusy(true);try{await qpgApi.save(question?`questions/${question.id}`:'questions',body,Boolean(question));onSaved();}catch(e){setError(collegeError(e));}finally{setBusy(false);}
   }
   return <Dialog title={question?'Edit Question':'Add Question'} onClose={onClose}><form onSubmit={save} className="grid gap-4 sm:grid-cols-2">
-    <p className="text-sm text-slate-500 sm:col-span-2">{subject.code} · {subject.name}{question?` · Version ${question.version}; saving creates a new version.`:' · New questions start as Draft.'}</p>
+    <p className="text-sm text-slate-500 sm:col-span-2">{subject.code} · {subject.name}{question?` · Version ${question.version}; saving creates a new version.${question.status==='APPROVED'?' Approved edits require review again.':''}`:' · New questions start as Draft.'}</p>
     {error&&<p role="alert" className="text-red-700 sm:col-span-2">{error}</p>}
     <label className="grid gap-2 text-sm sm:col-span-2">Question Text<textarea name="question_text" className={`${inputClass} min-h-28`} required minLength={3} maxLength={20000} defaultValue={question?.question_text}/></label>
     <Select title="Question Type" value={type} onChange={setType} items={questionTypes}/>
@@ -187,8 +205,8 @@ function QuestionForm({subject,question,cos,units,topics,onClose,onSaved}:{subje
   </form></Dialog>;
 }
 
-function QuestionDetails({question,cos,units,topics,onClose}:{question:Question;cos:SyllabusItem[];units:SyllabusItem[];topics:SyllabusItem[];onClose:()=>void}){
+function QuestionDetails({question,cos,units,topics,onClose,canWrite}:{question:Question;cos:SyllabusItem[];units:SyllabusItem[];topics:SyllabusItem[];onClose:()=>void;canWrite:boolean}){
   const [current,setCurrent]=useState(question);const [history,setHistory]=useState<QuestionVersion[]>([]);const [error,setError]=useState('');
   useEffect(()=>{const c=new AbortController();Promise.all([qpgApi.get<Question>(`questions/${question.id}`,c.signal),qpgApi.get<{items:QuestionVersion[]}>(`questions/${question.id}/versions`,c.signal)]).then(([q,h])=>{setCurrent(q);setHistory(h.items);}).catch(e=>{if(!c.signal.aborted)setError(collegeError(e));});return ()=>c.abort();},[question.id]);
-  return <Dialog title="Question Details" onClose={onClose}>{error&&<p role="alert">{error}</p>}<p className="mb-4 whitespace-pre-wrap text-lg font-medium">{current.question_text}</p><dl className="grid gap-3 text-sm sm:grid-cols-2">{Object.entries({Type:label(current.question_type),Marks:current.marks,CO:cos.find(c=>c.id===current.co_id)?.code||'—',Unit:units.find(u=>u.id===current.unit_id)?.title||'—',Topic:topics.find(t=>t.id===current.topic_id)?.title||'—',Bloom:current.bloom_level,Difficulty:label(current.difficulty),Status:label(current.status),Source:label(current.source_type),'Source reference':current.source_reference||'—',Version:current.version,'Updated by':current.updated_by,'Updated at':new Date(current.updated_at).toLocaleString()}).map(([k,v])=><div key={k}><dt className="text-slate-500">{k}</dt><dd className="break-words">{v}</dd></div>)}</dl>{current.options.length>0&&<ol className="my-4 list-inside list-decimal">{current.options.map((o,i)=><li key={i}>{o}</li>)}</ol>}<h3 className="mb-2 mt-5 font-semibold">Answer / Solution</h3><p className="whitespace-pre-wrap">{current.answer||'Not provided'}</p><h3 className="mb-2 mt-6 font-semibold">Version history</h3>{history.map(v=><details key={v.id} className="mb-3 rounded-xl border border-slate-200 p-3"><summary className="cursor-pointer text-sm">Version {v.version} · {new Date(v.created_at).toLocaleString()} · {v.change_reason||'Question saved'}</summary><p className="mt-2 text-xs text-slate-500">Actor: {v.actor}</p><p className="mt-2 whitespace-pre-wrap">{v.content.question_text}</p><p className="text-sm">{v.content.marks} marks · {v.content.bloom_level} · {label(v.content.status)}</p><pre className="mt-3 max-h-64 overflow-auto whitespace-pre-wrap break-words text-xs">{JSON.stringify(v.content,null,2)}</pre></details>)}</Dialog>;
+  return <Dialog title="Question Details" onClose={onClose}>{error&&<p role="alert">{error}</p>}<p className="mb-4 whitespace-pre-wrap text-lg font-medium">{current.question_text}</p><dl className="grid gap-3 text-sm sm:grid-cols-2">{Object.entries({Type:label(current.question_type),Marks:current.marks,CO:cos.find(c=>c.id===current.co_id)?.code||'—',Unit:units.find(u=>u.id===current.unit_id)?.title||'—',Topic:topics.find(t=>t.id===current.topic_id)?.title||'—',Bloom:current.bloom_level,Difficulty:label(current.difficulty),Status:label(current.status),Source:label(current.source_type),'Source reference':canWrite?(current.source_reference||'—'):'Restricted',Version:current.version,'Updated by':current.updated_by,'Updated at':new Date(current.updated_at).toLocaleString()}).map(([k,v])=><div key={k}><dt className="text-slate-500">{k}</dt><dd className="break-words">{v}</dd></div>)}</dl>{current.options.length>0&&<ol className="my-4 list-inside list-decimal">{current.options.map((o,i)=><li key={i}>{o}</li>)}</ol>}<h3 className="mb-2 mt-5 font-semibold">Answer / Solution</h3><p className="whitespace-pre-wrap">{canWrite?(current.answer||'Not provided'):'Answer access requires academic write permission.'}</p><QpgQuestionIntelligencePanel question={current} canWrite={canWrite}/><h3 className="mb-2 mt-6 font-semibold">Version history</h3>{history.map(v=><details key={v.id} className="mb-3 rounded-xl border border-slate-200 p-3"><summary className="cursor-pointer text-sm">Version {v.version} · {new Date(v.created_at).toLocaleString()} · {canWrite?(v.change_reason||'Question saved'):'Question saved'}</summary><p className="mt-2 text-xs text-slate-500">Actor: {canWrite?v.actor:'Restricted'}</p><p className="mt-2 whitespace-pre-wrap">{v.content.question_text}</p><p className="text-sm">{v.content.marks} marks · {v.content.bloom_level} · {label(v.content.status)}</p><pre className="mt-3 max-h-64 overflow-auto whitespace-pre-wrap break-words text-xs">{canWrite?JSON.stringify(v.content,null,2):'Answer details are restricted.'}</pre></details>)}</Dialog>;
 }
