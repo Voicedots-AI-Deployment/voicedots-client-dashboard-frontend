@@ -45,3 +45,6 @@ lint_output.txt
 # Browser verification artifacts
 test-results/
 playwright-report/
+.env*
+
+.vite-cache/

@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import { useSearchParams } from "react-router-dom";
-import { ExternalLink } from "lucide-react";
+import { ExternalLink, Download, Users, CheckCircle2, CircleDashed, Clock, UserCheck, Send } from "lucide-react";
 import {
   collegeApi,
   collegeError,
@@ -22,6 +22,7 @@ import { displayName, formatPlacementDateTime, wallTimeFromInstant, wallTimeToIn
 import CandidateReport from "./CandidateReport";
 import ResultCohortBuilder, {type ResultFilterOptions,type ResultRule} from "./ResultCohortBuilder";
 import DriveQuestionBank from "./DriveQuestionBank";
+import CreateDriveWizard from "./CreateDriveWizard";
 
 type Data = Record<string, unknown>;
 type Candidate = Data & {
@@ -75,6 +76,8 @@ type Candidate = Data & {
   publication?: { state?: string; scheduled_for?: string | null; released_at?: string | null };
 };
 
+function shortEvidence(value:string) { const text=value.replace(/\s+/g,' ').trim(); const sentence=text.match(/^.{1,180}?[.!?](?:\s|$)/)?.[0]; return sentence?.trim() || (text.length>180 ? text.slice(0,177).trimEnd()+'…' : text); }
+
 function CandidateStrengthGap({ driveId, candidate, onOpenReport }: { driveId: string; candidate: Candidate; onOpenReport: () => void }) {
   const [open, setOpen] = useState(false);
   const [loading, setLoading] = useState(false);
@@ -113,13 +116,13 @@ function CandidateStrengthGap({ driveId, candidate, onOpenReport }: { driveId: s
     <button type="button" className="text-sm font-semibold text-indigo-700 underline-offset-2 hover:underline focus-visible:outline focus-visible:outline-2 focus-visible:outline-indigo-600" aria-haspopup="dialog" aria-expanded={open} onClick={() => open ? setOpen(false) : void load()}>
       View strengths &amp; gaps <span aria-hidden="true">›</span>
     </button>
-    {open && <span role="dialog" aria-label={`Interview strengths and gaps for ${candidate.full_name}`} className="absolute left-0 top-full z-40 mt-2 block w-[min(34rem,calc(100vw-2rem))] rounded-xl border border-slate-200 bg-white p-4 text-left shadow-xl sm:p-5">
+    {open && <span role="dialog" aria-label={`Interview strengths and gaps for ${candidate.full_name}`} className="absolute left-0 top-full z-40 mt-2 block w-[min(30rem,calc(100vw-2rem))] rounded-xl border border-slate-200 bg-white p-4 text-left shadow-xl sm:p-5">
       <span className="flex items-start justify-between gap-3 border-b border-slate-100 pb-3"><span><strong className="text-sm text-slate-900">{candidate.full_name}</strong><span className="mt-0.5 block text-xs text-slate-500">Interview evidence · {candidate.recommendation || "AI recommendation unavailable"}</span></span><button type="button" aria-label="Close strengths and gaps" className="rounded-md px-2 text-lg leading-6 text-slate-500 hover:bg-slate-100" onClick={() => setOpen(false)}>×</button></span>
       {loading ? <span role="status" className="mt-4 block text-sm text-slate-500">Loading interview evidence…</span> : error ? <span role="alert" className="mt-4 block text-sm text-rose-700">{error}<button className="ml-2 font-semibold underline" onClick={() => { setLoaded(false); void load(); }}>Retry</button></span> : <span className="mt-4 grid gap-4 sm:grid-cols-2">
-        <span><strong className="text-xs font-bold uppercase tracking-wide text-emerald-700">Strengths</strong>{strengthItems.length ? <span className="mt-2 block space-y-2">{strengthItems.map((item,index)=><span key={`strength-${index}`} className="block text-sm leading-5 text-slate-700">{textOf(item) || "No text supplied for this report item."}</span>)}</span> : <span className="mt-2 block text-sm text-slate-500">No strengths were included in the available report.</span>}</span>
-        <span><strong className="text-xs font-bold uppercase tracking-wide text-amber-700">Growth areas</strong>{gapItems.length ? <span className="mt-2 block space-y-2">{gapItems.map((item,index)=><span key={`gap-${index}`} className="block text-sm leading-5 text-slate-700">{textOf(item) || "No text supplied for this report item."}</span>)}</span> : <span className="mt-2 block text-sm text-slate-500">No growth areas were included in the available report.</span>}</span>
+        <span><strong className="text-xs font-bold uppercase tracking-wide text-emerald-700">Strengths</strong>{strengthItems.length ? <span className="mt-2 block space-y-2">{strengthItems.slice(0,3).map((item,index)=><span key={`strength-${index}`} className="block text-sm leading-5 text-slate-700">{shortEvidence(textOf(item)) || "No text supplied for this report item."}</span>)}</span> : <span className="mt-2 block text-sm text-slate-500">No strengths were included in the available report.</span>}</span>
+        <span><strong className="text-xs font-bold uppercase tracking-wide text-amber-700">Growth areas</strong>{gapItems.length ? <span className="mt-2 block space-y-2">{gapItems.slice(0,3).map((item,index)=><span key={`gap-${index}`} className="block text-sm leading-5 text-slate-700">{shortEvidence(textOf(item)) || "No text supplied for this report item."}</span>)}</span> : <span className="mt-2 block text-sm text-slate-500">No growth areas were included in the available report.</span>}</span>
       </span>}
-      {loaded && rounds.length > 0 && <span className="mt-4 block border-t border-slate-100 pt-3"><strong className="text-xs font-bold uppercase tracking-wide text-slate-600">Interview rounds</strong><span className="mt-2 flex flex-wrap gap-2">{rounds.map((item,index)=>{const row=(item||{}) as Data;return <span key={`round-${index}`} className="rounded-lg border border-slate-200 bg-slate-50 px-2.5 py-1.5 text-xs text-slate-700">{String(row.agent_type || row.track || `Round ${index+1}`)}{row.score != null ? ` · ${String(row.score)}/100` : ""}</span>})}</span></span>}
+      {loaded && rounds.length > 0 && <span className="mt-4 block border-t border-slate-100 pt-3"><strong className="text-xs font-bold uppercase tracking-wide text-slate-600">Interview rounds</strong><span className="mt-2 flex flex-wrap gap-2">{rounds.slice(0,4).map((item,index)=>{const row=(item||{}) as Data;return <span key={`round-${index}`} className="rounded-lg border border-slate-200 bg-slate-50 px-2.5 py-1.5 text-xs text-slate-700">{String(row.agent_type || row.track || `Round ${index+1}`)}{row.score != null ? ` · ${String(row.score)}/100` : ""}</span>})}</span></span>}
       <button type="button" onClick={onOpenReport} className="mt-4 inline-flex text-sm font-semibold text-indigo-700 hover:underline">Open full interview report <span aria-hidden="true" className="ml-1">↗</span></button>
     </span>}
   </span>;
@@ -181,8 +184,8 @@ function CandidateOfficerActions({ driveId, candidate, onSaved }: { driveId: str
       <span className="flex items-start justify-between gap-2"><strong className="text-sm text-slate-800">Officer decision &amp; note</strong><button type="button" aria-label="Close officer note editor" className="text-lg leading-5 text-slate-500" onClick={() => setOpen(false)}>×</button></span>
       {loading ? <span role="status" className="mt-2 block text-sm text-slate-500">Loading saved decision and note…</span> : <>
         {error && <span role="alert" className="mt-2 block text-sm text-rose-700">{error}<button type="button" className="ml-2 font-semibold underline" onClick={() => void loadDecision()}>Retry</button></span>}
-        <label className="mt-3 block text-xs font-medium text-slate-600">Officer decision<select className={`${field} mt-1`} value={decision} onChange={event => setDecision(event.target.value)}><option value="">Select a decision</option><option value="shortlist">Shortlisted</option><option value="hold">Hold</option><option value="reject">Not interested</option></select></label>
-        <label className="mt-3 block text-xs font-medium text-slate-600">Officer note<textarea className={`${field} mt-1`} maxLength={2000} rows={3} value={note} onChange={event => setNote(event.target.value)} placeholder="Add context for this decision" /></label>
+        <label className="mt-3 block text-xs font-medium text-slate-600">Officer decision<select aria-label="Officer decision" className={`${field} mt-1`} value={decision} onChange={event => setDecision(event.target.value)}><option value="">Select a decision</option><option value="shortlist">Shortlisted</option><option value="hold">Hold</option><option value="reject">Not interested</option></select></label>
+        <label className="mt-3 block text-xs font-medium text-slate-600">Officer note<textarea aria-label="Officer note" className={`${field} mt-1`} maxLength={2000} rows={3} value={note} onChange={event => setNote(event.target.value)} placeholder="Add context for this decision" /></label>
         <span className="mt-2 flex flex-wrap items-center justify-between gap-2"><span className="text-xs text-slate-500">{2000-note.length} characters remaining · note is stored with the officer decision</span><button type="button" disabled={saving || loading || Boolean(error) || !decision} className={`${btn} bg-indigo-600 text-white`} onClick={() => void save()}>{saving ? "Saving…" : "Save decision & note"}</button></span>
       </>}
     </span>}
@@ -248,8 +251,8 @@ function StatusBadge({ value }: { value?: string | null }) {
 
 function InterviewStatusBadge({ value }: { value?: string | null }) {
   const raw = String(value || "not_started").toLowerCase().replace(/[- ]/g, "_");
-  const label = raw === "failed" ? "Failed" : raw === "expired" ? "Expired" : displayName(raw);
-  const tone = raw === "completed" ? "bg-emerald-100 text-emerald-800" : raw === "in_progress" ? "bg-amber-100 text-amber-800" : ["failed", "expired"].includes(raw) ? "bg-rose-100 text-rose-800" : raw === "needs_review" ? "bg-purple-100 text-purple-800" : "bg-slate-100 text-slate-700";
+  const label = raw === "proctor_terminated" ? "Ended by proctor" : raw === "ended_early" ? "Ended early" : raw === "failed" ? "Failed" : raw === "expired" ? "Expired" : displayName(raw);
+  const tone = raw === "completed" ? "bg-emerald-100 text-emerald-800" : raw === "in_progress" ? "bg-amber-100 text-amber-800" : ["failed", "expired", "proctor_terminated", "ended_early"].includes(raw) ? "bg-rose-100 text-rose-800" : raw === "needs_review" ? "bg-purple-100 text-purple-800" : "bg-slate-100 text-slate-700";
   return <span className={`inline-flex rounded-full px-2.5 py-1 text-xs font-semibold ${tone}`}>{label}</span>;
 }
 
@@ -258,10 +261,37 @@ function questionSourceLabel(value: string) { return value === "ai_generated" ? 
 function interviewerRole(drive: Drive | null | undefined, track: string) { return drive?.agent_selection?.find(item => item.track === track)?.profile?.role || roleLabels[track] || "Interviewer role not configured"; }
 function StudentAvatar({ student, size = "h-10 w-10" }: { student: Candidate; size?: string }) { const [photo, setPhoto] = useState(""); const initials=String(student.full_name||"?").trim().split(/\s+/).slice(0,2).map(part=>part[0]||"").join("").toUpperCase(); useEffect(()=>{let active=true;collegeApi.get<{photo?:string}>(`attendance/photos/students/${student.student_id}`).then(result=>{if(active)setPhoto(result.photo||"")}).catch(()=>{if(active)setPhoto("")});return()=>{active=false}},[student.student_id]);return photo?<img src={photo} alt={`${student.full_name} profile`} className={`${size} shrink-0 rounded-full object-cover`}/>:<span aria-label={`${student.full_name} initials`} className={`${size} inline-flex shrink-0 items-center justify-center rounded-full bg-violet-100 text-xs font-bold text-violet-800`}>{initials}</span>; }
 
+function candidateInterviewStatus(candidate: Candidate): string {
+  if (candidate.live_session_status === 'candidate_ended') return candidate.live_session_termination_source === 'proctor' ? 'proctor_terminated' : 'ended_early';
+  if (candidate.evaluation_status === 'held_for_review') return 'needs_review';
+  if (['assigned','invited','cancelled','completed','expired','in_progress'].includes(String(candidate.assignment_status))) return String(candidate.assignment_status);
+  return candidate.preparation_status === 'failed' ? 'failed' : 'not_started';
+}
+
+function InterviewProgressChart({assigned, progress}:{assigned:number;progress:Data}) {
+  const rows = [ ['not_started','Not started','#cbd5e1'],['in_progress','In progress','#8b5cf6'],['completed','Completed','#10b981'],['needs_review','Needs review','#f59e0b'],['failed','Failed','#f43f5e'],['expired','Ended / expired','#f97316'] ];
+  let cursor=0;
+  const slices=rows.map(([key,,color]) => {const start=cursor;cursor += assigned ? Number(progress[key] || 0)/assigned*100 : 0;return `${color} ${start}% ${cursor}%`;});
+  const background=assigned ? `conic-gradient(${slices.join(',')}, #f1f5f9 ${cursor}% 100%)` : '#f1f5f9';
+  return <div className="grid items-center gap-6 sm:grid-cols-[180px_1fr]"><div className="relative mx-auto grid h-44 w-44 place-items-center rounded-full" style={{background}} aria-label={`${assigned} assigned candidates`}><div className="grid h-32 w-32 place-content-center rounded-full bg-white text-center dark:bg-slate-900"><strong className="text-3xl font-medium">{assigned}</strong><span className="text-xs text-slate-500">Assigned</span></div></div><dl className="space-y-2">{rows.map(([key,label,color]) => <div key={key} className="flex items-center justify-between gap-3 border-b border-slate-100 py-2"><dt className="flex items-center gap-2 text-sm text-slate-600"><span className="h-2.5 w-2.5 rounded-full" style={{backgroundColor:color}}/>{label}</dt><dd className="text-sm font-medium">{Number(progress[key] || 0)}<span className="ml-2 text-xs text-slate-400">{assigned ? Math.round(Number(progress[key] || 0)/assigned*100) : 0}%</span></dd></div>)}</dl></div>;
+}
+
+const resumeMatchRequests = new Map<string, {expires:number; request:Promise<Data>}>();
+function loadResumeMatch(driveId:string,studentId:string) {
+  const key=`${driveId}:${studentId}`;
+  const cached=resumeMatchRequests.get(key);
+  if(cached && cached.expires>Date.now()) return cached.request;
+  if(resumeMatchRequests.size>100) resumeMatchRequests.clear();
+  const request=collegeApi.get<Data>(`drives/${encodeURIComponent(driveId)}/dashboard/ats-fit?student_id=${encodeURIComponent(studentId)}&limit=1`);
+  resumeMatchRequests.set(key,{expires:Date.now()+30000,request});
+  request.catch(()=>resumeMatchRequests.delete(key));
+  return request;
+}
+
 function ResumeMatchSummary({ driveId, candidate }: { driveId: string; candidate: Candidate }) {
   const [open,setOpen]=useState(false),[loading,setLoading]=useState(false),[error,setError]=useState(""),[summary,setSummary]=useState<Data|null>(null),[side,setSide]=useState<"left"|"right">("left");
   const timer=useRef<ReturnType<typeof setTimeout>|null>(null),closeTimer=useRef<ReturnType<typeof setTimeout>|null>(null),loaded=useRef(false),button=useRef<HTMLButtonElement|null>(null);
-  const load=async()=>{setOpen(true);if(loaded.current||loading)return;loaded.current=true;setLoading(true);setError("");try{const result=await collegeApi.get<Data>(`drives/${encodeURIComponent(driveId)}/dashboard/ats-fit?student_id=${encodeURIComponent(candidate.student_id)}&limit=1`);setSummary(((result.candidates||[]) as Data[])[0]||null)}catch{setError("Resume match could not be loaded. Try again.");loaded.current=false}finally{setLoading(false)}};
+  const load=async()=>{setOpen(true);if(loaded.current||loading)return;loaded.current=true;setLoading(true);setError("");try{const result=Array.isArray(candidate.skills) ? {candidates:[candidate]} : await loadResumeMatch(driveId,candidate.student_id);setSummary(((result.candidates||[]) as Data[])[0]||null)}catch{setError("Resume match could not be loaded. Try again.");loaded.current=false}finally{setLoading(false)}};
   const show=()=>{if(timer.current)clearTimeout(timer.current);if(closeTimer.current)clearTimeout(closeTimer.current);const rect=button.current?.getBoundingClientRect();setSide(rect&&window.innerWidth-rect.left<380?"right":"left");void load()};
   const close=()=>{if(closeTimer.current)clearTimeout(closeTimer.current);closeTimer.current=setTimeout(()=>setOpen(false),160)};
   const rows=Array.isArray(summary?.skills)?summary!.skills as Data[]:[];
@@ -327,16 +357,18 @@ function resumeEvidenceLabel(value?: string) {
 export function ReadinessPolicy() {
   const [interview, setInterview] = useState(70);
   const [resume, setResume] = useState(30);
-  const [state, setState] = useState<"loading" | "idle" | "saving">("loading");
+  const [state, setState] = useState<"loading" | "idle" | "saving" | "error">("loading");
   const [message, setMessage] = useState("");
+  const [loadVersion, setLoadVersion] = useState(0);
   useEffect(() => {
+    setState("loading"); setMessage("");
     const controller = new AbortController();
     collegeApi.get<{interview_readiness:number;resume_readiness:number}>("readiness-policy", controller.signal)
       .then(policy => { setInterview(policy.interview_readiness); setResume(policy.resume_readiness); })
-      .catch(error => { if (!controller.signal.aborted) setMessage(collegeError(error)); })
-      .finally(() => { if (!controller.signal.aborted) setState("idle"); });
+      .then(() => { if (!controller.signal.aborted) setState("idle"); })
+      .catch(error => { if (!controller.signal.aborted) { setMessage(collegeError(error)); setState("error"); } });
     return () => controller.abort();
-  }, []);
+  }, [loadVersion]);
   async function save() {
     setState("saving"); setMessage("");
     try {
@@ -351,7 +383,7 @@ export function ReadinessPolicy() {
       <label className="text-sm font-medium">Interview performance (%)<input className={field} type="number" min="0" max="100" value={interview} disabled={state!=="idle"} onChange={event=>{const value=Number(event.target.value);setInterview(value);setResume(Math.max(0,100-value));}} /></label>
       <label className="text-sm font-medium">Resume quality (%)<input className={field} type="number" min="0" max="100" value={resume} disabled={state!=="idle"} onChange={event=>{const value=Number(event.target.value);setResume(value);setInterview(Math.max(0,100-value));}} /></label>
     </div>
-    <div className="mt-4 flex flex-wrap items-center gap-3"><button className={btn} disabled={state!=="idle"||interview+resume!==100} onClick={()=>void save()}>{state==="saving"?"Saving…":"Save formula"}</button><span className="text-sm text-slate-500" role="status">{state==="loading"?"Loading formula…":message}</span></div>
+    <div className="mt-4 flex flex-wrap items-center gap-3"><button className={btn} disabled={state!=="idle"||interview+resume!==100} onClick={()=>void save()}>{state==="saving"?"Saving…":"Save formula"}</button>{state === "error" && <button className={btn} onClick={() => setLoadVersion(value => value + 1)}>Retry loading settings</button>}<span className="text-sm text-slate-500" role="status">{state==="loading"?"Loading formula…":message}</span></div>
   </section>;
 }
 const DEFAULT_RESULTS_LABELS = {
@@ -360,24 +392,27 @@ const DEFAULT_RESULTS_LABELS = {
   proctor_review_event_threshold: 1,
   proctor_auto_end_warning_threshold: 0,
   proctor_auto_end_on_multiple_people: false,
+  proctor_auto_end_events: ["phone_usage_detected", "multiple_people_visible", "candidate_not_visible", "gaze_off_camera", "tab_hidden", "window_blur_observed", "fullscreen_exit", "screen_share_ended", "camera_lost", "microphone_lost", "camera_disable_attempt", "microphone_disable_attempt", "copy_blocked", "cut_blocked", "paste_blocked"],
   skill_intelligence: {min_coverage_pct:40,min_assessed_candidates:5,allow_preferred_high_risk:false,risk_thresholds:{mandatory:{high:50,medium:25},core:{high:60,medium:30},preferred:{high:75,medium:50}},labels:{high:"High",medium:"Medium",low:"Low",insufficient_data:"Insufficient Data"}},
 };
 export function InterviewResultsSettings() {
   const [settings, setSettings] = useState<typeof DEFAULT_RESULTS_LABELS>(DEFAULT_RESULTS_LABELS);
-  const [state, setState] = useState<"loading"|"idle"|"saving">("loading");
+  const [state, setState] = useState<"loading"|"idle"|"saving"|"error">("loading");
   const [message, setMessage] = useState("");
-  useEffect(() => { const c = new AbortController(); collegeApi.get<typeof DEFAULT_RESULTS_LABELS>("interview-results-settings", c.signal).then(value => setSettings({...DEFAULT_RESULTS_LABELS, ...value, recommendation_labels:{...DEFAULT_RESULTS_LABELS.recommendation_labels,...value.recommendation_labels}, proctor_labels:{...DEFAULT_RESULTS_LABELS.proctor_labels,...value.proctor_labels}, skill_intelligence:{...DEFAULT_RESULTS_LABELS.skill_intelligence,...value.skill_intelligence, risk_thresholds:{...DEFAULT_RESULTS_LABELS.skill_intelligence.risk_thresholds,...value.skill_intelligence?.risk_thresholds}, labels:{...DEFAULT_RESULTS_LABELS.skill_intelligence.labels,...value.skill_intelligence?.labels}}})).catch(e => { if (!c.signal.aborted) setMessage(collegeError(e)); }).finally(() => { if (!c.signal.aborted) setState("idle"); }); return () => c.abort(); }, []);
+  const [loadVersion, setLoadVersion] = useState(0);
+  useEffect(() => { setState("loading"); setMessage(""); const c = new AbortController(); collegeApi.get<typeof DEFAULT_RESULTS_LABELS>("interview-results-settings", c.signal).then(value => setSettings({...DEFAULT_RESULTS_LABELS, ...value, recommendation_labels:{...DEFAULT_RESULTS_LABELS.recommendation_labels,...value.recommendation_labels}, proctor_labels:{...DEFAULT_RESULTS_LABELS.proctor_labels,...value.proctor_labels}, skill_intelligence:{...DEFAULT_RESULTS_LABELS.skill_intelligence,...value.skill_intelligence, risk_thresholds:{...DEFAULT_RESULTS_LABELS.skill_intelligence.risk_thresholds,...value.skill_intelligence?.risk_thresholds}, labels:{...DEFAULT_RESULTS_LABELS.skill_intelligence.labels,...value.skill_intelligence?.labels}}})).then(() => { if (!c.signal.aborted) setState("idle"); }).catch(e => { if (!c.signal.aborted) { setMessage(collegeError(e)); setState("error"); } }); return () => c.abort(); }, [loadVersion]);
   const update = (group: "recommendation_labels"|"proctor_labels", key: string, value: string) => setSettings(current => ({...current, [group]: {...current[group], [key]: value}}));
   async function save() { setState("saving"); setMessage(""); try { await collegeApi.save("interview-results-settings", settings, true); setMessage("Interview Results settings saved."); } catch (e) { setMessage(collegeError(e)); } finally { setState("idle"); } }
   const setRiskThreshold = (priority: "mandatory"|"core"|"preferred", level: "high"|"medium", value: number) => setSettings(current => ({...current, skill_intelligence:{...current.skill_intelligence, risk_thresholds:{...current.skill_intelligence.risk_thresholds, [priority]:{...current.skill_intelligence.risk_thresholds[priority], [level]:value}}}}));
   return <section className={panel} aria-labelledby="interview-results-settings-title">
-    <div><h3 id="interview-results-settings-title" className="font-bold">Interview Results and Skill Intelligence settings</h3><p className="mt-1 text-sm text-slate-500">Customize labels, evidence thresholds, and optional placement-interview stop rules. These rules do not affect self-practice.</p></div>
+    <div><h3 id="interview-results-settings-title" className="font-bold">Interview results, proctoring & skill evidence</h3><p className="mt-1 text-sm text-slate-500">Customize labels, evidence thresholds, and optional placement-interview stop rules. These rules do not affect self-practice.</p></div>
     <h4 className="mt-5 font-semibold">AI recommendation labels</h4><div className="mt-3 grid gap-4 sm:grid-cols-2">{Object.entries(settings.recommendation_labels).map(([key,value])=><label className="text-sm font-medium" key={key}><span className="mb-1 block">{settingLabel(key)}</span><input className={field} value={value} disabled={state!=="idle"} onChange={e=>update("recommendation_labels",key,e.target.value)} /></label>)}</div>
-    <h4 className="mt-5 font-semibold">AI proctor defaults</h4><div className="mt-3 grid gap-4 sm:grid-cols-2">{Object.entries(settings.proctor_labels).map(([key,value])=><label className="text-sm font-medium" key={key}><span className="mb-1 block">{settingLabel(key)}</span><input className={field} value={value} disabled={state!=="idle"} onChange={e=>update("proctor_labels",key,e.target.value)} /></label>)}<label className="text-sm font-medium"><span className="mb-1 block">Review event threshold</span><input className={field} type="number" min="0" max="1000" value={settings.proctor_review_event_threshold} disabled={state!=="idle"} onChange={e=>setSettings(current=>({...current,proctor_review_event_threshold:Math.max(0,Number(e.target.value)||0)}))}/></label></div>
+    <h4 className="mt-5 font-semibold">Proctor review labels</h4><div className="mt-3 grid gap-4 sm:grid-cols-2">{Object.entries(settings.proctor_labels).map(([key,value])=><label className="text-sm font-medium" key={key}><span className="mb-1 block">{settingLabel(key)}</span><input className={field} value={value} disabled={state!=="idle"} onChange={e=>update("proctor_labels",key,e.target.value)} /></label>)}<label className="text-sm font-medium"><span className="mb-1 block">Flagged events required for review</span><input className={field} type="number" min="0" max="1000" value={settings.proctor_review_event_threshold} disabled={state!=="idle"} onChange={e=>setSettings(current=>({...current,proctor_review_event_threshold:Math.max(0,Number(e.target.value)||0)}))}/></label></div>
     <h4 className="mt-5 font-semibold">Placement interview stop rules</h4><p className="mt-1 text-sm text-slate-500">When enabled, the candidate is told why the interview ended and the event remains available for staff review. Defaults are off.</p><div className="mt-3 grid gap-4 sm:grid-cols-2"><label className="text-sm font-medium"><span className="mb-1 block">End after recorded AI-proctor warnings</span><select className={field} value={settings.proctor_auto_end_warning_threshold} disabled={state!=="idle"} onChange={e=>setSettings(current=>({...current,proctor_auto_end_warning_threshold:Number(e.target.value)}))}><option value={0}>Off</option><option value={2}>2 warnings</option><option value={3}>3 warnings</option></select></label><label className="flex items-start gap-2 pt-6 text-sm"><input type="checkbox" checked={settings.proctor_auto_end_on_multiple_people} disabled={state!=="idle"} onChange={e=>setSettings(current=>({...current,proctor_auto_end_on_multiple_people:e.target.checked}))}/><span><strong className="block">End if multiple people are detected</strong><span className="text-slate-500">The sustained camera warning is recorded before the interview ends.</span></span></label></div>
-    <h4 className="mt-5 font-semibold">Skill risk calculation</h4><div className="mt-3 grid gap-4 sm:grid-cols-2"><label className="text-sm font-medium"><span className="mb-1 block">Minimum coverage (%)</span><input className={field} type="number" min="0" max="100" value={settings.skill_intelligence.min_coverage_pct} disabled={state!=="idle"} onChange={e=>setSettings(current=>({...current,skill_intelligence:{...current.skill_intelligence,min_coverage_pct:Number(e.target.value)||0}}))}/></label><label className="text-sm font-medium"><span className="mb-1 block">Minimum assessed candidates</span><input className={field} type="number" min="0" value={settings.skill_intelligence.min_assessed_candidates} disabled={state!=="idle"} onChange={e=>setSettings(current=>({...current,skill_intelligence:{...current.skill_intelligence,min_assessed_candidates:Number(e.target.value)||0}}))}/></label>{(["mandatory","core","preferred"] as const).flatMap(priority=>(["high","medium"] as const).map(level=><label className="text-sm font-medium" key={`${priority}-${level}`}><span className="mb-1 block">{displayName(priority)} {displayName(level)} risk from (%)</span><input className={field} type="number" min="0" max="100" value={settings.skill_intelligence.risk_thresholds[priority][level]} disabled={state!=="idle"} onChange={e=>setRiskThreshold(priority,level,Number(e.target.value)||0)}/></label>))}<label className="flex items-center gap-2 text-sm"><input type="checkbox" checked={settings.skill_intelligence.allow_preferred_high_risk} disabled={state!=="idle"} onChange={e=>setSettings(current=>({...current,skill_intelligence:{...current.skill_intelligence,allow_preferred_high_risk:e.target.checked}}))}/>Allow Preferred skills to become High risk</label></div>
+    <fieldset className="mt-4 rounded-xl border border-slate-200 p-4"><legend className="px-1 text-sm font-medium">Events that count toward automatic stopping</legend><p className="mb-3 text-xs text-slate-500">Unchecked events remain available for review. Low light and blurry video give corrective guidance and never count toward automatic stopping.</p><div className="grid gap-3 sm:grid-cols-2">{DEFAULT_RESULTS_LABELS.proctor_auto_end_events.map(event=><label key={event} className="flex items-center gap-2 text-sm"><input type="checkbox" checked={settings.proctor_auto_end_events.includes(event)} disabled={state!=="idle"} onChange={e=>setSettings(current=>({...current,proctor_auto_end_events:e.target.checked?[...current.proctor_auto_end_events,event]:current.proctor_auto_end_events.filter(value=>value!==event)}))}/>{displayName(event)}</label>)}</div></fieldset>
+    <h4 className="mt-5 font-semibold">Skill evidence thresholds</h4><div className="mt-3 grid gap-4 sm:grid-cols-2"><label className="text-sm font-medium"><span className="mb-1 block">Minimum coverage (%)</span><input className={field} type="number" min="0" max="100" value={settings.skill_intelligence.min_coverage_pct} disabled={state!=="idle"} onChange={e=>setSettings(current=>({...current,skill_intelligence:{...current.skill_intelligence,min_coverage_pct:Number(e.target.value)||0}}))}/></label><label className="text-sm font-medium"><span className="mb-1 block">Minimum assessed candidates</span><input className={field} type="number" min="0" value={settings.skill_intelligence.min_assessed_candidates} disabled={state!=="idle"} onChange={e=>setSettings(current=>({...current,skill_intelligence:{...current.skill_intelligence,min_assessed_candidates:Number(e.target.value)||0}}))}/></label>{(["mandatory","core","preferred"] as const).flatMap(priority=>(["high","medium"] as const).map(level=><label className="text-sm font-medium" key={`${priority}-${level}`}><span className="mb-1 block">{displayName(priority)} {displayName(level)} risk from (%)</span><input className={field} type="number" min="0" max="100" value={settings.skill_intelligence.risk_thresholds[priority][level]} disabled={state!=="idle"} onChange={e=>setRiskThreshold(priority,level,Number(e.target.value)||0)}/></label>))}<label className="flex items-center gap-2 text-sm"><input type="checkbox" checked={settings.skill_intelligence.allow_preferred_high_risk} disabled={state!=="idle"} onChange={e=>setSettings(current=>({...current,skill_intelligence:{...current.skill_intelligence,allow_preferred_high_risk:e.target.checked}}))}/>Allow Preferred skills to become High risk</label></div>
     <h4 className="mt-5 font-semibold">Skill risk labels</h4><div className="mt-3 grid gap-4 sm:grid-cols-2">{Object.entries(settings.skill_intelligence.labels).map(([key,value])=><label className="text-sm font-medium" key={key}><span className="mb-1 block">{settingLabel(key)}</span><input className={field} value={value} disabled={state!=="idle"} onChange={e=>setSettings(current=>({...current,skill_intelligence:{...current.skill_intelligence,labels:{...current.skill_intelligence.labels,[key]:e.target.value}}}))}/></label>)}</div>
-    <div className="mt-5 flex items-center gap-3"><button className={btn} disabled={state!=="idle"} onClick={()=>void save()}>{state==="saving"?"Saving…":"Save settings"}</button><span className="text-sm text-slate-500" role="status">{state==="loading"?"Loading settings…":message}</span></div>
+    <div className="mt-5 flex items-center gap-3"><button className={btn} disabled={state!=="idle"} onClick={()=>void save()}>{state==="saving"?"Saving…":"Save settings"}</button>{state === "error" && <button className={btn} onClick={() => setLoadVersion(value => value + 1)}>Retry loading settings</button>}<span className="text-sm text-slate-500" role="status">{state==="loading"?"Loading settings…":message}</span></div>
   </section>;
 }
 function CandidateDetails({
@@ -420,7 +455,7 @@ function CandidateDetails({
           <>
             <div>
               <dt className="text-slate-500">Interview status</dt>
-              <dd className="mt-1"><InterviewStatusBadge value={candidate.assignment_status} /></dd>
+              <dd className="mt-1"><InterviewStatusBadge value={candidateInterviewStatus(candidate)} /></dd>
             </div>
             <div>
               <dt className="text-slate-500">ATS Fit</dt>
@@ -1034,7 +1069,7 @@ function DriveSettings({
       const end=wallTimeToInstant(String(form.window_end||""),collegeTimezone);
       const errors:Record<string,string>={};
       if(!Number.isFinite(start))errors.window_start="Choose a valid local interview start time.";
-      else if(start<=Date.now())errors.window_start="Interview start must be in the future.";
+      else if(start<=Date.now()&&String(form.window_start)!==wallTimeFromInstant(drive.window_start_at,collegeTimezone))errors.window_start="Interview start must be in the future.";
       if(!Number.isFinite(end))errors.window_end="Choose a valid local interview end time.";
       else if(Number.isFinite(start)&&end<=start)errors.window_end="Interview end must be later than interview start.";
       if(Object.keys(errors).length){setFieldErrors(errors);document.getElementById(Object.keys(errors)[0])?.focus();
@@ -1232,7 +1267,7 @@ function DriveSettings({
               }))
             }
           >
-            {[15, 30, 45].map((value) => (
+            {[5, 10, 15, 30, 45].map((value) => (
               <option key={value} value={value}>
                 {value} minutes
               </option>
@@ -1257,6 +1292,7 @@ function DriveSettings({
               }))
             }
           >
+            <option value="dynamic">Personalized</option>
             <option value="beginner">Beginner</option>
             <option value="intermediate">Intermediate</option>
             <option value="advanced">Advanced</option>
@@ -1492,7 +1528,7 @@ function DriveSettings({
     );
   return (
     <div className="space-y-4">
-      {drive.is_locked && <p role="status" className="rounded-xl border border-amber-200 bg-amber-50 p-3 text-sm text-amber-800">This drive is locked for editing. Unlock it from the drive list to edit configuration when its lifecycle allows.</p>}
+      {drive.is_locked && <p role="status" className="rounded-xl border border-amber-200 bg-amber-50 p-3 text-sm text-amber-800">This drive is locked for editing. Unlock it to edit configuration when its lifecycle allows.<button className={`${btn} ml-3`} disabled={busy} onClick={() => void collegeApi.save(`drives/${drive.id}/lock`, {is_locked:false}).then(() => save({})).catch(error => setWarning(collegeError(error)))}>Unlock drive</button></p>}
       {warning && (
         <p role="alert" className="rounded-xl bg-amber-50 p-3 text-amber-800">
           {warning}
@@ -1618,6 +1654,9 @@ export default function DriveManagement({
   const [checked, setChecked] = useState<string[]>([]),
     [attempts, setAttempts] = useState(2);
   const [schedule, setSchedule] = useState("");
+  const [fullEditor, setFullEditor] = useState(false);
+  const [editorStep, setEditorStep] = useState(0);
+  const [exporting, setExporting] = useState(false);
   const [resultSort, setResultSort] = useState("rank");
   const [resultsLayout, setResultsLayout] = useState<"cards" | "table">("cards");
   const [resultQuickView, setResultQuickView] = useState("all");
@@ -1649,6 +1688,14 @@ export default function DriveManagement({
     setAtsMinimum("");
     setListSort("name");
   }, [tab]);
+  // Drive configuration changes on refresh/mutations, not on table filters.
+  useEffect(() => {
+    const controller = new AbortController();
+    collegeApi.get<Drive>(`drives/${driveId}`, controller.signal)
+      .then(value => { if (!controller.signal.aborted) setDrive(value); })
+      .catch(error => { if (!controller.signal.aborted) setError(collegeError(error)); });
+    return () => controller.abort();
+  }, [driveId, version]);
   useEffect(() => {
     if (!drive) return;
     const controller = new AbortController();
@@ -1722,18 +1769,11 @@ export default function DriveManagement({
       if(excludeReviewRequired) query.set("exclude_review_required","true");
     }
     if (tab === "candidates") query.set("sort_by", listSort === "ats_desc" || listSort === "ats_asc" ? "name" : listSort);
-    Promise.all([
-      collegeApi.get<Drive>(`drives/${driveId}`, c.signal),
-      tab === "questions" ? Promise.resolve({} as Data) : collegeApi.get<Data>(
-        `drives/${driveId}/${paths[tab]}?${query.toString()}`,
-        c.signal,
-      ),
-    ])
-      .then(([d, result]) => {
-        if (!c.signal.aborted) {
-          setDrive(d);
-          setData(result);
-        }
+    (tab === "questions" ? Promise.resolve({} as Data) : collegeApi.get<Data>(
+      `drives/${driveId}/${paths[tab]}?${query.toString()}`, c.signal,
+    ))
+      .then(result => {
+        if (!c.signal.aborted) setData(result);
       })
       .catch((e) => {
         if (!c.signal.aborted) setError(collegeError(e));
@@ -1761,6 +1801,39 @@ export default function DriveManagement({
     resultSort,
     resultQuickView,
   ]);
+  useEffect(() => {
+    if (!['overview','candidates'].includes(tab)) return;
+    const controller = new AbortController();
+    let pending = false;
+    const timer = window.setInterval(async () => {
+      if (pending || document.visibilityState === 'hidden') return;
+      pending = true;
+      const query = new URLSearchParams({limit:'25',offset:String(offset),q:search});
+      if (departmentFilter) query.set('department',departmentFilter);
+      if (programFilter) query.set('program',programFilter);
+      if (statusFilter) query.set('assignment_status',statusFilter);
+      if (tab === 'candidates') query.set('sort_by',listSort);
+      try {
+        const result = await collegeApi.get<Data>(`drives/${driveId}/${paths[tab]}?${query}`,controller.signal);
+        if (!controller.signal.aborted) {
+          setData(result);
+          setSelected(current => current ? ((result.candidates || []) as Candidate[]).find(row => row.student_id === current.student_id) || current : current);
+        }
+      } catch { /* Manual refresh exposes request failures; retain the last successful view. */ }
+      finally { pending = false; }
+    },15000);
+    return () => {controller.abort();window.clearInterval(timer);};
+  },[tab,driveId,offset,search,departmentFilter,programFilter,statusFilter,listSort]);
+  useEffect(() => {resumeMatchRequests.clear();},[version,driveId]);
+  async function exportSelected() {
+    setExporting(true);setError('');
+    try {
+      const blob=await collegeApi.exportFile(`drives/${driveId}/results/export`,{student_ids:checked});
+      const url=URL.createObjectURL(blob),anchor=document.createElement('a');
+      anchor.href=url;anchor.download='interview-results.xlsx';anchor.click();setTimeout(()=>URL.revokeObjectURL(url),1000);
+      setNotice(`Exported ${checked.length} selected candidates.`);
+    } catch(error) {setError(collegeError(error));} finally {setExporting(false);}
+  }
   async function act(path: string, body: unknown = {}, put = true) {
     setBusy(true);
     setError("");
@@ -1912,48 +1985,14 @@ export default function DriveManagement({
     );
   return (
     <section className={`space-y-5 drive-tab-${tab}`}>
-      <div className="flex flex-wrap gap-3">
-        <button className={btn} onClick={back}>
-          ← Placement drives
-        </button>
-        {drive && (
-          <button
-            className={btn}
-            disabled={busy || loading}
-            onClick={() =>
-              setParams((p) => {
-                p.set("section", "settings");
-                p.set("edit", "company");
-                return p;
-              })
-            }
-          >
-            Edit drive
-          </button>
-        )}
-        <button
-          className={btn}
-          disabled={busy || loading}
-          onClick={() => setVersion((v) => v + 1)}
-        >
-          Refresh
-        </button>
-        {drive && (
-          <LifecycleActions
-            drive={drive}
-            busy={busy || loading}
-            onRequest={setLifecycleRequest}
-          />
-        )}
-        {drive && (
-          <button
-            className={`${btn} border-rose-200 text-rose-700 hover:bg-rose-50`}
-            disabled={busy || loading}
-            onClick={() => setLifecycleRequest("removed")}
-          >
-            Delete drive
-          </button>
-        )}
+      <div className="flex flex-wrap items-center justify-between gap-3 border-b border-slate-200 pb-4">
+        <button className={btn} onClick={back}>← Placement drives</button>
+        <div className="flex flex-wrap items-center gap-2">
+          <button className={btn} disabled={busy || loading} onClick={() => setVersion(v => v + 1)}>Refresh</button>
+          {drive && <button className={`${btn} bg-violet-600 text-white`} disabled={busy || loading} onClick={() => setParams(p => {p.set("section", "settings");p.set("edit", "company");return p;})}>Edit drive</button>}
+          {drive && <LifecycleActions drive={drive} busy={busy || loading} onRequest={setLifecycleRequest}/>}
+          {drive && <button className={`${btn} border-rose-200 text-rose-700 hover:bg-rose-50`} disabled={busy || loading} onClick={() => setLifecycleRequest("removed")}>Delete drive</button>}
+        </div>
       </div>
       <header>
         <p className="text-sm text-indigo-600">{drive?.company_name}</p>
@@ -2013,8 +2052,8 @@ export default function DriveManagement({
               0,
             );
           return (
-            <div className="space-y-5">
-              <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-5">
+            <div className="drive-overview space-y-5">
+              <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-5">
                 <Metric label="Assigned Candidates" value={assigned} />
                 <Metric label="Interviews Completed" value={completed} />
                 <Metric
@@ -2055,48 +2094,7 @@ export default function DriveManagement({
                   <p className="mb-5 text-sm text-slate-500">
                     Operational state of assigned candidates.
                   </p>
-                  <div className="space-y-4">
-                    <Bar
-                      label="Not Started"
-                      value={Number(progress.not_started || 0)}
-                      total={assigned}
-                    />
-                    <Bar
-                      label="In Progress"
-                      value={Number(progress.in_progress || 0)}
-                      total={assigned}
-                      tone="bg-indigo-500"
-                    />
-                    <Bar
-                      label="Completed"
-                      value={Number(progress.completed || 0)}
-                      total={assigned}
-                      tone="bg-emerald-500"
-                    />
-                    <Bar
-                      label="Needs Review"
-                      value={Number(progress.needs_review || 0)}
-                      total={assigned}
-                      tone="bg-amber-500"
-                    />
-                    <Bar
-                      label="Failed"
-                      value={Number(progress.failed || 0)}
-                      total={assigned}
-                      tone="bg-rose-500"
-                    />
-                    <Bar
-                      label="Expired"
-                      value={Number(progress.expired || 0)}
-                      total={assigned}
-                      tone="bg-orange-500"
-                    />
-                    <Bar
-                      label="Other"
-                      value={Number(progress.other || 0)}
-                      total={assigned}
-                    />
-                  </div>
+                  <InterviewProgressChart assigned={assigned} progress={progress}/>
                 </article>
                 <article className={panel}>
                   <h3 className="font-bold">Readiness Distribution</h3>
@@ -2273,7 +2271,7 @@ export default function DriveManagement({
               <select
                 className={field}
                 value={departmentFilter}
-                onChange={(e) => setDepartmentFilter(e.target.value)}
+                onChange={(e) => {setOffset(0);setDepartmentFilter(e.target.value);}}
               >
                 <option value="">All departments</option>
                 {departmentOptions.map((v) => (
@@ -2283,7 +2281,7 @@ export default function DriveManagement({
                 ))}
               </select>
             </label>
-            {tab === "candidates" && <label className="text-sm">Program<select className={field} value={programFilter} onChange={e=>setProgramFilter(e.target.value)}><option value="">All programs</option>{programOptions.map(program=><option key={program.code} value={program.code}>{displayName(program.display_name)}</option>)}</select></label>}
+            {tab === "candidates" && <label className="text-sm">Program<select className={field} value={programFilter} onChange={e=>{setOffset(0);setProgramFilter(e.target.value);}}><option value="">All programs</option>{programOptions.map(program=><option key={program.code} value={program.code}>{displayName(program.display_name)}</option>)}</select></label>}
             {tab === "candidates" ? (
               <>
                 <label className="text-sm">
@@ -2291,7 +2289,7 @@ export default function DriveManagement({
                   <select
                     className={field}
                     value={statusFilter}
-                    onChange={(e) => setStatusFilter(e.target.value)}
+                    onChange={(e) => {setOffset(0);setStatusFilter(e.target.value);}}
                   >
                     <option value="">All statuses</option>
                     {["assigned", "invited", "in_progress", "completed", "expired", "cancelled"].map((v) => (
@@ -2309,26 +2307,26 @@ export default function DriveManagement({
                   <select
                     className={field}
                     value={atsEligibility}
-                    onChange={(e) => setAtsEligibility(e.target.value)}
+                    onChange={(e) => {setOffset(0);setAtsEligibility(e.target.value);}}
                   >
                     <option value="">All candidates</option>
                     <option value="eligible">Eligible</option>
                     <option value="ineligible">Not eligible</option>
                   </select>
                 </label>
-                <label className="text-sm">Minimum ATS<input className={field} type="number" min="0" max="100" placeholder="0–100" value={atsMinimum} onChange={(e) => setAtsMinimum(e.target.value)} /></label>
+                <label className="text-sm">Minimum ATS<input className={field} type="number" min="0" max="100" placeholder="0–100" value={atsMinimum} onChange={(e) => {setOffset(0);setAtsMinimum(e.target.value);}} /></label>
               </>
             ) : null}
-            <label className="text-sm">Sort by<select className={field} value={listSort} onChange={event=>setListSort(event.target.value)}><option value="name">Candidate name</option><option value="department">Department</option><option value="status">Interview status</option>{tab === "ats" && <><option value="ats_desc">ATS: high to low</option><option value="ats_asc">ATS: low to high</option></>}</select></label>
-            {tab === "candidates" && (search||departmentFilter||programFilter||statusFilter) && <button type="button" className={`${btn} self-end`} onClick={()=>{setSearch("");setDepartmentFilter("");setProgramFilter("");setStatusFilter("");setOffset(0);}}>Clear filters</button>}
+            <label className="text-sm">Sort by<select className={field} value={listSort} onChange={event=>{setOffset(0);setListSort(event.target.value);}}><option value="name">Candidate name</option><option value="department">Department</option><option value="status">Interview status</option>{tab === "ats" && <><option value="ats_desc">ATS: high to low</option><option value="ats_asc">ATS: low to high</option></>}</select></label>
+            {(search||departmentFilter||programFilter||statusFilter||atsEligibility||atsMinimum) && <button type="button" className={`${btn} self-end`} onClick={()=>{setSearch("");setDepartmentFilter("");setProgramFilter("");setStatusFilter("");setAtsEligibility("");setAtsMinimum("");setOffset(0);}}>Clear filters</button>}
           </div>}
           {tab === "results" && (
-            <section aria-labelledby="results-heading" className="space-y-4">
+            <section aria-labelledby="results-heading" className="result-workspace space-y-4">
               <div className="flex flex-wrap items-end justify-between gap-3 border-b border-slate-200 pb-4">
                 <div><p className="text-xs font-semibold uppercase tracking-[0.14em] text-violet-700">Placement overview</p><h3 id="results-heading" className="mt-1 text-xl font-bold tracking-tight text-slate-900">Interview results</h3><p className="mt-1 text-sm text-slate-500">Review candidate evidence, compare outcomes and record placement decisions.</p></div>
                 <span className="rounded-full border border-slate-200 bg-white px-3 py-1.5 text-xs font-medium text-slate-600">{loading ? "Updating results…" : `${total} candidate${total === 1 ? "" : "s"}`}</span>
               </div>
-              <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3 2xl:grid-cols-6">
+              <div className="result-kpi-grid">
                 {[
                   { key: "all", label: "Candidates", value: resultKpis.candidates, view: "all" },
                   { key: "completed", label: "Interviewed", value: resultKpis.interviewed, view: "all", completed: true },
@@ -2336,22 +2334,22 @@ export default function DriveManagement({
                   { key: "decision_pending", label: "Decision pending", value: resultKpis.decisionPending, view: "decision_pending" },
                   { key: "shortlist", label: "Shortlisted", value: resultKpis.shortlisted, view: "all", decision: "shortlist" },
                   { key: "released", label: "Results released", value: resultKpis.released, view: "all", publication: "released" },
-                ].map(tile=><button type="button" aria-pressed={resultQuickView === tile.key} onClick={()=>{const reset=resultQuickView===tile.key;setOffset(0);setResultQuickView(reset?"all":tile.key);setResultView(reset?"all":tile.view);}} className={`rounded-xl border bg-white px-4 py-3 text-left shadow-sm transition hover:border-indigo-300 focus-visible:outline focus-visible:outline-2 focus-visible:outline-indigo-500 ${resultQuickView === tile.key ? "border-indigo-400 ring-2 ring-indigo-100" : "border-slate-200"}`} key={tile.key}><p className="text-[11px] font-semibold uppercase tracking-[0.09em] text-slate-500">{tile.label}</p><strong className="mt-1 block text-2xl font-bold tracking-tight text-slate-900">{resultKpisState === "ready" ? tile.value : "—"}</strong>{resultKpisState === "error" && <span className="text-[10px] text-slate-400">Unavailable</span>}</button>)}
+                ].map((tile,index)=><button type="button" aria-pressed={resultQuickView === tile.key} onClick={()=>{const reset=resultQuickView===tile.key;setOffset(0);setResultQuickView(reset?"all":tile.key);setResultView(reset?"all":tile.view);}} className="result-kpi-card focus-visible:outline focus-visible:outline-2 focus-visible:outline-violet-500" key={tile.key}><span className="result-kpi-icon">{(() => {const Icon=[Users,CheckCircle2,CircleDashed,Clock,UserCheck,Send][index];return <Icon size={18}/>;})()}</span><p className="text-[11px] font-semibold uppercase tracking-[0.09em] text-slate-500">{tile.label}</p><strong className="mt-2 block text-3xl font-medium tracking-tight text-slate-900">{resultKpisState === "ready" ? tile.value : "—"}</strong>{resultKpisState === "error" && <span className="text-[10px] text-slate-400">Unavailable</span>}<span className="result-kpi-note">{["Assigned to this drive","Completed interviews","Requires follow-up","Awaiting officer review","Officer-selected candidates","Visible to students"][index]}</span></button>)}
               </div>
               <div className="flex flex-wrap items-end gap-3 rounded-2xl border border-slate-200 bg-slate-50/70 p-4">
                 <label className="min-w-60 flex-1 text-xs font-medium text-slate-500">Search candidates<input className={`${field} mt-1`} value={search} onChange={event=>{setOffset(0);setSearch(event.target.value)}} placeholder="Name, email or roll number" /></label>
                 <label className="min-w-44 text-xs font-medium text-slate-500">Department<select className={`${field} mt-1`} value={departmentFilter} onChange={event=>{setOffset(0);setDepartmentFilter(event.target.value)}}><option value="">All departments</option>{departmentOptions.map(value=><option key={value} value={value}>{value}</option>)}</select></label>
-                <ResultCohortBuilder rules={resultRules} setRules={rules=>{setOffset(0);setResultRules(rules)}} matchMode={resultMatchMode} setMatchMode={value=>{setOffset(0);setResultMatchMode(value)}} total={total} excludeReview={excludeReviewRequired} setExcludeReview={value=>{setOffset(0);setExcludeReviewRequired(value)}} options={resultFilterOptions} onReset={()=>{setResultRules([]);setResultQuickView("all");setExcludeReviewRequired(false);setResultMatchMode("all");setResultView("all");setOffset(0)}}/>
-                <label className="min-w-44 text-xs font-medium text-slate-500">Sort results<select className={`${field} mt-1`} value={resultSort} onChange={event=>setResultSort(event.target.value)}><option value="rank">Rank</option><option value="score_desc">Interview score</option><option value="pri_desc">PRI</option><option value="name">Candidate name</option></select></label>
+                <ResultCohortBuilder rules={resultRules} setRules={rules=>{setOffset(0);setResultRules(rules)}} matchMode={resultMatchMode} setMatchMode={value=>{setOffset(0);setResultMatchMode(value)}} total={total} excludeReview={excludeReviewRequired} setExcludeReview={value=>{setOffset(0);setExcludeReviewRequired(value)}} options={resultFilterOptions} onReset={()=>{setResultRules([]);setResultQuickView("all");setExcludeReviewRequired(false);setResultMatchMode("all");setResultView("all");setSearch("");setDepartmentFilter("");setOffset(0)}}/>
+                <label className="min-w-44 text-xs font-medium text-slate-500">Sort results<select className={`${field} mt-1`} value={resultSort} onChange={event=>{setOffset(0);setResultSort(event.target.value);}}><option value="rank">Rank</option><option value="score_desc">Interview score</option><option value="pri_desc">PRI</option><option value="name">Candidate name</option></select></label>
               </div>
             </section>
           )}
           {tab === "results" && (
-            <section aria-label="Schedule result publication" className="flex flex-wrap items-end gap-3 rounded-2xl border border-slate-200 bg-white p-4 shadow-sm"><div className="mr-auto min-w-52"><h3 className="font-semibold text-slate-900">Result release</h3><p className="mt-1 max-w-md text-xs leading-5 text-slate-500">Schedule publication for candidates with a recorded officer decision.</p></div><label className="text-xs font-medium text-slate-500">Release date<input className={`${field} mt-1`} type="date" value={schedule.split("T")[0]||""} onChange={event=>setSchedule(`${event.target.value}T${schedule.split("T")[1]||"09:00"}`)} /></label><label className="text-xs font-medium text-slate-500">Release time<input className={`${field} mt-1`} type="time" value={schedule.split("T")[1]||""} onChange={event=>setSchedule(`${schedule.split("T")[0]||new Date().toISOString().slice(0,10)}T${event.target.value}`)} /></label><button className={`${btn} border-violet-600 bg-violet-600 text-white hover:bg-violet-700`} disabled={busy||!schedule.includes("T")||!schedule.split("T")[1]} onClick={()=>void act("candidates/release-all/schedule",{scheduled_for:new Date(schedule).toISOString()})}>Save schedule</button></section>
+            <details className="rounded-xl border border-slate-200 bg-white p-3"><summary className="cursor-pointer text-sm font-medium text-slate-600">Schedule student results</summary><section aria-label="Schedule result publication" className="mt-3 flex flex-wrap items-end gap-3 rounded-2xl border border-slate-200 bg-white p-4 shadow-sm"><div className="mr-auto min-w-52"><h3 className="font-semibold text-slate-900">Result release</h3><p className="mt-1 max-w-md text-xs leading-5 text-slate-500">Schedule publication for candidates with a recorded officer decision.</p></div><label className="text-xs font-medium text-slate-500">Release date<input className={`${field} mt-1`} type="date" value={schedule.split("T")[0]||""} onChange={event=>setSchedule(`${event.target.value}T${schedule.split("T")[1]||"09:00"}`)} /></label><label className="text-xs font-medium text-slate-500">Release time<input className={`${field} mt-1`} type="time" value={schedule.split("T")[1]||""} onChange={event=>setSchedule(`${schedule.split("T")[0]||new Date().toISOString().slice(0,10)}T${event.target.value}`)} /></label><button className={`${btn} border-violet-600 bg-violet-600 text-white hover:bg-violet-700`} disabled={busy||!schedule.includes("T")||!schedule.split("T")[1]} onClick={()=>void act("candidates/release-all/schedule",{scheduled_for:new Date(schedule).toISOString()})}>Save schedule</button></section></details>
           )}
           {tab === "results" && checked.length > 0 && (
             <div className="sticky bottom-4 z-20 flex flex-wrap items-center gap-3 rounded-2xl border bg-white p-4 shadow-lg dark:border-slate-800 dark:bg-slate-900">
-              <strong className="mr-auto text-sm">{checked.length} candidate{checked.length === 1 ? "" : "s"} selected</strong>
+              <strong className="mr-auto text-sm">{checked.length} candidate{checked.length === 1 ? "" : "s"} selected</strong><button className={`${btn} inline-flex items-center gap-2 whitespace-nowrap`} disabled={exporting} onClick={()=>void exportSelected()}><Download size={16}/>{exporting?'Exporting…':'Export Excel'}</button>
               {(["shortlist", "hold", "reject"] as const).map((value) => (
                 <button
                   key={value}
@@ -2385,64 +2383,39 @@ export default function DriveManagement({
             <div className="flex rounded-lg border border-slate-200 bg-slate-50 p-1" role="group" aria-label="Results layout"><button type="button" aria-pressed={resultsLayout === "cards"} onClick={()=>setResultsLayout("cards")} className={`rounded-md px-3 py-1.5 text-xs font-semibold transition ${resultsLayout === "cards" ? "bg-white text-violet-700 shadow-sm" : "text-slate-500 hover:text-slate-800"}`}>Cards</button><button type="button" aria-pressed={resultsLayout === "table"} onClick={()=>setResultsLayout("table")} className={`rounded-md px-3 py-1.5 text-xs font-semibold transition ${resultsLayout === "table" ? "bg-white text-violet-700 shadow-sm" : "text-slate-500 hover:text-slate-800"}`}>Table</button></div>
           </div>}
           {!loading && !error && !candidates.length && <p className={`${panel} border-dashed p-8 text-center text-sm text-slate-500`}>No candidates found for this view. Adjust the filters or choose another result view.</p>}
-          {!!candidates.length && tab === "results" && resultsLayout === "cards" && <div id="result-candidate-cards" className="space-y-4">
-            {candidates.map(candidate=>{
-              const rounds = Array.isArray(candidate.interview_rounds) ? candidate.interview_rounds : [];
-              const scoreDetails = candidate.scores || {};
-              const score = (value: unknown) => typeof value === "number" ? `${value}/100` : "Not assessed";
-              return <article key={candidate.student_id || candidate.roll_number} className="overflow-visible rounded-xl border border-slate-200 bg-white shadow-sm transition hover:border-slate-300">
-                <header className="flex flex-wrap items-start gap-3 p-4 sm:items-center sm:px-5 sm:py-5">
-                  <input className="mt-3 h-4 w-4 shrink-0 rounded accent-indigo-600 sm:mt-0" type="checkbox" aria-label={`Select ${candidate.full_name}`} checked={checked.includes(candidate.student_id)} onChange={event=>setChecked(current=>event.target.checked ? [...new Set([...current,candidate.student_id])] : current.filter(id=>id!==candidate.student_id))}/>
-                  <StudentAvatar student={candidate} size="h-11 w-11"/>
-                  <div className="min-w-0 flex-1"><div className="flex flex-wrap items-center gap-2"><h4 className="truncate text-base font-bold text-slate-900">{candidate.full_name}</h4>{candidate.rank != null && <span className="rounded-md bg-slate-100 px-2 py-0.5 text-xs font-semibold text-slate-600">Rank #{candidate.rank}</span>}<InterviewStatusBadge value={candidate.assignment_status === "in_progress" ? "in_progress" : candidate.evaluation_status === "held_for_review" ? "needs_review" : candidate.evaluation_status === "released" ? "completed" : candidate.preparation_status || "not_started"}/>{candidate.eligible === false && <StatusBadge value="Eligibility review"/>}</div><p className="mt-1 break-words text-xs leading-5 text-slate-500">{candidate.roll_number}{candidate.email ? ` · ${candidate.email}` : ""}{candidate.department_code ? ` · ${candidate.department_code}` : ""}{candidate.program ? ` · ${candidate.program}` : ""}{candidate.cgpa != null ? ` · CGPA ${candidate.cgpa}` : ""}</p>{candidate.eligibility_note && candidate.eligible === false && <p className="mt-1 text-xs text-amber-800">{candidate.eligibility_note}</p>}{candidate.last_activity_label && <p className="mt-1 text-xs text-slate-500">{candidate.last_activity_label}{candidate.last_activity_at ? ` · ${formatPlacementDateTime(candidate.last_activity_at, collegeTimezone)}` : ""}</p>}</div>
-                  <button className={`${btn} shrink-0`} disabled={busy || !candidate.report_ready} onClick={()=>void inspect(candidate,"reports")}>{candidate.report_ready ? "View full report" : "Report pending"}</button>
-                </header>
-                <div className="flex flex-wrap items-center gap-3 border-y border-slate-100 bg-indigo-50/50 px-4 py-3 sm:px-5">
-                  <span className="text-sm font-semibold text-slate-800">AI Recommendation</span><StatusBadge value={candidate.recommendation || "Not assessed"}/>
-                  {candidate.recommendation_confidence != null && <span className="text-xs text-slate-600">Confidence {candidate.recommendation_confidence}/100</span>}
-                  {candidate.report_ready && <CandidateStrengthGap driveId={driveId} candidate={candidate} onOpenReport={()=>void inspect(candidate,"reports")}/>}
-                </div>
-                {(candidate.recommendation_reasons?.length || candidate.recommendation_risks?.length) ? <details className="border-b border-slate-100 px-4 py-2.5 sm:px-5"><summary className="cursor-pointer text-xs font-semibold text-slate-600">Recommendation evidence and risks</summary><div className="mt-2 grid gap-3 text-xs sm:grid-cols-2"><div><strong className="text-emerald-700">Evidence</strong>{candidate.recommendation_reasons?.map((item,index)=><p key={`reason-${index}`} className="mt-1 leading-5 text-slate-600">{item}</p>)}</div><div><strong className="text-amber-800">Risks</strong>{candidate.recommendation_risks?.map((item,index)=><p key={`risk-${index}`} className="mt-1 leading-5 text-slate-600">{item}</p>)}</div></div></details> : null}
-                <div className="grid border-b border-slate-100 sm:grid-cols-2 lg:grid-cols-4">
-                  {[ ["Interview score", score(candidate.overall_score)], ["PRI", score(candidate.ranking_score)], ["Job fit", score(candidate.job_fit_score)], ["Readiness", candidate.readiness || "Not assessed"] ].map(([label,value],index)=><div key={label} className={`px-4 py-3 ${index%2===0?"sm:border-r":""} ${index<2?"border-b lg:border-b-0":""} ${index<3?"lg:border-r":""}`}><p className="text-[11px] font-semibold uppercase tracking-wide text-slate-500">{label}</p><p className="mt-1 text-sm font-semibold text-slate-900">{value}</p></div>)}
-                </div>
-                <div className="grid gap-3 border-b border-slate-100 px-4 py-3 text-sm sm:grid-cols-2 sm:px-5 lg:grid-cols-3">
-                  <div><p className="text-xs font-semibold text-slate-500">AI Interview rounds</p><p className="mt-1 text-slate-700">{candidate.agent_summary?.length ? candidate.agent_summary.map((round,index)=><span key={`agent-${index}`} className="mr-2 inline-block rounded-full border border-slate-200 bg-white px-2.5 py-1 text-xs">{String(round.label || displayName(String(round.agent_type || `Round ${index+1}`)))}{round.score == null ? ` · ${displayName(String(round.status || "not assessed"))}` : ` · ${String(round.score)}/100`}</span>) : rounds.length ? rounds.map((round,index)=><span key={`${round}-${index}`} className="mr-2 inline-block rounded-full border border-slate-200 bg-white px-2.5 py-1 text-xs">{displayName(round)}</span>) : "No round details available"} {candidate.report_ready && <button type="button" className="ml-1 text-xs font-semibold text-indigo-700 hover:underline" onClick={()=>void inspect(candidate,"reports")}>View report ›</button>}</p></div>
-                  <div><p className="text-xs font-semibold text-slate-500">AI Proctor</p><p className="mt-1 text-slate-700">Score {candidate.proctoring_score == null ? "Not assessed" : `${candidate.proctoring_score}/100`} · {candidate.integrity_review_label || displayName(candidate.integrity_review_status || "not assessed")}</p></div>
-                  <div><p className="text-xs font-semibold text-slate-500">Assessment detail</p><p className="mt-1 text-slate-700">Coverage {candidate.assessment_coverage == null ? "Not available" : `${candidate.assessment_coverage}%`} · Confidence {String(candidate.evaluation_confidence_label || score(candidate.evaluation_confidence_score))}</p><div className="mt-1 flex flex-wrap gap-x-2 text-[11px] text-slate-500">{(["communication","domain","problem_solving","confidence"] as const).filter(key=>typeof scoreDetails[key]==="number").map(key=><span key={key}>{displayName(key)} {String(scoreDetails[key])}/100</span>)}</div></div>
-                </div>
-                <div className="flex flex-wrap items-center gap-x-5 gap-y-2 border-b border-slate-100 px-4 py-3 text-sm sm:px-5">
-                  <span className="text-slate-600">Officer decision <span className="ml-1"><StatusBadge value={candidate.officer_decision || "pending"}/></span></span>
-                  <span className="text-slate-600">Student result <span className="ml-1"><StatusBadge value={candidate.publication?.state || "hidden"}/></span></span>
-                  {candidate.publication?.scheduled_for && <span className="text-xs text-slate-500">Scheduled {formatPlacementDateTime(candidate.publication.scheduled_for, collegeTimezone)}</span>}
-                  {candidate.publication?.released_at && <span className="text-xs text-slate-500">Released {formatPlacementDateTime(candidate.publication.released_at, collegeTimezone)}</span>}
-                </div>
-                <footer className="flex flex-wrap items-center justify-between gap-3 px-4 py-3 sm:px-5">
-                  {candidate.report_ready ? <CandidateOfficerActions driveId={driveId} candidate={candidate} onSaved={()=>setVersion(current=>current+1)}/> : <span className="text-xs text-slate-500">Officer actions become available when interview evidence is ready.</span>}
-                  <button className={`${btn} shrink-0`} disabled={busy || !candidate.report_ready} onClick={()=>void inspect(candidate,"reports")}>{candidate.report_ready ? "Open report" : "Report pending"}</button>
-                </footer>
-              </article>;
-            })}
+          {!!candidates.length && tab === "results" && resultsLayout === "cards" && <div id="result-candidate-cards" className="result-workspace grid gap-4">
+            {candidates.map(candidate=> <article key={candidate.student_id} className="overflow-visible rounded-2xl border border-slate-200 bg-white shadow-sm">
+              <header className="flex flex-wrap items-center gap-3 border-b border-slate-100 px-5 py-4">
+                <input type="checkbox" className="h-4 w-4 accent-violet-600" aria-label={`Select ${candidate.full_name}`} checked={checked.includes(candidate.student_id)} onChange={event=>setChecked(current=>event.target.checked ? [...new Set([...current,candidate.student_id])] : current.filter(id=>id!==candidate.student_id))}/>
+                <StudentAvatar student={candidate} size="h-11 w-11"/>
+                <div className="min-w-0 flex-1"><div className="flex flex-wrap items-center gap-2"><h4 className="text-base font-medium text-slate-900">{candidate.full_name}</h4>{candidate.rank != null && <span className="rounded-full bg-violet-50 px-2 py-0.5 text-xs text-violet-700">#{candidate.rank} in drive</span>}<InterviewStatusBadge value={candidateInterviewStatus(candidate)}/></div><p className="mt-1 text-xs text-slate-500">{candidate.roll_number} · {[candidate.program,candidate.department_code].filter(Boolean).join(' · ')} · Attempt {candidate.attempt_number || 1}</p></div>
+                <button className={`${btn} inline-flex shrink-0 items-center gap-2 whitespace-nowrap border-violet-200 text-violet-700`} disabled={busy || !candidate.report_ready} onClick={()=>void inspect(candidate,'reports')}>{candidate.report_ready?'Open full report':'Report pending'} <ExternalLink size={14}/></button>
+              </header>
+              <div className="result-assessment-band flex flex-wrap items-center gap-3 border-b border-violet-100 bg-violet-50/60 px-5 py-3">
+                <span className="text-xs font-medium text-slate-600">AI recommendation</span><StatusBadge value={candidate.recommendation || 'Not assessed'}/>
+                {candidate.report_ready && <CandidateStrengthGap driveId={driveId} candidate={candidate} onOpenReport={()=>void inspect(candidate,'reports')}/>}
+                <span className="ml-auto text-xs text-slate-500">Attempt {candidate.attempt_number || 1}</span>
+              </div>
+              <dl className="result-evidence-rows">
+                <div><dt>Interview assessment</dt><dd className="flex flex-wrap items-center gap-2">{[['Interview',candidate.overall_score],['Readiness / PRI',candidate.ranking_score],['Job fit',candidate.job_fit_score]].map(([label,value])=><span key={String(label)} className={`result-score-chip ${typeof value !== 'number' ? 'score-unavailable' : value >= 75 ? 'score-strong' : value >= 50 ? 'score-developing' : 'score-review'}`}><span>{label}</span><strong>{typeof value === 'number' ? `${value}/100` : 'Not assessed'}</strong></span>)}{candidate.readiness && <span className="rounded-full bg-slate-100 px-3 py-1.5 text-xs text-slate-600">{displayName(candidate.readiness)}</span>}</dd></div>
+                <div><dt>Interview rounds</dt><dd className="flex flex-wrap items-center gap-2">{candidate.agent_summary?.length ? candidate.agent_summary.map((round,index)=><span key={index} className="result-round-chip"><span>{String(round.label || displayName(String(round.agent_type || `Round ${index+1}`)))}</span><strong>{round.score==null?'Not assessed':`${round.score}/100`}</strong></span>) : <span className="text-xs text-slate-500">Round scores not available</span>}</dd></div>
+                <div><dt>AI Proctor</dt><dd className="flex flex-wrap items-center gap-3"><span className={`result-score-chip ${candidate.proctoring_score == null ? 'score-unavailable' : candidate.proctoring_score >= 75 ? 'score-strong' : candidate.proctoring_score >= 50 ? 'score-developing' : 'score-review'}`}><span>Integrity</span><strong>{candidate.proctoring_score==null?'Not assessed':`${candidate.proctoring_score}/100`}</strong></span><span className={`text-xs ${candidate.integrity_review_status === 'review_required' ? 'text-amber-700' : 'text-slate-500'}`}>{candidate.integrity_review_status === 'not_available' && candidate.proctoring_score != null ? 'Recorded integrity score' : candidate.integrity_review_label || displayName(candidate.integrity_review_status || 'not assessed')}</span>{candidate.assessment_coverage != null && <span className="ml-auto text-xs text-slate-500">Evidence coverage {candidate.assessment_coverage}%</span>}</dd></div>
+                <div><dt>Student result</dt><dd className="flex flex-wrap items-center gap-3"><StatusBadge value={candidate.publication?.state || 'hidden'}/>{candidate.publication?.released_at && <span className="text-xs text-slate-500">Released {formatPlacementDateTime(candidate.publication.released_at,collegeTimezone)}</span>}</dd></div>
+              </dl>
+              <footer className="result-decision-footer border-t border-slate-100 px-5 py-3.5">
+                <div className="mb-3 flex items-center gap-2 text-xs text-slate-500"><span>Placement decision</span><StatusBadge value={candidate.officer_decision || 'pending'}/><span className="ml-auto hidden text-[11px] text-slate-400 sm:inline">AI assessment supports your review</span></div>
+                {candidate.report_ready ? <CandidateOfficerActions driveId={driveId} candidate={candidate} onSaved={()=>setVersion(v=>v+1)}/> : <p className="text-xs text-slate-500">Decision actions become available when the report is ready.</p>}
+              </footer>
+
+            </article>)}
           </div>}
           {!!candidates.length && (tab !== "results" || resultsLayout === "table") && (
-            <div id="result-candidate-table" className={`${panel} overflow-x-auto p-0`}>
+            <div id="result-candidate-table" className={`${panel} result-workspace overflow-x-auto p-0`}>
               <table className="w-full min-w-[1080px] text-left text-sm">
                 <thead className="bg-slate-50 text-[11px] uppercase tracking-wide text-slate-500">
                   <tr>
                     {(tab === "results"
-                      ? [
-                          "Rank",
-                          "Candidate",
-                          "Interview Score",
-                          "PRI",
-                          "Job Fit",
-                          "AI Proctor / integrity",
-                          "Readiness",
-                          "AI Recommendation",
-                          "Officer Decision",
-                          "Student Result",
-                          "Action",
-                        ]
+                      ? ["Candidate", "Interview / PRI", "Role fit", "Integrity", "AI assessment", "Decision / release", "Actions"]
                       : tab === "ats"
                         ? [
                             "Candidate",
@@ -2476,11 +2449,6 @@ export default function DriveManagement({
                       className="border-t border-slate-100 transition-colors hover:bg-violet-50/40"
                       key={c.student_id || c.roll_number}
                     >
-                      {tab === "results" && (
-                        <td className="px-4 py-3 text-lg font-bold text-slate-500">
-                          {c.rank ? `#${c.rank}` : "—"}
-                        </td>
-                      )}
                       <td className="p-3">
                         <div className="flex min-w-64 items-center gap-3">
                         {tab === "results" && (
@@ -2498,47 +2466,26 @@ export default function DriveManagement({
                             }
                           />
                         )}
-                        <div className="flex min-w-0 items-center gap-3"><StudentAvatar student={c}/><div className="min-w-0"><strong>{c.full_name}</strong><p className="text-xs text-slate-500">
+                        <div className="flex min-w-0 items-center gap-3"><StudentAvatar student={c}/><div className="min-w-0"><strong>{c.full_name}</strong>{tab==='results' && c.rank != null && <span className="ml-2 text-xs text-violet-600">#{c.rank}</span>}<p className="text-xs text-slate-500">
                           {c.roll_number}
                           {c.email ? ` · ${c.email}` : ""}
-                        </p>{tab==="candidates"&&drive&&<ResumeMatchSummary driveId={driveId} candidate={c}/>}</div></div>
+                        </p>{(tab==="candidates"||tab==="ats")&&drive&&<ResumeMatchSummary driveId={driveId} candidate={c}/>}</div></div>
                         </div>
                       </td>
                       {tab === "results" ? (
                         <>
-                          <td className="p-3">
-                            <strong>
-                              {c.overall_score == null
-                                ? "—"
-                                : `${c.overall_score}/100`}
-                            </strong>
-                          </td>
-                          <td className="p-3">
-                            {c.ranking_score == null
-                              ? "—"
-                              : `${c.ranking_score}/100`}
-                          </td>
-                          <td className="p-3">{c.job_fit_score == null ? "—" : `${c.job_fit_score}/100`}</td>
-                          <td className="p-3"><div>{c.proctoring_score == null ? "—" : `${c.proctoring_score}/100`}</div><div className="mt-1"><StatusBadge value={c.integrity_review_label || c.integrity_review_status || "not assessed"}/></div></td>
-                          <td className="p-3">
-                            <StatusBadge value={c.readiness || c.evaluation_status || "pending"} />
-                          </td>
-                          <td className="p-3">
-                            <StatusBadge value={c.recommendation || "Review Required"} />
-                          </td>
-                          <td className="p-3">
-                            <StatusBadge value={c.officer_decision || "pending"} />
-                          </td>
-                          <td className="p-3">
-                            <StatusBadge value={c.publication?.state || "hidden"} />
-                          </td>
+                          <td className="p-3"><span className="text-base font-medium">{c.overall_score==null?'—':`${c.overall_score}/100`}</span><p className="mt-1 text-xs text-slate-500">PRI {c.ranking_score==null?'—':`${c.ranking_score}/100`}</p></td>
+                          <td className="p-3"><p>{c.job_fit_score==null?'—':`${c.job_fit_score}/100`}</p><p className="mt-1 text-xs text-slate-500">{c.readiness || 'Not assessed'}</p></td>
+                          <td className="p-3"><p>{c.proctoring_score==null?'—':`${c.proctoring_score}/100`}</p><div className="mt-1"><StatusBadge value={c.integrity_review_label || c.integrity_review_status || 'not assessed'}/></div></td>
+                          <td className="p-3"><StatusBadge value={c.recommendation || 'Review Required'}/>{c.report_ready && <div className="mt-2"><CandidateStrengthGap driveId={driveId} candidate={c} onOpenReport={()=>void inspect(c,'reports')}/></div>}</td>
+                          <td className="p-3"><StatusBadge value={c.officer_decision || 'pending'}/><div className="mt-2 text-xs text-slate-500">Result <StatusBadge value={c.publication?.state || 'hidden'}/></div></td>
                         </>
                       ) : tab === "ats" ? (
                         <>
                           <td className="p-3">
                             {c.department_code || "—"} / {c.program || "—"}
                           </td>
-                          <td className="p-3"><InterviewStatusBadge value={c.assignment_status} /></td>
+                          <td className="p-3"><InterviewStatusBadge value={candidateInterviewStatus(c)} /></td>
                           <td className="p-3">
                             <ScoreBadge score={c.ats_fit_score} />
                           </td>
@@ -2555,7 +2502,7 @@ export default function DriveManagement({
                             {c.department_code || "—"} / {c.program || "—"}
                           </td>
                           <td className="p-3">
-                            <InterviewStatusBadge value={c.assignment_status === "in_progress" ? "in_progress" : c.evaluation_status === "held_for_review" ? "needs_review" : c.evaluation_status === "released" ? "completed" : c.preparation_status || "not_started"} />
+                            <InterviewStatusBadge value={candidateInterviewStatus(c)} />
                           </td>
                           <td className="p-3">
                             <AttemptBadge candidate={c} driveMaxAttempts={drive?.max_attempts} />
@@ -2632,7 +2579,10 @@ export default function DriveManagement({
       {tab === "skills" && data && <SkillView data={data} />}{" "}
       {tab === "departments" && data && <DepartmentView data={data} onViewReport={(student) => setParams(current => { current.set("section", "results"); current.set("candidate", String(student.student_id)); return current; })} />}{" "}
       {tab === "settings" && drive && (
-        <div className="space-y-5"><DriveSettings
+        <div className="space-y-5">
+          <div className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-violet-200 bg-violet-50 p-4"><div><h3 className="font-medium">Complete drive setup</h3><p className="text-sm text-slate-500">Edit all Create Drive fields, eligibility, roles, questions and attempt rules.</p></div><button className={btn} disabled={Boolean(drive.is_locked) || ['closed','cancelled'].includes(drive.status)} onClick={() => {setEditorStep(0);setFullEditor(value => !value);}}>{fullEditor ? 'Close complete editor' : 'Edit complete setup'}</button></div>
+          {fullEditor && <CreateDriveWizard programs={programOptions} drive={drive} initialStep={editorStep} collegeTimezone={collegeTimezone} onCancel={() => setFullEditor(false)} onSaved={message => {setNotice(message);setFullEditor(false);setVersion(v => v + 1);}}/>}
+          {!fullEditor && <DriveSettings
           drive={drive}
           collegeTimezone={collegeTimezone}
           busy={busy}
@@ -2656,7 +2606,7 @@ export default function DriveManagement({
               setBusy(false);
             }
           }}
-        /></div>
+        />}</div>
       )}
       {selected && (
         <div
@@ -2717,6 +2667,7 @@ export default function DriveManagement({
                       View attempt history
                     </button>
                   </div>
+                  <section className="rounded-xl border border-slate-200 bg-slate-50 p-4"><h4 className="font-medium">Attempt policy & AI Coach</h4><p className="mt-1 text-sm text-slate-500">Drive default: {drive?.max_attempts || 1} attempt(s). Manual limits apply only to this candidate.</p>{(drive?.score_attempt_rules || []).map((rule,index) => <p key={index} className="mt-2 text-sm">Score {rule.min_score}–{rule.max_score}: {rule.max_attempts} attempt(s){rule.require_coach ? ' · Complete AI Coach before the next attempt' : ''}</p>)}{!(drive?.score_attempt_rules || []).length && <p className="mt-2 text-sm text-slate-500">No score-based rules configured.</p>}<button className={`${btn} mt-3`} onClick={() => {setSelected(null);setDetail(null);setEditorStep(1);setFullEditor(true);setParams(p => {p.set('section','settings');return p;});}}>Configure attempt & Coach rules</button></section>
                   {drive && ["scheduled", "active"].includes(drive.status) && String(selected.assignment_status) !== "in_progress" && (
                       <>
                         <label className="block max-w-xs text-sm">

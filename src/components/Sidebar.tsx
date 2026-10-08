@@ -1,6 +1,6 @@
 import { useState } from "react";
 import {
-  BarChart3, BriefcaseBusiness, GraduationCap, Home, MessageSquare, Mic, Settings, LogOut, Users, Radio, ChevronDown, BookOpen, TicketCheck,
+  Building2, BarChart3, BriefcaseBusiness, GraduationCap, Home, MessageSquare, Mic, Settings, LogOut, Users, Radio, ChevronDown, BookOpen, TicketCheck,
 } from "lucide-react";
 import { useNavigate, useLocation } from "react-router-dom";
 import authApi from "@/api/authApi";
@@ -44,7 +44,7 @@ export function Sidebar({ isOpen, onClose, isCollapsed }: SidebarProps) {
     { id: "placement-settings", icon: Settings, label: "Placement settings", path: "/dashboard/placement-management?view=settings" },
     { id: "erp", icon: BookOpen, label: "ERP", path: "/dashboard/erp" },
     { id: "question-papers", icon: BookOpen, label: "Question Paper Generation", path: "/dashboard/question-papers" },
-    { id: "attendance", icon: GraduationCap, label: "Institution Management", path: "/dashboard/attendance" },
+    { id: "attendance", icon: Building2, label: "Institution Management", path: "/dashboard/attendance" },
   ] : [
     { id: "home", icon: Home, label: "Home", path: "/dashboard" },
     { id: "conversations", icon: MessageSquare, label: "Conversations", path: "/dashboard/conversations" },
@@ -59,7 +59,7 @@ export function Sidebar({ isOpen, onClose, isCollapsed }: SidebarProps) {
         ...(emailEnabled ? [{ id: "gmail", label: "Gmail", path: "/dashboard/communications/gmail" }] : []),
       ],
     },
-    ...(collegeAccess?.enabled ? [{ id: "college", icon: GraduationCap, label: "Placement management", path: "/dashboard/placement-management" }, { id: "attendance", icon: GraduationCap, label: "Institution Management", path: "/dashboard/attendance" }, { id: "erp", icon: BookOpen, label: "ERP", path: "/dashboard/erp" }] : []),
+    ...(collegeAccess?.enabled ? [{ id: "college", icon: GraduationCap, label: "Placement management", path: "/dashboard/placement-management" }, { id: "attendance", icon: Building2, label: "Institution Management", path: "/dashboard/attendance" }, { id: "erp", icon: BookOpen, label: "ERP", path: "/dashboard/erp" }] : []),
     ...(collegeAccess?.enabled ? [{ id: "question-papers", icon: BookOpen, label: "Question Paper Generation", path: "/dashboard/question-papers" }] : []),
     { id: "settings", icon: Settings, label: "Settings", path: "/dashboard/settings" },
   ];
@@ -95,10 +95,10 @@ export function Sidebar({ isOpen, onClose, isCollapsed }: SidebarProps) {
       <aside
         className={`fixed inset-y-0 start-0 z-[70] transition-all duration-300 transform bg-white border-e border-slate-200 dark:bg-slate-900 dark:border-slate-800 w-72 ${isOpen ? "translate-x-0" : "-translate-x-full"} ${isCollapsed ? "md:w-20" : "md:w-[17rem]"} md:translate-x-0 md:sticky md:top-0 md:h-screen md:block`}
       >
-        <div className="flex flex-col h-full py-6">
+        <div className="flex flex-col h-full">
           <SidebarLogo isCollapsed={isCollapsed} onClose={onClose} />
 
-          <nav className="flex-1 px-3 space-y-1.5 overflow-y-auto mt-6">
+          <nav className="min-h-0 flex-1 px-3 pb-4 space-y-1.5 overflow-y-auto custom-scrollbar">
             {navItems.map((item) => {
               const isActive = item.path === "/dashboard"
                 ? location.pathname === "/dashboard"
@@ -120,10 +120,10 @@ export function Sidebar({ isOpen, onClose, isCollapsed }: SidebarProps) {
                         go(hasChildren ? item.children![0].path : item.path);
                       }
                     }}
-                    className={`w-full flex items-center gap-x-3.5 py-3 px-4 text-sm font-semibold rounded-xl transition-all duration-200 ${isActive ? "bg-indigo-600 text-white shadow-lg shadow-indigo-100 dark:shadow-none" : "text-slate-600 hover:bg-slate-50 dark:text-slate-400 dark:hover:bg-slate-800"} ${isCollapsed ? "md:justify-center md:px-0" : ""}`}
+                    className={`w-full flex items-center gap-x-3 py-3 px-4 text-[13px] font-medium rounded-xl transition-all duration-200 ${isActive ? "bg-indigo-600 text-white shadow-lg shadow-indigo-100 dark:shadow-none" : "text-slate-600 hover:bg-slate-50 dark:text-slate-400 dark:hover:bg-slate-800"} ${isCollapsed ? "md:justify-center md:px-0" : ""}`}
                   >
-                    <item.icon size={20} strokeWidth={isActive ? 2.5 : 2} />
-                    {!isCollapsed && <span className="flex-1 text-left">{item.label}</span>}
+                    <item.icon size={20} strokeWidth={1.8} className="shrink-0" />
+                    {!isCollapsed && <span className="min-w-0 flex-1 text-left whitespace-nowrap">{item.label}</span>}
                     {!isCollapsed && hasChildren && (
                       <ChevronDown
                         size={16}
@@ -154,7 +154,7 @@ export function Sidebar({ isOpen, onClose, isCollapsed }: SidebarProps) {
             })}
           </nav>
 
-          <div className="px-3 mt-auto pt-4 border-t border-slate-100 dark:border-slate-800">
+          <div className="px-5 mt-auto py-4 border-t border-slate-100 dark:border-slate-800">
             <button
               type="button"
               onClick={async (e) => {
@@ -163,7 +163,7 @@ export function Sidebar({ isOpen, onClose, isCollapsed }: SidebarProps) {
                 logout();
                 navigate("/login", { replace: true });
               }}
-              className={`w-full flex items-center gap-x-3.5 py-3 px-4 text-sm font-bold text-red-500 rounded-xl hover:bg-red-50 dark:hover:bg-red-900/10 transition-all ${isCollapsed ? "md:justify-center md:px-0" : ""}`}
+              className={`w-full flex items-center gap-x-3 py-3 px-3 text-sm font-medium text-red-500 rounded-xl hover:bg-red-50 dark:hover:bg-red-900/10 transition-all ${isCollapsed ? "md:justify-center md:px-0" : ""}`}
             >
               <LogOut size={20} />
               {!isCollapsed && <span>Logout</span>}

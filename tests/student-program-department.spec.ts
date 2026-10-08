@@ -34,7 +34,7 @@ async function setup(page: Page, enabled = true, options: { notFound?: string[];
 
 async function visitRoster(page: Page, studentRows: unknown[] = []) {
   await setup(page, true, { initialPath: '/dashboard/attendance', studentRows });
-  await page.getByRole('button', { name: 'Student roster', exact: true }).click();
+  await page.getByRole('button', { name: 'Student Roster', exact: true }).click();
 }
 
 async function openRoster(page: Page) {
@@ -111,4 +111,34 @@ test('Edit Student starts without Department for a no-department Program and sho
   await expect(department).toBeVisible();
   await expect(department).toHaveAttribute('required', '');
   await expect(department).toHaveValue('');
+});
+
+test('returning every roster filter to All omits empty query values and restores students', async ({page}) => {
+  await visitRoster(page);
+  await page.route('**/v3/college/roster-options',route=>route.fulfill({json:{batches:['2023-2027'],graduation_years:[2027],statuses:['active']}}));
+  await page.route(/\/v3\/college\/students(?:\?.*)?$/,route=>{
+    const params=new URL(route.request().url()).searchParams;
+    const filtered=['program','department','graduation_year','status','batch_label'].some(key=>params.has(key));
+    return route.fulfill({json:{items:filtered?[]:[{id:'sample',full_name:'Sample Filter Student',roll_number:'SAMPLE-001',email:'sample@example.test',program:'WITH_DEPTS',department_code:'CSE',graduation_year:2027,cgpa:8,status:'active'}],total:filtered?0:1}});
+  });
+  await page.getByRole('button',{name:'Refresh',exact:true}).click();
+  await expect(page.getByText('Sample Filter Student',{exact:true})).toBeVisible();
+  for(const [label,value] of [['program','WITH_DEPTS'],['department','CSE'],['graduation year','2027'],['status','active'],['batch','2023-2027']]){
+    const filter=page.getByLabel(`Filter by ${label}`,{exact:true});
+    await filter.selectOption(value);
+    await expect(page.getByText('Sample Filter Student',{exact:true})).toHaveCount(0);
+    const request=page.waitForRequest(r=>new URL(r.url()).pathname==='/v3/college/students'&&!new URL(r.url()).searchParams.has(label==='graduation year'?'graduation_year':label==='batch'?'batch_label':label));
+    await filter.selectOption('');await request;
+    await expect(page.getByText('Sample Filter Student',{exact:true})).toBeVisible();
+  }
+  await expect(page.getByText('Choose a program configured in Academic Setup.',{exact:true})).toHaveCount(0);
+});
+
+test('enrolled student academic edit omits locked identity and preserves upload permission',async({page})=>{
+ await visitRoster(page,[{id:'enrolled',full_name:'Enrolled Sample',roll_number:'SAMPLE-002',email:'enrolled@example.test',phone:'+919876543210',program:'WITH_DEPTS',department_code:'CSE',graduation_year:2027,cgpa:8,status:'active',identity_locked:true,allow_student_photo_upload:true}]);
+ await page.getByRole('row').filter({hasText:'Enrolled Sample'}).getByRole('button',{name:'Edit',exact:true}).click();
+ const dialog=page.getByRole('dialog');await dialog.locator('label').filter({hasText:/^Program/}).locator('select').selectOption('NO_DEPTS');
+ let saved:any;await page.route('**/v3/college/students/enrolled',route=>{saved=route.request().postDataJSON();return route.fulfill({json:{status:'updated'}})});
+ await dialog.getByRole('button',{name:'Save student'}).click();await expect(page.getByText('Student updated.',{exact:true})).toBeVisible();
+ expect(saved.program).toBe('NO_DEPTS');expect(saved.department_code).toBe('');expect(saved).not.toHaveProperty('email');expect(saved).not.toHaveProperty('roll_number');expect(saved.allow_student_photo_upload).toBe(true);
 });

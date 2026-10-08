@@ -13,7 +13,7 @@ export default function StudentRosterTable({students,total,offset,busy,onPage,on
   {accessorKey:'batch_label',header:'Batch',enableSorting:false},
   {accessorKey:'date_of_birth',header:'Date of birth',enableSorting:false,cell:info=>info.getValue()?new Date(String(info.getValue())+'T00:00:00').toLocaleDateString('en-IN',{day:'2-digit',month:'2-digit',year:'numeric'}):'—'},
   {accessorKey:'graduation_year',header:'Graduation'},
-  {accessorKey:'cgpa',header:'Cgpa'},
+  {accessorKey:'cgpa',header:'CGPA',cell:info=>info.getValue()??'—'},
   {accessorKey:'status',header:'Status',enableSorting:false,cell:info=>displayName(String(info.getValue()))},
   {id:'actions',header:'Actions',enableSorting:false,cell:({row})=><div className="flex flex-wrap gap-2"><button className="inline-flex items-center gap-1.5 rounded-lg border border-indigo-200 px-3 py-2 text-indigo-700" onClick={()=>onAnalyze(row.original)}><ChartNoAxesCombined size={15}/>Analysis</button><Link className="rounded-lg border px-3 py-2" to={`/dashboard/attendance?tab=records&section=students&student=${encodeURIComponent(row.original.id)}`}>Class & family</Link><button className="rounded-lg border px-3 py-2" onClick={()=>onEdit(row.original)}>Edit</button><button className="rounded-lg border border-rose-200 px-3 py-2 text-rose-700" onClick={()=>onDelete(row.original)}>Delete</button></div>},
  ],[onEdit,onDelete,onAnalyze]);

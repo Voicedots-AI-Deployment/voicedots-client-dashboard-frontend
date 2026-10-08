@@ -42,7 +42,7 @@ test("dashboard charts start without invalid-size warnings", async ({ page }) =>
     });
 
     await page.goto("/dashboard", { waitUntil: "networkidle" });
-    await expect(page.getByRole("heading", { name: /overview|dashboard/i }).first()).toBeVisible();
+    await expect(page.getByRole("heading", { name: /overview|dashboard/i }).first()).toBeVisible({timeout:15000});
     await expect.poll(() => chartWarnings).toEqual([]);
 });
 

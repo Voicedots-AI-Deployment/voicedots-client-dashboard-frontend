@@ -3,3 +3,10 @@ async function fill(page:import('@playwright/test').Page){await page.goto('/logi
 test('login normalizes email and preserves password exactly',async({page})=>{let form='';await page.route('**/v3/auth/login',r=>{form=r.request().postData()||'';return r.fulfill({status:401,json:{detail:'Invalid email or password'}})});await fill(page);await page.getByRole('button',{name:'Sign in to Dashboard'}).click();await expect(page.getByRole('alert')).toHaveText('Invalid email or password');const values=new URLSearchParams(form);expect(values.get('email')).toBe('manager@example.edu');expect(values.get('password')).toBe(' Password with spaces ');});
 for(const mode of ['network','server'] as const)test(`login reports ${mode} failure accurately`,async({page})=>{await page.route('**/v3/auth/login',r=>mode==='network'?r.abort():r.fulfill({status:503,json:{}}));await fill(page);await page.getByRole('button',{name:'Sign in to Dashboard'}).click();await expect(page.getByRole('alert')).toContainText(mode==='network'?'Could not connect':'temporarily unavailable');await expect(page.getByRole('alert')).not.toContainText('Invalid email or password');});
 test('incorrect credentials are never retried on the legacy route',async({page})=>{let fallback=0;await page.route('**/v1/auth/login',r=>{fallback++;return r.fulfill({json:{}})});await page.route('**/v3/auth/login',r=>r.fulfill({status:401,json:{detail:'Invalid email or password'}}));await fill(page);await page.getByRole('button',{name:'Sign in to Dashboard'}).click();await expect(page.getByRole('alert')).toBeVisible();expect(fallback).toBe(0);});
+
+test('login restores Manrope and uses restrained heading and form weights',async({page})=>{
+ await page.goto('/login');
+ expect(await page.locator('body').evaluate(el=>getComputedStyle(el).fontFamily)).toContain('Manrope');
+ for(const element of await page.locator('h1,h2,label').all())expect(Number(await element.evaluate(el=>getComputedStyle(el).fontWeight))).toBeLessThanOrEqual(500);
+ await page.screenshot({path:'/root/voicedots/artifacts/interview-flow-audit-20261008/client-login.png'});
+});

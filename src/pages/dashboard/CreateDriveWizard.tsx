@@ -10,7 +10,7 @@ const input = 'mt-1.5 w-full rounded-xl border border-slate-300 bg-white p-3 tex
 const button = 'inline-flex items-center justify-center gap-2 rounded-xl border border-slate-200 px-4 py-2.5 text-sm font-semibold transition hover:border-violet-300 disabled:cursor-not-allowed disabled:opacity-50 dark:border-slate-700';
 const primary = `${button} border-violet-600 bg-violet-600 text-white hover:bg-violet-700`;
 const panel = 'rounded-2xl border border-slate-200 bg-white p-5 shadow-sm dark:border-slate-800 dark:bg-slate-900 sm:p-7';
-const steps = ['Drive & company', 'Interview setup', 'Interview roles', 'Questions', 'Eligibility', 'Review & create'];
+const creationSteps = ['Drive & company', 'Interview setup', 'Interview roles', 'Questions', 'Eligibility', 'Review & create'];
 const DRAFT_KEY = 'voicedots:placement-drive-draft:v2';
 const CURRENCIES = [['INR','INR · ₹'],['USD','USD · $'],['EUR','EUR · €'],['GBP','GBP · £'],['AUD','AUD · A$'],['CAD','CAD · C$'],['CHF','CHF · Fr'],['CNY','CNY · ¥'],['JPY','JPY · ¥'],['NZD','NZD · NZ$'],['SGD','SGD · S$'],['AED','AED · د.إ'],['SAR','SAR · ر.س'],['ZAR','ZAR · R']] as const;
 const HOURS = Array.from({length:12},(_,i)=>String(i+1));
@@ -59,8 +59,9 @@ const joinDateTime = (date:string,hour:string,minute:string,ampm:string) => {
   return `${date}T${String(h).padStart(2,'0')}:${minute}`;
 };
 
-export default function CreateDriveWizard({programs,drive,draftId,collegeTimezone='Asia/Kolkata',onCancel,onSaved}:{programs:Program[];drive?:Drive|null;draftId?:string|null;collegeTimezone?:string;onCancel:()=>void;onSaved:(message:string)=>void}) {
-  const [step,setStep]=useState(0),[form,setForm]=useState<FormState>(empty),[selection,setSelection]=useState<Selection[]>(defaultSelection),[rounds,setRounds]=useState<RoundConfiguration[]>([]);
+export default function CreateDriveWizard({programs,drive,draftId,initialStep=0,collegeTimezone='Asia/Kolkata',onCancel,onSaved}:{programs:Program[];drive?:Drive|null;draftId?:string|null;initialStep?:number;collegeTimezone?:string;onCancel:()=>void;onSaved:(message:string)=>void}) {
+  const steps = drive ? [...creationSteps.slice(0,5),'Review & save'] : creationSteps;
+  const [step,setStep]=useState(drive ? initialStep : 0),[form,setForm]=useState<FormState>(empty),[selection,setSelection]=useState<Selection[]>(defaultSelection),[rounds,setRounds]=useState<RoundConfiguration[]>([]);
   const [programIds,setProgramIds]=useState<string[]>([]),[departments,setDepartments]=useState<string[]>([]),[years,setYears]=useState<string[]>([]),[availableYears,setAvailableYears]=useState<number[]>([]);
   const [difficultyConfirmed,setDifficultyConfirmed]=useState(false),[confirmDifficulty,setConfirmDifficulty]=useState(false),[library,setLibrary]=useState<AgentLibrary|null>(null);
   const [companyProfiles,setCompanyProfiles]=useState<CompanyProfile[]>([]),[companySearch,setCompanySearch]=useState(''),[companyPickerOpen,setCompanyPickerOpen]=useState(false),[roleSuggestions,setRoleSuggestions]=useState<string[]>([]),[rolePickerOpen,setRolePickerOpen]=useState(false);
@@ -68,6 +69,8 @@ export default function CreateDriveWizard({programs,drive,draftId,collegeTimezon
   const [fieldErrors,setFieldErrors]=useState<Record<string,string>>({}),[formError,setFormError]=useState(''),[notice,setNotice]=useState('');
   const [draftLoaded,setDraftLoaded]=useState(Boolean(drive)),[draftStatus,setDraftStatus]=useState<'saved'|'saving'|'error'|'idle'>('idle');
   const [creationKey,setCreationKey]=useState<string>(()=>crypto.randomUUID());
+  const [advancing,setAdvancing]=useState(false);
+  const advancingRef=useRef(false),submittingRef=useRef(false),submittedRef=useRef(false);
   const draftIdRef=useRef<string|null>(draftId||null),draftSavingRef=useRef(false),draftResaveRef=useRef(false),draftSaveWaitersRef=useRef<Array<()=>void>>([]),companyPickerRef=useRef<HTMLDivElement|null>(null);
 
   const availableDepartments=useMemo(()=>programs.filter(program=>programIds.includes(program.code)).flatMap(program=>program.departments),[programs,programIds]);
@@ -163,7 +166,7 @@ export default function CreateDriveWizard({programs,drive,draftId,collegeTimezon
   latestDraftRef.current=currentDraftPayload();
 
   async function saveDraft(manual=false,nextStep=step){
-    if(drive)return false;
+    if(drive||submittingRef.current||submittedRef.current)return false;
     if(draftSavingRef.current){draftResaveRef.current=true;if(manual)setNotice('A draft save is already finishing. Wait for its status before continuing.');return false;}
     const payload={...latestDraftRef.current,step:nextStep};
     localStorage.setItem(DRAFT_KEY,JSON.stringify({id:draftIdRef.current,payload,saved_at:new Date().toISOString()}));
@@ -177,23 +180,26 @@ export default function CreateDriveWizard({programs,drive,draftId,collegeTimezon
           row=await collegeApi.save<DriveDraft>('drive-drafts',{payload,step:nextStep,client_draft_key:creationKey});
         }
       }else row=await collegeApi.save<DriveDraft>('drive-drafts',{payload,step:nextStep,client_draft_key:creationKey});
+      if(submittedRef.current)return false;
       draftIdRef.current=row.id;setDraftStatus('saved');setNotice(manual?'Draft saved.':'');
-      localStorage.setItem(DRAFT_KEY,JSON.stringify({id:row.id,payload,saved_at:new Date().toISOString()}));
+      localStorage.setItem(DRAFT_KEY,JSON.stringify({id:row.id,payload:{...latestDraftRef.current,step:manual?nextStep:latestDraftRef.current.step},saved_at:new Date().toISOString()}));
       return true;
     }catch(e){setDraftStatus('error');if(manual)setNotice(`Draft kept on this device; cloud save failed: ${collegeError(e)}`);return false;}
     finally{draftSavingRef.current=false;for(const resolve of draftSaveWaitersRef.current.splice(0))resolve();if(draftResaveRef.current){draftResaveRef.current=false;void saveDraft(false,latestDraftRef.current.step);}}
   }
 
   useEffect(()=>{
-    if(drive||!draftLoaded)return;
+    if(drive||!draftLoaded||submittedRef.current)return;
     const payload=currentDraftPayload();
     localStorage.setItem(DRAFT_KEY,JSON.stringify({id:draftIdRef.current,payload,saved_at:new Date().toISOString()}));
     const timer=setTimeout(()=>void saveDraft(false),1200);return()=>clearTimeout(timer);
   },[drive,draftLoaded,form,selection,rounds,programIds,departments,years,step,creationKey]);
 
+  const previousGeneratedQuestions=useRef<Record<string,string[]>>({});
   function update<K extends keyof FormState>(key:K,value:FormState[K]){
     setForm(current=>({...current,[key]:value,...(key==='company_name'&&value!==current.company_name?{company_profile_id:''}:{})}));setFieldErrors(current=>{const next={...current};delete next[key];if(key==='window_start'||key==='window_end')delete next.window_end;return next;});setFormError('');
     if(key==='difficulty_tier')setDifficultyConfirmed(false);
+    if(['difficulty_tier','duration','jd_text','role_title'].includes(key)){for(const round of rounds){if(round.question_source==='ai_generated')previousGeneratedQuestions.current[round.track]=[...(previousGeneratedQuestions.current[round.track]||[]),...round.questions].slice(-100);}setRounds(all=>all.map(round=>round.question_source==='ai_generated'?{...round,questions:[]}:round));}
   }
   function roleName(item:Selection){
     if(item.profile?.role)return item.profile.role;
@@ -214,9 +220,12 @@ export default function CreateDriveWizard({programs,drive,draftId,collegeTimezon
       setCompanyProfiles(current=>[profile,...current.filter(item=>item.id!==profile.id)]);selectedProfile(profile);setNotice(`${profile.company_name} saved and selected.`);
     }catch(error){applyBackendErrors(error);}finally{setBusy(false);}
   }
+  const generationContext=JSON.stringify([form.role_title,form.jd_text,form.difficulty_tier,form.duration,selection]);
+  const generationContextRef=useRef(generationContext);generationContextRef.current=generationContext;
   async function generate(track:string){
+    const requestedContext=generationContextRef.current;
     setGenerating(current=>new Set(current).add(track));setFormError('');
-    try{const result=await collegeApi.save<{scripted_questions:Record<string,string[]>}>('drive-questions/preview',{role_title:form.role_title,jd_text:form.jd_text,interview_duration_minutes:Number(form.duration),agent_selection:selection.map(({track,agent_id})=>({track,agent_id}))});setRounds(all=>all.map(round=>round.track===track?{...round,question_source:'ai_generated',questions:result.scripted_questions[track]||[]}:round));}
+    try{const result=await collegeApi.save<{scripted_questions:Record<string,string[]>}>('drive-questions/preview',{role_title:form.role_title,jd_text:form.jd_text,difficulty_tier:form.difficulty_tier,target_track:track,avoid_questions:[...(previousGeneratedQuestions.current[track]||[]),...(rounds.find(round=>round.track===track)?.questions||[])].slice(-100),interview_duration_minutes:Number(form.duration),agent_selection:selection.map(({track,agent_id})=>({track,agent_id}))});if(requestedContext!==generationContextRef.current){setNotice('Question settings changed. Generate again using the current settings.');return;}previousGeneratedQuestions.current[track]=[...(previousGeneratedQuestions.current[track]||[]),...(result.scripted_questions[track]||[])].slice(-100);setRounds(all=>all.map(round=>round.track===track?{...round,question_source:'ai_generated',questions:result.scripted_questions[track]||[]}:round));}
     catch(error){applyBackendErrors(error);}finally{setGenerating(current=>{const next=new Set(current);next.delete(track);return next;});}
   }
   async function loadPreview(){
@@ -249,7 +258,7 @@ export default function CreateDriveWizard({programs,drive,draftId,collegeTimezon
       const startInstant=form.window_start?wallTimeToInstant(form.window_start,collegeTimezone):Number.NaN;
       const endInstant=form.window_end?wallTimeToInstant(form.window_end,collegeTimezone):Number.NaN;
       if(form.window_start&&!Number.isFinite(startInstant))errors.window_start='Choose a valid local interview start time.';
-      else if(form.window_start&&startInstant<Date.now())errors.window_start='Interview start must be in the present or future.';
+      else if(form.window_start&&startInstant<Date.now()&&(!drive||form.window_start!==wallTimeFromInstant(drive.window_start_at,collegeTimezone)))errors.window_start='Interview start must be in the present or future.';
       if(form.window_end&&!Number.isFinite(endInstant))errors.window_end='Choose a valid local interview end time.';
       else if(form.window_start&&form.window_end&&endInstant<=startInstant)errors.window_end='Interview end must be later than interview start.';
       if(form.application_deadline&&(!/^([01]\d|2[0-3]):[0-5]\d$/.test(form.application_deadline_time)))errors.application_deadline='Choose a valid application closing time.';
@@ -270,18 +279,27 @@ export default function CreateDriveWizard({programs,drive,draftId,collegeTimezon
   }
   function focusError(errors:Record<string,string>){const first=Object.keys(errors)[0];if(first)setTimeout(()=>document.getElementById(first)?.focus(),0);}
   function goTo(target:number){
+    if(advancingRef.current||submittingRef.current)return;
+    if(drive){setFieldErrors({});setFormError('');setStep(target);return;}
     const nextErrors:Record<string,string>={};
     for(let index=0;index<target;index++)Object.assign(nextErrors,validate(index));
     if(Object.keys(nextErrors).length){const first=Object.keys(nextErrors)[0];setStep(stepFor(first));setFieldErrors(nextErrors);focusError(nextErrors);return;}
     setFieldErrors({});setFormError('');setStep(target);
   }
   async function next(){
+    if(advancingRef.current||submittingRef.current)return;
     const errors=validate(step);if(Object.keys(errors).length){setFieldErrors(errors);focusError(errors);return;}
     setFieldErrors({});setFormError('');
     if(step===4&&ambiguousDifficulty&&!difficultyConfirmed){setConfirmDifficulty(true);return;}
-    const target=Math.min(5,step+1);
-    if(!drive){while(draftSavingRef.current)await new Promise<void>(resolve=>draftSaveWaitersRef.current.push(resolve));if(!await saveDraft(true,target))return;}
-    setStep(target);
+    await advanceTo(Math.min(5,step+1));
+  }
+  async function advanceTo(target:number){
+    if(advancingRef.current||submittingRef.current)return;
+    advancingRef.current=true;setAdvancing(true);
+    try{
+      if(!drive){while(draftSavingRef.current)await new Promise<void>(resolve=>draftSaveWaitersRef.current.push(resolve));if(!await saveDraft(true,target))return;}
+      setStep(target);
+    }finally{advancingRef.current=false;setAdvancing(false);}
   }
   function moveRole(index:number,direction:number){const target=index+direction;if(target<0||target>=selection.length)return;setSelection(current=>{const rows=[...current];[rows[index],rows[target]]=[rows[target],rows[index]];return rows;});}
   function addRole(track:string){if(selection.length>=4||selection.some(item=>item.track===track))return;setSelection(current=>[...current,{track,agent_id:null}]);}
@@ -307,14 +325,17 @@ export default function CreateDriveWizard({programs,drive,draftId,collegeTimezon
     };
   }
   async function submit(){
+    if(submittingRef.current||advancingRef.current)return;
     for(let index=0;index<5;index++){const errors=validate(index);if(Object.keys(errors).length){setStep(index);setFieldErrors(errors);focusError(errors);return;}}
     if(ambiguousDifficulty&&!difficultyConfirmed){setStep(4);setConfirmDifficulty(true);return;}
-    setBusy(true);setFormError('');setFieldErrors({});
+    submittingRef.current=true;setBusy(true);setFormError('');setFieldErrors({});
     try{
+      while(draftSavingRef.current)await new Promise<void>(resolve=>draftSaveWaitersRef.current.push(resolve));
       const result=await collegeApi.save<{status?:string;warnings?:string[]}>(drive?`drives/${drive.id}`:'drives',apiPayload(),!!drive);
+      submittedRef.current=true;draftResaveRef.current=false;
       localStorage.removeItem(DRAFT_KEY);draftIdRef.current=null;
       onSaved([drive?'Drive changes saved.':`Drive created (${displayName(result.status||'draft')}).`,...(result.warnings||[])].join(' '));
-    }catch(error){applyBackendErrors(error);}finally{setBusy(false);}
+    }catch(error){applyBackendErrors(error);}finally{submittingRef.current=false;setBusy(false);}
   }
 
   function fieldError(key:string){return fieldErrors[key]?<span id={`${key}-error`} className="mt-1.5 flex items-start gap-1.5 text-xs font-medium text-rose-600"><CircleAlert size={14} className="mt-0.5 shrink-0"/>{fieldErrors[key]}</span>:null;}
@@ -334,16 +355,16 @@ export default function CreateDriveWizard({programs,drive,draftId,collegeTimezon
 
   return <section className="drive-wizard space-y-6 text-slate-900 dark:text-white">
     <div className="flex flex-wrap items-center justify-between gap-3"><button className={button} onClick={onCancel}><ArrowLeft size={16}/>Back to placement drives</button>{!drive&&<div className="flex items-center gap-2 text-xs text-slate-500" role="status">{draftStatus==='saving'?<><span className="rs-save-dot saving"/>Saving draft…</>:draftStatus==='saved'?<><span className="rs-save-dot"/>Draft saved</>:draftStatus==='error'?<><span className="rs-save-dot error"/>Offline draft saved on this device</>:<><span className="rs-save-dot"/>Draft auto-save ready</>}</div>}</div>
-    <header className="dw-heading"><div><p className="text-sm font-semibold uppercase tracking-[.16em] text-violet-600">Placement management</p><h1 className="mt-2 text-3xl font-bold tracking-tight">{drive?'Modify placement drive':'Create placement drive'}</h1><p className="mt-2 max-w-2xl text-sm leading-6 text-slate-500">Set up a clear, reusable hiring workflow. Your draft saves as you work; publish only after reviewing all details.</p></div>{!drive&&<button className={button} disabled={draftStatus==='saving'} onClick={()=>void saveDraft(true)}><Save size={16}/>Save draft</button>}</header>
+    <header className="dw-heading"><div><p className="text-sm font-semibold uppercase tracking-[.16em] text-violet-600">Placement management</p><h1 className="mt-2 text-3xl font-bold tracking-tight">{drive?'Modify placement drive':'Create placement drive'}</h1><p className="mt-2 max-w-2xl text-sm leading-6 text-slate-500">{drive?'Modify the saved configuration for this drive. All sections are available; changes apply when you save.':'Set up a clear hiring workflow. Your draft saves as you work; publish after reviewing all details.'}</p></div>{!drive&&<button className={button} disabled={draftStatus==='saving'||advancing||busy} onClick={()=>void saveDraft(true)}><Save size={16}/>Save draft</button>}</header>
     <nav className="dw-stepper" aria-label="Drive creation steps">{steps.map((name,index)=>{
-      const completed=index<step,active=index===step,blocked=index>step&&Object.keys(validate(index-1)).length>0;
+      const completed=index<step,active=index===step,blocked=!drive&&index>step&&Object.keys(validate(index-1)).length>0;
       return <button type="button" key={name} aria-current={active?'step':undefined} aria-label={`${index+1}. ${name}`} title={blocked?'Complete the previous step to continue':`Go to ${name}`} className={`dw-step ${active?'active':''} ${completed?'completed':''}`} onClick={()=>goTo(index)}><span className="dw-step-number">{completed?<Check size={15}/>:index+1}</span><span className="dw-step-title">{name}</span>{index<steps.length-1&&<span className="dw-step-line"/>}</button>;
     })}</nav>
     {formError&&<div className="dw-form-error" role="alert"><CircleAlert size={18}/><span>{formError}</span></div>}
     {notice&&<div className="dw-notice" role="status"><Check size={17}/>{notice}<button type="button" aria-label="Dismiss message" onClick={()=>setNotice('')}><X size={15}/></button></div>}
 
     <main className={`${panel} dw-main`}>
-      <div className="dw-step-intro"><span className="eyebrow">STEP {step+1} OF {steps.length}</span><h2>{steps[step]}</h2><p>{step===0?'Choose a company and provide the job details unique to this drive.':step===1?'Set a clear interview timetable and candidate attempt limit.':step===2?'Choose and order the interview roles. System-managed avatar and voice identities stay fixed.':step===3?'Choose how each round gets its questions and review every fixed question.':step===4?'Set the academic eligibility rules and verify the matching roster.':'Review the complete drive before creating it.'}</p></div>
+      <div className="dw-step-intro"><span className="eyebrow">STEP {step+1} OF {steps.length}</span><h2>{steps[step]}</h2><p>{step===0?'Choose a company and provide the job details unique to this drive.':step===1?'Set a clear interview timetable and candidate attempt limit.':step===2?'Choose and order the interview roles. System-managed avatar and voice identities stay fixed.':step===3?'Choose how each round gets its questions and review every fixed question.':step===4?'Set the academic eligibility rules and verify the matching roster.':drive?'Review changes to the existing drive before saving.':'Review the complete drive before creating it.'}</p></div>
 
       {step===0&&<div className="dw-content space-y-5">
         <Section title="Company profile" description="Reuse an existing company profile or add a profile without leaving this flow.">
@@ -379,7 +400,7 @@ export default function CreateDriveWizard({programs,drive,draftId,collegeTimezon
           <div className="grid gap-4 md:grid-cols-2"><div className="grid grid-cols-2 gap-3"><label className="block text-sm font-medium"><span>Application deadline</span><input id="application_deadline" className={input} type="date" value={form.application_deadline} onChange={event=>update('application_deadline',event.target.value)}/>{fieldError('application_deadline')}</label><label className="block text-sm font-medium">Closing time<input aria-label="Application deadline time" className={input} type="time" value={form.application_deadline_time} onChange={event=>update('application_deadline_time',event.target.value)}/></label></div>{inputField('Drive event date (optional)','drive_date','date')}<p className="md:col-span-2 -mt-2 text-xs text-slate-500">Application closes at the selected local time. The default is 11:59 PM. The optional Drive event date is separate from the interview window.</p></div>
         </Section>
         <Section title="Interview format" description="Set a fixed attempt limit, or define maximum attempts by the student's latest interview score.">
-          <div className="grid gap-4 md:grid-cols-3">{selectField('Interview duration','duration',[['15','15 minutes'],['30','30 minutes'],['45','45 minutes']],true)}{inputField('Default attempts per student','max_attempts','number',true,'1–5')}{selectField('Interview difficulty','difficulty_tier',[['dynamic','Dynamic · resume experience'],['beginner','Beginner'],['intermediate','Intermediate'],['advanced','Advanced']],true)}</div>
+          <div className="grid gap-4 md:grid-cols-3">{selectField('Interview duration','duration',[['5','5 minutes'],['10','10 minutes'],['15','15 minutes'],['30','30 minutes'],['45','45 minutes']],true)}{inputField('Default attempts per student','max_attempts','number',true,'1–5')}{selectField('Interview difficulty','difficulty_tier',[['dynamic','Personalized'],['beginner','Beginner'],['intermediate','Intermediate'],['advanced','Advanced']],true)}</div>
           <div className="mt-6 space-y-3 rounded-xl border border-slate-200 p-4 dark:border-slate-700">
             <div className="flex flex-wrap items-start justify-between gap-3"><div><h3 className="font-semibold">Score-based attempt rules</h3><p className="mt-1 max-w-2xl text-xs text-slate-500">Score ranges include both endpoints. A matching rule overrides the default attempt limit. If a rule requires AI Coach, the next attempt stays locked until the student completes Coach teaching, the linked practice interview, and independent validation. Opening AI Coach alone does not unlock it.</p></div><button type="button" className={button} onClick={()=>setForm(current=>({...current,score_attempt_rules:[...current.score_attempt_rules,{min_score:79,max_score:100,max_attempts:2,require_coach:false}]}))}><Plus size={15}/> Add score rule</button></div>
             {form.score_attempt_rules.map((rule,index)=><div key={index} className="grid items-end gap-3 rounded-lg bg-slate-50 p-3 dark:bg-slate-800 sm:grid-cols-[1fr_1fr_1fr_auto_auto]">
@@ -392,7 +413,7 @@ export default function CreateDriveWizard({programs,drive,draftId,collegeTimezon
             {fieldError('score_attempt_rules')&&<p role="alert" className="text-sm text-rose-600">{fieldError('score_attempt_rules')}</p>}
             {!form.score_attempt_rules.length&&<p className="text-sm text-slate-500">No score rules. This drive keeps the fixed attempt limit.</p>}
           </div>
-          {drive&&drive.status!=='draft'&&<p className="dw-info">Interview difficulty is locked after the drive is finalized.</p>}{recommendation&&<p className="dw-info">Academic-year suggestion: {displayName(recommendation)}. You can choose a different difficulty.</p>}
+          {form.difficulty_tier==='dynamic'&&<p className="dw-info">Personalized questions use the job description and each student’s resume experience.</p>}{drive&&<p className="dw-info">Changes apply to future interview attempts. Started attempts keep their prepared questions.</p>}{recommendation&&<p className="dw-info">Academic-year suggestion: {displayName(recommendation)}. You can choose a different difficulty.</p>}
         </Section>
       </div>}
 
@@ -400,7 +421,7 @@ export default function CreateDriveWizard({programs,drive,draftId,collegeTimezon
         <Section title="Interview sequence" description="Select up to four roles. Their order determines the sequence. Persona names are system-managed.">
           <div className="space-y-3">{selection.map((item,index)=><article className="dw-role-card" key={`${item.track}-${item.agent_id||'fixed'}`}><span className="dw-role-index">{String(index+1).padStart(2,'0')}</span><div className="min-w-0 flex-1"><span className="eyebrow">ROUND {index+1}</span><h3>{roleName(item)}</h3><p>{index===0?'Opening conversation and role fit':index===selection.length-1?'Closing discussion and hiring decision':'Role-specific interview and evidence gathering'}</p></div><div className="flex gap-1"><button type="button" className={button} disabled={index===0} aria-label={`Move ${roleName(item)} up`} onClick={()=>moveRole(index,-1)}><ArrowUp size={16}/></button><button type="button" className={button} disabled={index===selection.length-1} aria-label={`Move ${roleName(item)} down`} onClick={()=>moveRole(index,1)}><ArrowDown size={16}/></button><button type="button" className={button} aria-label={`Remove ${roleName(item)}`} onClick={()=>setSelection(current=>current.filter((_,position)=>position!==index))}><Trash2 size={16}/></button></div></article>)}</div>
           <div className="grid gap-3 sm:grid-cols-2">{TRACKS.filter(track=>!selection.some(item=>item.track===track)).map(track=><button type="button" className="dw-add-role" key={track} disabled={selection.length>=4} onClick={()=>addRole(track)}><Plus size={16}/><span><strong>{roleLabels[track]}</strong><small>Add this interview role</small></span></button>)}</div>
-          {Boolean(library?.agents.length)&&<label className="block max-w-xl text-sm font-medium">{label('Add a saved custom interview role')}<select className={input} value="" disabled={selection.length>=4} onChange={event=>addCustomAgent(event.target.value)}><option value="">Choose a saved role to add as an interviewer</option>{library?.agents.filter(agent=>!selection.some(item=>item.agent_id===agent.id)).map(agent=><option key={agent.id} value={agent.id}>{agent.role}</option>)}</select><small className="mt-1 block text-xs font-normal text-slate-500">Saved roles are added as a new interviewer and never replace an existing role.</small></label>}
+          {Boolean(library?.tracks.length||library?.agents.length)&&<label className="block max-w-xl text-sm font-medium">{label('Add an interview role')}<select className={input} value="" disabled={selection.length>=4} onChange={event=>event.target.value.startsWith('default:')?addRole(event.target.value.slice(8)):addCustomAgent(event.target.value)}><option value="">Choose a saved role to add as an interviewer</option><optgroup label="Default roles">{library?.tracks.map(item=><option key={item.track} value={`default:${item.track}`} disabled={selection.some(selected=>selected.track===item.track)}>{item.default_profile.role}</option>)}</optgroup><optgroup label="Saved custom roles">{library?.agents.filter(agent=>!selection.some(item=>item.agent_id===agent.id)).map(agent=><option key={agent.id} value={agent.id}>{agent.role}</option>)}</optgroup></select><small className="mt-1 block text-xs font-normal text-slate-500">Saved roles are added as a new interviewer and never replace an existing role.</small></label>}
           {fieldError('agent_selection')}<p className="text-xs text-slate-500">Maximum 4 interview roles. Avatar and voice assignments remain fixed regardless of role order.</p>
         </Section>
       </div>}
@@ -421,7 +442,7 @@ export default function CreateDriveWizard({programs,drive,draftId,collegeTimezon
         <Section title="Graduation year range" description="Select one graduation year or include students graduating across multiple years.">
           <div className="dw-year-range"><div className="flex flex-wrap items-end gap-4"><label>From <select id="graduation_from" className={input} value={selectedYears.length?yearMin:''} onChange={event=>updateYearEndpoint('from',event.target.value)}><option value="">Choose a year</option>{availableYears.map(year=><option key={year} value={year}>{year}</option>)}</select></label><span className="dw-range-line" aria-hidden="true"/><label>To <select id="graduation_to" className={input} value={selectedYears.length?yearMax:''} onChange={event=>updateYearEndpoint('to',event.target.value)}><option value="">Choose a year</option>{availableYears.map(year=><option key={year} value={year}>{year}</option>)}</select></label></div><p className="text-sm text-slate-600">Selected graduation years: {selectedYears.join(', ')||'Choose a year or range'}</p>{fieldError('eligible_graduation_years')}</div>
         </Section>
-        <Section title="Minimum CGPA" description="Enter 0 when the company has no CGPA requirement."><label className="block max-w-xs text-sm font-medium">{label('Minimum CGPA',true)}<input id="min_cgpa" className={input} type="number" min="0" max="10" step="0.01" value={form.min_cgpa} onChange={event=>update('min_cgpa',event.target.value)}/>{fieldError('min_cgpa')}</label></Section>
+        <Section title="Minimum CGPA" description="Leave blank or enter 0 when the company has no CGPA requirement."><label className="block max-w-xs text-sm font-medium">{label('Minimum CGPA (optional)',false)}<input id="min_cgpa" className={input} type="number" min="0" max="10" step="0.01" value={form.min_cgpa} onChange={event=>update('min_cgpa',event.target.value)}/>{fieldError('min_cgpa')}</label></Section>
         {ambiguousDifficulty&&<div className="dw-info">The selected graduation years suggest different interview difficulties. Choose one in Interview setup; confirm it before review.</div>}
         <Section title="Live eligibility preview" description="Uses the current student roster and the same matching rules as drive creation.">
           <div className="flex flex-wrap items-center justify-between gap-3"><span className="text-sm text-slate-500">Updates when eligibility criteria change.</span><button type="button" className={button} disabled={previewBusy||!programIds.length||(availableDepartments.length>0&&!departments.length)||!selectedYears.length} onClick={()=>void loadPreview()}>{previewBusy?'Checking students…':'Refresh preview'}</button></div>
@@ -438,8 +459,8 @@ export default function CreateDriveWizard({programs,drive,draftId,collegeTimezon
         <section className="dw-review-card"><header><h3>Final check</h3></header><div>{[[Boolean(form.company_name.trim()&&form.role_title.trim()&&form.location.trim()&&form.jd_text.trim()),'Company, role, location, and job description'],[Boolean(form.window_start&&form.window_end&&wallTimeToInstant(form.window_end,collegeTimezone)>wallTimeToInstant(form.window_start,collegeTimezone)),'Interview window and attempt limit'],[Boolean(selection.length>=1&&selection.length<=4&&rounds.every(round=>round.question_source==='personalized'||round.questions.some(question=>question.trim()))),'Interview roles and question configuration'],[Boolean(programIds.length&&(!availableDepartments.length||departments.length>0)&&selectedYears.length&&preview),'Eligibility criteria and latest preview']].map(([ok,text])=><p key={String(text)}><span className={ok?'text-emerald-700':'text-amber-700'}>{ok?'✓':'○'}</span> {String(text)}</p>)}<p className="mt-2 text-xs text-slate-500">Eligibility is recalculated and saved when the drive is created. The application deadline, interview window, and drive event date are separate dates.</p></div></section>
       </div>}
     </main>
-    <footer className="dw-footer"><button className={button} disabled={!step||busy} onClick={()=>{setFieldErrors({});setFormError('');setStep(value=>value-1);}}><ArrowLeft size={16}/>Back</button><div className="flex flex-wrap justify-end gap-2">{step<5?<button className={primary} disabled={previewBusy} onClick={()=>void next()}>{drive?'Continue':'Save draft & continue'}<ArrowRight size={16}/></button>:<button className={primary} disabled={busy} onClick={()=>void submit()}>{busy?'Creating drive…':drive?'Save changes':'Create placement drive'}<ArrowRight size={16}/></button>}</div></footer>
-    {confirmDifficulty&&<dialog open aria-modal="true" aria-labelledby="difficulty-title" className={`${panel} fixed inset-0 z-50 m-auto max-w-lg text-slate-900 shadow-2xl backdrop:bg-slate-950/50 dark:text-white`}><div className="flex items-start justify-between gap-3"><div><h2 id="difficulty-title" className="text-xl font-bold">Confirm interview difficulty</h2><p className="mt-2 text-sm text-slate-600 dark:text-slate-300">Selected graduation years suggest more than one level. This drive will use <strong>{displayName(form.difficulty_tier)}</strong>.</p></div><button type="button" className={button} aria-label="Close difficulty confirmation" onClick={()=>setConfirmDifficulty(false)}><X size={16}/></button></div><div className="mt-6 flex justify-end gap-3"><button type="button" className={button} onClick={()=>setConfirmDifficulty(false)}>Review setup</button><button type="button" className={primary} onClick={()=>{setDifficultyConfirmed(true);setConfirmDifficulty(false);setStep(5);}}><Check size={16}/>Confirm and review</button></div></dialog>}
+    <footer className="dw-footer"><button className={button} disabled={!step||busy||advancing} onClick={()=>{setFieldErrors({});setFormError('');setStep(value=>value-1);}}><ArrowLeft size={16}/>Back</button><div className="flex flex-wrap justify-end gap-2">{step<5?<button className={primary} disabled={previewBusy||advancing||busy} onClick={()=>void next()}>{advancing?'Saving draft…':drive?'Continue':'Save draft & continue'}<ArrowRight size={16}/></button>:<button className={primary} disabled={busy} onClick={()=>void submit()}>{busy?(drive?'Saving changes…':'Creating drive…'):drive?'Save changes':'Create placement drive'}<ArrowRight size={16}/></button>}</div></footer>
+    {confirmDifficulty&&<dialog open aria-modal="true" aria-labelledby="difficulty-title" className={`${panel} fixed inset-0 z-50 m-auto max-w-lg text-slate-900 shadow-2xl backdrop:bg-slate-950/50 dark:text-white`}><div className="flex items-start justify-between gap-3"><div><h2 id="difficulty-title" className="text-xl font-bold">Confirm interview difficulty</h2><p className="mt-2 text-sm text-slate-600 dark:text-slate-300">Selected graduation years suggest more than one level. This drive will use <strong>{displayName(form.difficulty_tier)}</strong>.</p></div><button type="button" className={button} aria-label="Close difficulty confirmation" onClick={()=>setConfirmDifficulty(false)}><X size={16}/></button></div><div className="mt-6 flex justify-end gap-3"><button type="button" className={button} onClick={()=>setConfirmDifficulty(false)}>Review setup</button><button type="button" className={primary} onClick={()=>{setDifficultyConfirmed(true);setConfirmDifficulty(false);void advanceTo(5);}}><Check size={16}/>Confirm and review</button></div></dialog>}
   </section>;
 }
 
@@ -456,7 +477,7 @@ function DateTimePicker({id,title,value,error,onChange}:{id:string;title:string;
   useEffect(()=>{if(!editingMinute.current)setMinuteText(parts.minute);},[parts.minute]);
   const setMinute=(raw:string)=>{const digits=raw.replace(/\D/g,'').slice(0,2);editingMinute.current=true;setMinuteText(digits);if(!digits){onChange(joinDateTime(date,parts.hour,'00',parts.ampm));return;}const number=Math.min(59,Number(digits));onChange(joinDateTime(date,parts.hour,String(number).padStart(2,'0'),parts.ampm));};
   const finishMinute=()=>{editingMinute.current=false;const digits=minuteText.replace(/\D/g,'').slice(0,2),number=Math.min(59,Number(digits||0)),normalized=String(number).padStart(2,'0');setMinuteText(normalized);onChange(joinDateTime(date,parts.hour,normalized,parts.ampm));};
-  return <fieldset className="dw-datetime"><legend>{title}<b className="ml-1 text-rose-600">*</b></legend><div className="grid grid-cols-[1fr_92px_82px_82px] gap-2"><label className="text-xs text-slate-700">Date<input id={id} aria-label={`${title} date`} className={`${input} text-slate-950 [color-scheme:light]`} type="date" value={date} onChange={event=>set(event.target.value)}/></label><label className="text-xs text-slate-700">Hour<select aria-label={`${title} hour`} className={`${input} text-slate-950`} value={parts.hour} onChange={event=>set(date,event.target.value)}>{HOURS.map(hour=><option key={hour}>{hour}</option>)}</select></label><label className="text-xs text-slate-700">Minute<input aria-label={`${title} minute`} className={`${input} text-slate-950`} type="text" inputMode="numeric" placeholder="00" maxLength={2} value={minuteText} onFocus={event=>event.currentTarget.select()} onBlur={finishMinute} onChange={event=>setMinute(event.target.value)}/></label><label className="text-xs text-slate-700">AM / PM<select aria-label={`${title} AM / PM`} className={`${input} text-slate-950`} value={parts.ampm} onChange={event=>set(date,parts.hour,parts.minute,event.target.value)}><option>AM</option><option>PM</option></select></label></div>{error&&<FieldError id={`${id}-error`} message={error}/>}</fieldset>;
+  return <fieldset className="dw-datetime"><legend>{title}<b className="ml-1 text-rose-600" aria-label="required">*</b></legend><div className="grid grid-cols-[1fr_92px_82px_82px] gap-2"><label className="text-xs text-slate-700">Date<input id={id} aria-label={`${title} date`} className={`${input} text-slate-950 [color-scheme:light]`} type="date" value={date} onChange={event=>set(event.target.value)}/></label><label className="text-xs text-slate-700">Hour<select aria-label={`${title} hour`} className={`${input} text-slate-950`} value={parts.hour} onChange={event=>set(date,event.target.value)}>{HOURS.map(hour=><option key={hour}>{hour}</option>)}</select></label><label className="text-xs text-slate-700">Minute<input aria-label={`${title} minute`} className={`${input} text-slate-950`} type="text" inputMode="numeric" placeholder="00" maxLength={2} value={minuteText} onFocus={event=>event.currentTarget.select()} onBlur={finishMinute} onChange={event=>setMinute(event.target.value)}/></label><label className="text-xs text-slate-700">AM / PM<select aria-label={`${title} AM / PM`} className={`${input} text-slate-950`} value={parts.ampm} onChange={event=>set(date,parts.hour,parts.minute,event.target.value)}><option>AM</option><option>PM</option></select></label></div>{error&&<FieldError id={`${id}-error`} message={error}/>}</fieldset>;
 }
 function formatTimestamp(value:string,timeZone:string){return new Date(value).toLocaleString('en-GB',{timeZone,day:'2-digit',month:'2-digit',year:'numeric',hour:'2-digit',minute:'2-digit',hourCycle:'h23'});}
 function SearchChecks({title,options,selected,onChange,error,required=true,emptyMessage='No matching options.'}:{title:string;options:{code:string;name:string}[];selected:string[];onChange:(value:string[])=>void;error?:string;required?:boolean;emptyMessage?:string}){

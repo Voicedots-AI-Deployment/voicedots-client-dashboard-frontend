@@ -22,8 +22,10 @@ test('client and teacher shared timetable week view navigates and rolls over',as
  await page.goto('/dashboard/erp');
  await page.getByRole('navigation',{name:'ERP sections'}).getByRole('button',{name:'Class Timetable',exact:true}).click();
  await page.getByRole('button',{name:'Open upload',exact:true}).click();
+ // Freeze the running test clock before changing wall time; never rewind pauseAt.
+ const freezeAt = await page.evaluate(() => Date.now() + 1000);
+ await page.clock.pauseAt(new Date(freezeAt));
  await page.clock.setSystemTime(new Date('2026-10-11T18:29:58Z'));
- await page.clock.pauseAt(new Date('2026-10-11T18:29:58Z'));
  await page.clock.runFor(1);
  await page.evaluate(()=>window.dispatchEvent(new Event('focus')));
  await expect(page.locator('.erp-week-toolbar')).toContainText('5 Oct – 11 Oct 2026');

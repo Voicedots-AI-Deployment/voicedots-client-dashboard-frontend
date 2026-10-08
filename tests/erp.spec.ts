@@ -10,6 +10,8 @@ async function setup(page:Page, staff=false, enabled=true){
       '/v3/college/erp/me':{role:staff?'staff':'institution_admin',permissions:staff?['students.read','attendance.read']:['*'],assignments:[]},
       '/v3/college/erp/dashboard':{students:4},
       '/v3/college/erp/students':{items:[]},
+      '/v3/college/attendance/setup':{staff:[],students:[],classes:[]},
+      '/v3/college/academic-catalog':{programs:[],departments:[],batches:[]},
       '/v3/college/erp/records/attendance':{items:[]},
     };
     return route.fulfill({json:responses[path]||{items:[]}});
@@ -27,8 +29,8 @@ test('ERP uses Client login and appears as its own dashboard sidebar option',asy
 
   await expect(page.locator('aside').first().getByRole('button',{name:'ERP',exact:true})).toBeVisible();
   await expect(page.getByRole('heading',{name:'Staff sign in'})).toHaveCount(0);
-  await page.getByLabel('Manage ERP',{exact:true}).selectOption('students');
-  await expect(page.getByRole('heading',{name:'Students & Families',exact:true})).toBeVisible();
+  await page.getByRole('button',{name:'Institution Management →',exact:true}).click();
+  await expect(page).toHaveURL(/dashboard\/attendance/);
 });
 test('existing Client staff can open ERP with scoped modules',async({page})=>{
   await setup(page,true);
@@ -62,15 +64,15 @@ test('all eleven services offer bulk upload download and view',async({page})=>{
   for(const action of ['Upload','Download','View'])await expect(actions.getByRole('button',{name:action,exact:true})).toBeVisible();
   await expect(page.getByRole('button',{name:'Add record',exact:true})).toHaveCount(0);
  }
- await page.getByLabel('Manage ERP',{exact:true}).selectOption('students');
- await expect(page.getByRole('button',{name:'Add student',exact:true})).toHaveCount(0);
+ await page.getByRole('button',{name:'Institution Management →',exact:true}).click();
+ await expect(page).toHaveURL(/dashboard\/attendance/);
 });
 test('service bulk import selects context and reviews counted rows before commit',async({page})=>{
  await setup(page);
  const catalogs:Record<string,unknown[]>={departments:[{code:'CSE',display_name:'Computer Science',program:'BTECH'}],years:[{id:'year-1',label:'2026–27'}],semesters:[{id:'semester-1',academic_year_id:'year-1',number:1},{id:'other-semester',academic_year_id:'other-year',number:2}],batches:[{id:'batch-1',label:'2026 intake',program_code:'BTECH'}],sections:[{id:'class-1',batch_id:'batch-1',department_code:'CSE',name:'A'}]};
  await page.route('**/v3/college/erp/catalog/**',r=>r.fulfill({json:{items:catalogs[new URL(r.request().url()).pathname.split('/').pop()!]||[]}}));
  await page.route('**/v3/college/erp/records/fee-accounts/preview',r=>r.fulfill({json:{batch_id:'bulk-1',rows:[{id:'valid-1',row_number:2,status:'valid',original_values:{'Student Roll Number':'TEST001'},issues:[]},{id:'update-1',row_number:3,status:'conflict',original_values:{'Student Roll Number':'TEST002'},issues:[{action:'Existing record requires approval.'}]},{id:'error-1',row_number:4,status:'invalid',original_values:{'Total Fee':-1},issues:[{action:'Total fee must be non-negative.'}]}]}}));
- await page.route('**/v3/college/erp/records/fee-accounts/commit',r=>r.fulfill({json:{committed:2,skipped:1}}));
+ await page.route('**/v3/college/erp/records/fee-accounts/commit',r=>r.fulfill({json:{committed:2,skipped:1,batch_id:"bulk-1",upload_color:"#7340e8"}}));
  await page.getByRole('navigation',{name:'ERP sections'}).getByRole('button',{name:'Fees',exact:true}).click();
  await page.getByRole('button',{name:'Upload',exact:true}).click();
  await expect(page.getByRole('dialog',{name:'Upload records in bulk'})).toBeVisible();
@@ -95,23 +97,17 @@ test('service bulk import selects context and reviews counted rows before commit
  const pending=page.waitForRequest(r=>r.method()==='POST'&&r.url().endsWith('/records/fee-accounts/commit'));
  await page.getByRole('button',{name:'Import 2 selected rows',exact:true}).click();
  expect((await pending).postDataJSON()).toEqual({batch_id:'bulk-1',approved_rows:['valid-1','update-1']});
- await expect(page.getByText('2 records saved together. 1 rows skipped.',{exact:true})).toBeVisible();
+ await expect(page.getByText('2 records saved. 1 rows skipped.',{exact:true})).toBeVisible();
 });
-test('editing a record uses ordinary form controls and keeps version checks',async({page})=>{
+test('OPAC displays saved book details without exposing an unscoped edit form',async({page})=>{
  await setup(page);
- await page.route('**/v3/college/erp/records/books**',route=>{
-  if(route.request().method()==='PUT')return route.fulfill({json:{id:'book-1',title:'Updated book',accession_number:'BK001',version:3}});
-  return route.fulfill({json:{items:[{id:'book-1',title:'Physics',accession_number:'BK001',version:2}]}});
- });
+ await page.route('**/v3/college/erp/records/books**',route=>route.fulfill({json:{items:[{id:'book-1',title:'Physics',accession_number:'BK001',isbn:'978-test-isbn',version:2}]}}));
  await page.getByRole('navigation',{name:'ERP sections'}).getByRole('button',{name:'OPAC Search',exact:true}).click();
- await page.getByRole('button',{name:'Edit',exact:true}).click();
- await expect(page.getByLabel('Title *',{exact:true})).toHaveValue('Physics');
+ await expect(page.getByRole('heading',{name:'Physics',exact:true})).toBeVisible();
+ await page.getByRole('button',{name:'View details',exact:true}).click();
+ await expect(page.getByRole('heading',{name:'Physics',exact:true})).toBeVisible();
+ await expect(page.getByText('978-test-isbn',{exact:true})).toBeVisible();
  await expect(page.getByRole('textbox',{name:'Edit record values'})).toHaveCount(0);
- await page.getByLabel('Title *',{exact:true}).fill('Updated book');
- const pending=page.waitForRequest(r=>r.method()==='PUT'&&r.url().includes('/records/books/book-1'));
- await page.getByRole('button',{name:'Save changes',exact:true}).click();
- expect((await pending).postDataJSON()).toMatchObject({values:{title:'Updated book'},expected_version:2});
- await expect(page.getByText('Updated book',{exact:true})).toBeVisible();
 });
 test('mobile section navigation stays within the screen',async({page})=>{
  await page.setViewportSize({width:390,height:844});await setup(page);
@@ -128,7 +124,7 @@ test('import review uses editable fields and waits for saved approvals',async({p
   if(path.endsWith('/batch-1'))return route.fulfill({json:{rows:[row]}});
   return route.fulfill({json:{items:[{id:'batch-1',original_filename:'students.xlsx',status:'reviewing'}]}});
  });
- await page.getByLabel('Manage ERP',{exact:true}).selectOption('imports');
+ await page.goto('/dashboard/attendance?tab=records&section=imports');
  await page.getByLabel('Resume import review').selectOption('batch-1');
  await expect(page.getByRole('button',{name:'Import approved records'})).toBeDisabled();
  await page.getByRole('navigation',{name:'Import result groups'}).getByRole('button',{name:/^Errors/}).click();
@@ -154,7 +150,7 @@ test('one workbook maps multiple sheets and saves a reusable standard',async({pa
  await page.route('**/v3/college/erp/imports/inspect',route=>route.fulfill({json:inspect}));
  await page.route('**/v3/college/erp/imports/preview',route=>{previewBody=route.request().postData()||'';return route.fulfill({json:{batch_id:'new-batch',saved_template:{name:'Veltech monthly'},rows:[{id:'new-row',sheet_name:'Marks',row_number:3,status:'valid',normalized_values:{marks:80},original_values:{Marks:80},issues:[]}]}})});
  await page.route('**/v3/college/erp/imports/new-batch/approve-ready',route=>route.fulfill({json:{approved_count:1,rows:[{id:'new-row',sheet_name:'Marks',row_number:3,status:'approved',normalized_values:{marks:80},original_values:{Marks:80},issues:[]}]}}));
- await page.getByLabel('Manage ERP',{exact:true}).selectOption('imports');
+ await page.goto('/dashboard/attendance?tab=records&section=imports');
  await page.getByLabel('Choose workbook',{exact:true}).setInputFiles({name:'Veltech.xlsx',mimeType:'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',buffer:Buffer.from('synthetic workbook')});
  await page.getByRole('button',{name:'Read workbook',exact:true}).click();
  await expect(page.getByText('3 sheets found · 2 selected for import')).toBeVisible();
@@ -182,7 +178,7 @@ test('student profile connects family and records without asking for student IDs
   return r.fulfill({json:{student:person,tabs:['overview','family','fees'],sections}});
  });
  await page.route('**/v3/college/erp/students/student-1/family',r=>{saved=r.request().postDataJSON();return r.fulfill({json:{id:'link-1'}})});
- await page.getByLabel('Manage ERP',{exact:true}).selectOption('students');
+ await page.goto('/dashboard/attendance?tab=records&section=students');
  await page.getByRole('button',{name:'Open profile',exact:true}).click();
  await expect(page.getByRole('heading',{name:'Ananya Rao',exact:true})).toBeVisible();
  await expect(page).toHaveURL(/student=student-1/);
@@ -209,10 +205,10 @@ test('student profile connects family and records without asking for student IDs
 test('setup tools stay behind settings and family profile fits a mobile screen',async({page})=>{
  await page.setViewportSize({width:390,height:844});await setup(page);
  await expect(page.getByRole('navigation',{name:'ERP sections'}).getByRole('button',{name:'Academic setup',exact:true})).toHaveCount(0);
- await expect(page.getByLabel('Manage ERP',{exact:true}).locator('option[value=catalog]')).toHaveCount(1);
+ await expect(page.getByRole('button',{name:'Institution Management →',exact:true})).toBeVisible();
  await expect(page.getByRole('navigation',{name:'ERP sections'}).getByRole('button')).toHaveCount(11);
  await page.route('**/v3/college/erp/students/student-1/profile?**',r=>r.fulfill({json:{student:{id:'student-1',full_name:'Ananya Rao',roll_number:'VT001'},tabs:['overview','family'],sections:[{module:'enrollments',items:[],has_more:false}]}}));
- await page.goto('/dashboard/erp?section=students&student=student-1');
+ await page.goto('/dashboard/attendance?tab=records&section=students&student=student-1');
  await expect(page.getByRole('heading',{name:'Ananya Rao',exact:true})).toBeVisible();
  expect(await page.evaluate(()=>document.documentElement.scrollWidth<=window.innerWidth)).toBeTruthy();
 });
@@ -221,7 +217,7 @@ test('workbook results show counted groups and only ten records at a time',async
  await setup(page);
  const rows=Array.from({length:28},(_,i)=>({id:`row-${i}`,sheet_name:i<20?'Students':'Marks',row_number:i+3,original_values:{Name:`Example ${i}`},normalized_values:{full_name:`Example ${i}`},status:i<22?'valid':i<25?'conflict':'invalid',issues:i<22?[]:[{id:`issue-${i}`,severity:i<25?'warning':'error',code:'review_required',action:'Check this record'}]}));
  await page.route('**/v3/college/erp/imports**',r=>r.fulfill({json:new URL(r.request().url()).pathname.endsWith('/batch-groups')?{rows}:{items:[{id:'batch-groups',original_filename:'example.xlsx',status:'reviewing'}]}}));
- await page.getByLabel('Manage ERP',{exact:true}).selectOption('imports');
+ await page.goto('/dashboard/attendance?tab=records&section=imports');
  await page.getByLabel('Resume import review').selectOption('batch-groups');
  await expect(page.locator('.erp-import-group.valid strong')).toHaveText('22');
  await expect(page.locator('.erp-import-group.conflicts strong')).toHaveText('3');
@@ -243,7 +239,7 @@ test('workbook results show counted groups and only ten records at a time',async
 test('overview explains actionable summaries and removes raw record KPI cards',async({page})=>{
  await setup(page);
  await page.route('**/v3/college/erp/dashboard',r=>r.fulfill({json:{students:16,imports_needing_review:1,outstanding_fees_inr:null}}));
- await page.reload();
+ await page.goto('/dashboard/attendance?tab=records');
  await expect(page.getByRole('button',{name:/Student profiles.*16/})).toBeVisible();
  await expect(page.getByRole('button',{name:/Imports needing review.*1/})).toBeVisible();
  await expect(page.getByRole('button',{name:/Outstanding fees \(INR\).*Not available/})).toBeVisible();
@@ -264,6 +260,7 @@ test('branch choices remain available when one academic catalogue fails',async({
  await expect(page.getByRole('button',{name:'Retry options',exact:true})).toBeVisible();
  await expect(page.getByText('Academic setup is incomplete.',{exact:true})).toBeVisible();
  await page.getByRole('button',{name:'Open Academic Setup',exact:true}).click();
+ await expect(page).toHaveURL(/dashboard\/attendance.*section=catalog/);
  await expect(page.getByRole('heading',{name:'Academic catalog',exact:true})).toBeVisible();
 });
 
@@ -286,21 +283,21 @@ test('shared academic filters persist across tabs and prefill upload and downloa
 });
 
 test('record search and sorting are sent to the server',async({page})=>{
- await setup(page);await page.getByRole('navigation',{name:'ERP sections'}).getByRole('button',{name:'OPAC Search',exact:true}).click();
- const search=page.waitForRequest(r=>r.url().includes('/records/books?')&&r.url().includes('q=Example'));await page.getByLabel('Search service records').fill('Example');await search;
- const sorted=page.waitForRequest(r=>r.url().includes('/records/books?')&&r.url().includes('sort_by=title'));await page.getByLabel('Sort service records').selectOption('title');await sorted;
- const order=page.waitForRequest(r=>r.url().includes('/records/books?')&&r.url().includes('sort_direction=asc'));await page.getByLabel('Service sort order').selectOption('asc');await order;
- await expect(page.getByText('No matching records. Adjust your filters or search. Records need a matching academic assignment to appear in filtered views.',{exact:true})).toBeVisible();
+ await setup(page);await page.getByRole('navigation',{name:'ERP sections'}).getByRole('button',{name:'Fees',exact:true}).click();
+ const search=page.waitForRequest(r=>r.url().includes('/records/fee-accounts?')&&r.url().includes('q=Example'));await page.getByLabel('Search service records').fill('Example');await search;
+ const sorted=page.waitForRequest(r=>r.url().includes('/records/fee-accounts?')&&r.url().includes('sort_by=total_fee'));await page.getByLabel('Sort service records').selectOption('total_fee');await sorted;
+ const order=page.waitForRequest(r=>r.url().includes('/records/fee-accounts?')&&r.url().includes('sort_direction=asc'));await page.getByLabel('Service sort order').selectOption('desc');await page.getByLabel('Service sort order').selectOption('asc');await order;
+ await expect(page.getByText('No fee accounts yet',{exact:true})).toBeVisible();
 });
 
 test('service tables show student names and open their linked profile',async({page})=>{
  await setup(page);await page.route('**/v3/college/erp/records/attendance?*',route=>route.fulfill({json:{items:[{id:'attendance-1',student_id:'student-1',student_name:'Example Student',student_roll_number:'EX001',period:'semester',percentage:90,version:1}]}}));
  await page.route('**/v3/college/erp/students/student-1/profile?*',route=>route.fulfill({json:{student:{id:'student-1',full_name:'Example Student',roll_number:'EX001'},tabs:['overview'],sections:[]}}));
- await page.getByRole('navigation',{name:'ERP sections'}).getByRole('button',{name:'Attendance',exact:true}).click();await expect(page.getByText('EX001',{exact:true})).toBeVisible();await page.getByRole('button',{name:'Example Student',exact:true}).click();await expect(page.getByRole('heading',{name:'Example Student',exact:true})).toBeVisible();
+ await page.getByRole('navigation',{name:'ERP sections'}).getByRole('button',{name:'Attendance',exact:true}).click();await page.getByRole('button',{name:'Open upload',exact:true}).click();await expect(page.getByText('EX001',{exact:true})).toBeVisible();await page.getByRole('button',{name:'Example Student',exact:true}).click();await expect(page.getByRole('heading',{name:'Example Student',exact:true})).toBeVisible();
 });
 
 test('completed source imports show preserved conflicts without replay controls',async({page})=>{
  await setup(page);await page.route('**/v3/college/erp/imports',route=>route.fulfill({json:{items:[{id:'source-batch',original_filename:'DSCET student database import',status:'committed'}]}}));
  await page.route('**/v3/college/erp/imports/source-batch',route=>route.fulfill({json:{rows:[{id:'source-row',sheet_name:'Students',row_number:1,status:'committed',original_values:{'Student Name':'Example Student'},normalized_values:{},issues:[{id:'issue-1',severity:'conflict',code:'source_fee_balance_differs',resolved:false,action:'Existing balance preserved. Review the ledger before replacing it with source amounts.'}]}]}}));
- await page.getByLabel('Manage ERP',{exact:true}).selectOption('imports');await page.getByLabel('Resume import review').selectOption('source-batch');await page.getByRole('button',{name:/Conflicts.*1/}).click();await page.getByRole('button',{name:'Review row',exact:true}).click();await expect(page.getByText('This record has been imported. Existing values were preserved where they differed; review changes in the matching service tab.',{exact:true})).toBeVisible();await expect(page.getByRole('button',{name:'Save decision',exact:true})).toHaveCount(0);await expect(page.getByRole('button',{name:'Import approved records',exact:true})).toBeDisabled();
+ await page.goto('/dashboard/attendance?tab=records&section=imports');await page.getByLabel('Resume import review').selectOption('source-batch');await page.getByRole('button',{name:/Conflicts.*1/}).click();await page.getByRole('button',{name:'Review row',exact:true}).click();await expect(page.getByText('This record has been imported. Existing values were preserved where they differed; review changes in the matching service tab.',{exact:true})).toBeVisible();await expect(page.getByRole('button',{name:'Save decision',exact:true})).toHaveCount(0);await expect(page.getByRole('button',{name:'Import approved records',exact:true})).toBeDisabled();
 });
