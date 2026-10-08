@@ -1762,6 +1762,8 @@ test('report never substitutes cached answer text for an empty saved transcript'
   await page.getByRole('tablist',{name:'Candidate report sections'}).getByRole('tab',{name:/Answers/}).click();
   await page.locator('summary').filter({hasText:'How do you handle file reads?'}).click();
   await expect(page.getByText('No response text was captured.',{exact:true})).toBeVisible();
+  await expect(page.locator('#answer-0').getByText('Needs review',{exact:true})).toBeVisible();
+  await expect(page.locator('#answer-0').getByText('Answered',{exact:true})).toHaveCount(0);
   await expect(page.locator('#answer-0').getByText('I use a context manager.',{exact:true})).toHaveCount(0);
   await expect(page.getByText('Incorrect cached response from another question.',{exact:true})).toHaveCount(0);
   await page.getByRole('tablist',{name:'Candidate report sections'}).getByRole('tab',{name:/AI Proctor/}).click();
