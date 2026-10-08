@@ -1832,3 +1832,34 @@ test('existing active drives can regenerate editable questions using selected di
   await page.getByRole('button',{name:'Generate from job description',exact:true}).first().click();
   await expect(page.locator('#question-hr-1')).toHaveValue('How would you design an idempotent API?');expect(requests.at(-1)?.difficulty_tier).toBe('advanced');expect(requests.at(-1)?.avoid_questions).toContain('How do you query a SQL table?');
 });
+
+test('report refreshes an expired playback link once and loads the replacement video',async({page})=>{
+  await setup(page,true,{initialPath:'/dashboard/placement-management?drive=drive-1&section=results&candidate=s1'});
+  let loads=0;
+  await page.route('**/v3/college/students/s1/reports',route=>route.fulfill({json:{student:{full_name:'Recording Candidate'},reports:[{source:'drive',drive_id:'drive-1',session_id:'session-1',detail:{status:'released',question_reviews:[]}}]}}));
+  await page.route('**/v3/college/students/s1/reports/session-1/recording',route=>{loads++;return route.fulfill({json:{status:'ready',playback_url:loads===1?'https://media.example/expired.webm':'https://media.example/fresh.webm',duration_seconds:2,segment_count:1}});});
+  await page.route('https://media.example/expired.webm',route=>route.fulfill({status:403,body:'Expired'}));
+  await page.route('https://media.example/fresh.webm',route=>route.fulfill({contentType:'video/webm',body:readFileSync('tests/fixtures/interview-test.webm')}));
+  await page.reload();
+  const video=page.getByLabel('Interview recording',{exact:true});
+  await expect(video).toHaveAttribute('src','https://media.example/fresh.webm');
+  await expect.poll(()=>video.evaluate(element=>(element as HTMLVideoElement).readyState)).toBeGreaterThanOrEqual(2);
+  expect(loads).toBe(2);
+});
+
+test('switching candidates ignores the previous delayed recording request',async({page})=>{
+  await setup(page,true,{initialPath:'/dashboard/placement-management?drive=drive-1&section=results&candidate=s1'});
+  let release!:()=>void;const gate=new Promise<void>(resolve=>{release=resolve;});let pending=false;
+  await page.route('**/v3/college/drives/drive-1/dashboard/ranking**',route=>route.fulfill({json:{candidates:[{student_id:'s1',full_name:'First Candidate',overall_score:80},{student_id:'s2',full_name:'Second Candidate',overall_score:70}],pagination:{total:2}}}));
+  for (const id of ['s1','s2']) await page.route(`**/v3/college/students/${id}/reports`,route=>route.fulfill({json:{student:{full_name:id==='s1'?'First Candidate':'Second Candidate'},reports:[{source:'drive',drive_id:'drive-1',session_id:`session-${id}`,detail:{status:'released',question_reviews:[]}}]}}));
+  await page.route('**/v3/college/students/s1/reports/session-s1/recording',async route=>{pending=true;await gate;await route.fulfill({json:{status:'ready',playback_url:'https://media.example/first.webm',segment_count:1}});});
+  await page.route('**/v3/college/students/s2/reports/session-s2/recording',route=>route.fulfill({json:{status:'ready',playback_url:'https://media.example/second.webm',duration_seconds:2,segment_count:1}}));
+  await page.route('https://media.example/**',route=>route.fulfill({contentType:'video/webm',body:readFileSync('tests/fixtures/interview-test.webm')}));
+  await page.reload();await expect.poll(()=>pending).toBe(true);
+  await page.getByRole('button',{name:'Next candidate',exact:true}).click();
+  await expect(page.getByRole('heading',{name:'Second Candidate',exact:true})).toBeVisible();
+  const video=page.getByLabel('Interview recording',{exact:true});
+  await expect(video).toHaveAttribute('src','https://media.example/second.webm');
+  release();await page.waitForTimeout(300);
+  await expect(video).toHaveAttribute('src','https://media.example/second.webm');
+});
