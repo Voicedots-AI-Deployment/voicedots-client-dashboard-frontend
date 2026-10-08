@@ -85,7 +85,7 @@ const LoginPage = () => {
         <div className="text-center mb-6">
           <h3
             className="
-            text-xl md:text-2xl font-bold tracking-tighter mb-6
+            text-xl md:text-2xl font-medium tracking-tighter mb-6
             bg-clip-text
             bg-gradient-to-b
             from-foreground to-foreground/60
@@ -98,7 +98,7 @@ const LoginPage = () => {
             />oiceDots
           </h3>
 
-          <h1 className="text-3xl font-extrabold text-gray-900 dark:text-white">
+          <h1 className="text-3xl font-medium text-gray-900 dark:text-white">
             {setupToken ? "Set up your password" : "Client Portal"}
           </h1>
 
@@ -111,12 +111,12 @@ const LoginPage = () => {
         <div className="bg-white dark:bg-slate-800 rounded-2xl shadow-lg border border-gray-200 dark:border-slate-700 px-6 py-8 sm:px-8">
           {setupToken ? <>{setupLinkStatus === "valid" && <form className="space-y-6" onSubmit={handlePasswordSetup}>
             {error && <div role="alert" className="rounded-lg border border-red-200 bg-red-50 p-4 text-sm text-red-800">{error}</div>}
-            {setupComplete ? <div role="status" className="space-y-4 text-center"><p className="text-sm text-emerald-700">Password created. You can now sign in.</p><button type="button" className="w-full rounded-lg bg-blue-600 px-4 py-3 text-sm font-semibold text-white" onClick={() => window.location.assign("/login")}>Continue to sign in</button></div> : <>
+            {setupComplete ? <div role="status" className="space-y-4 text-center"><p className="text-sm text-emerald-700">Password created. You can now sign in.</p><button type="button" className="w-full rounded-lg bg-blue-600 px-4 py-3 text-sm font-normal text-white" onClick={() => window.location.assign("/login")}>Continue to sign in</button></div> : <>
               <label className="block text-sm font-medium">New password<input type="password" required minLength={8} maxLength={128} value={password} onChange={e => setPassword(e.target.value)} className="mt-1 w-full rounded-lg border px-4 py-3 text-sm" autoComplete="new-password" /></label>
               <label className="block text-sm font-medium">Confirm password<input type="password" required minLength={8} maxLength={128} value={confirmPassword} onChange={e => setConfirmPassword(e.target.value)} className="mt-1 w-full rounded-lg border px-4 py-3 text-sm" autoComplete="new-password" /></label>
-              <button type="submit" disabled={loading} className="w-full rounded-lg bg-blue-600 px-4 py-3 text-sm font-semibold text-white disabled:opacity-50">{loading ? "Saving…" : "Set password"}</button>
+              <button type="submit" disabled={loading} className="w-full rounded-lg bg-blue-600 px-4 py-3 text-sm font-normal text-white disabled:opacity-50">{loading ? "Saving…" : "Set password"}</button>
             </>}
-          </form>}{(setupLinkStatus === "completed" || setupLinkStatus === "expired" || setupLinkStatus === "invalid") && <div role="status" className="space-y-4 text-center"><p className="text-sm text-slate-600">{setupLinkStatus === "completed" ? "This link has already been used. Sign in to open placement management." : "Ask your Client administrator to send a fresh invitation."}</p><button type="button" className="w-full rounded-lg bg-blue-600 px-4 py-3 text-sm font-semibold text-white" onClick={() => window.location.assign("/login")}>Continue to sign in</button></div>}</> : <form className="space-y-6" onSubmit={handleLogin}>
+          </form>}{(setupLinkStatus === "completed" || setupLinkStatus === "expired" || setupLinkStatus === "invalid") && <div role="status" className="space-y-4 text-center"><p className="text-sm text-slate-600">{setupLinkStatus === "completed" ? "This link has already been used. Sign in to open placement management." : "Ask your Client administrator to send a fresh invitation."}</p><button type="button" className="w-full rounded-lg bg-blue-600 px-4 py-3 text-sm font-normal text-white" onClick={() => window.location.assign("/login")}>Continue to sign in</button></div>}</> : <form className="space-y-6" onSubmit={handleLogin}>
             {/* Error */}
             {error && (
               <div
@@ -132,7 +132,7 @@ const LoginPage = () => {
             <div>
               <label
                 htmlFor="email"
-                className="block text-sm font-medium text-gray-700 dark:text-gray-200"
+                className="block text-sm font-normal text-gray-700 dark:text-gray-200"
               >
                 Email address
               </label>
@@ -152,7 +152,7 @@ const LoginPage = () => {
             <div>
               <label
                 htmlFor="password"
-                className="block text-sm font-medium text-gray-700 dark:text-gray-200"
+                className="block text-sm font-normal text-gray-700 dark:text-gray-200"
               >
                 Password
               </label>
@@ -200,7 +200,7 @@ const LoginPage = () => {
             <button
               type="submit"
               disabled={loading}
-              className="w-full rounded-lg bg-blue-600 px-4 py-3 text-sm font-semibold tracking-wide text-white hover:bg-blue-700 disabled:opacity-50 transition"
+              className="w-full rounded-lg bg-blue-600 px-4 py-3 text-sm font-normal tracking-wide text-white hover:bg-blue-700 disabled:opacity-50 transition"
             >
               {loading ? (
                 <span

@@ -574,6 +574,8 @@ test('interview window accepts any minute and saves it precisely', async ({page}
   await page.getByLabel('Interview ends date').fill('2027-01-11');
   await page.getByLabel('Interview ends hour').selectOption('6');
   await page.getByLabel('Interview ends AM / PM').selectOption('PM');
+  // This date test selects its difficulty explicitly; mixed graduation years need a policy choice.
+  await page.getByLabel('Interview difficulty').selectOption('intermediate');
   await page.getByRole('button',{name:'4. Questions'}).click();
   await page.getByRole('button',{name:'5. Eligibility'}).click();
   await page.getByRole('checkbox',{name:/Bachelor of Technology.*B\.Tech/i}).check();
@@ -1633,7 +1635,7 @@ test('result card keeps report icon aligned and does not contradict its proctor 
   await page.setViewportSize({width:1706,height:960});
   await page.route('**/v3/college/drives/drive-1/dashboard/ranking**',route=>{const url=new URL(route.request().url());if(url.searchParams.get('result_view')==='incomplete'||url.searchParams.has('decision')||url.searchParams.has('publication_state'))return route.fulfill({json:{candidates:[],pagination:{total:0}}});return route.fulfill({json:{candidates:[{student_id:'s1',full_name:'Tester Rishi',roll_number:'1236968574',program:'B.Tech',department_code:'CSE',overall_score:18.2,ranking_score:41.4,job_fit_score:95.6,proctoring_score:100,integrity_review_status:'not_available',integrity_review_label:'Not Available',assessment_coverage:100,assignment_status:'completed',report_ready:true,recommendation:'Reject',recommendation_reasons:['The strongest panel evidence came from the HR round.'],recommendation_risks:['The HR round needs closer review.'],agent_summary:[{label:'HR',score:28.2}]}],pagination:{total:1}}});});
   await page.route('**/v3/college/drives/drive-1/dashboard/overview**',route=>route.fulfill({json:{interview_progress:{completed:1}}}));
-  await page.reload();const card=page.locator('#result-candidate-cards');
+  await page.reload();await expect(page.locator('.result-kpi-grid')).toHaveCSS('column-gap','12px');const card=page.locator('#result-candidate-cards');
   await expect(card.getByText('Not Available',{exact:true})).toHaveCount(0);
   await expect(card.getByText('Recorded integrity score')).toBeVisible();
   const action=card.getByRole('button',{name:'Open full report'});
@@ -1660,7 +1662,7 @@ test('row based interview results show concise evidence and persist candidate de
     return route.fulfill({json:{decision:{decision,note:savedNote},publication:{state:'released'}}});
   });
   await page.route('**/v3/college/drives/drive-1/dashboard/overview**',route=>route.fulfill({json:{interview_progress:{completed:1}}}));
-  await page.reload();const card=page.locator('#result-candidate-cards');
+  await page.reload();await expect(page.locator('.result-kpi-grid')).toHaveCSS('column-gap','12px');const card=page.locator('#result-candidate-cards');
   await expect(card.locator('dl>div')).toHaveCount(4);
   await expect(card.getByText('46.2/100',{exact:true})).toBeVisible();
   await expect(card.getByText('Review required',{exact:true})).toBeVisible();
@@ -1672,11 +1674,11 @@ test('row based interview results show concise evidence and persist candidate de
   await expect.poll(()=>decision).toBe('hold');expect(savedNote).toBe('Review domain evidence in the next round.');
   await expect(card.getByRole('button',{name:'Save decision & note'})).toHaveCount(0);
   await page.evaluate(()=>{window.scrollTo(0,0);document.querySelectorAll('*').forEach(e=>{if(e.scrollTop>0)e.scrollTop=0;});});
-  await page.screenshot({path:'/root/voicedots/artifacts/results-row-redesign-20261008/results-desktop.png',fullPage:true});
+  await page.screenshot({path:'/root/voicedots/artifacts/interview-flow-audit-20261008/results-desktop.png',fullPage:true});
   await page.setViewportSize({width:390,height:844});
   await page.waitForTimeout(350); // Let the responsive sidebar finish its exit transition.
   await expect.poll(()=>page.evaluate(()=>document.documentElement.scrollWidth<=window.innerWidth)).toBe(true);
-  await page.screenshot({path:'/root/voicedots/artifacts/results-row-redesign-20261008/results-mobile.png',fullPage:true});
+  await page.screenshot({path:'/root/voicedots/artifacts/interview-flow-audit-20261008/results-mobile.png',fullPage:true});
 });
 
 test('draft continue locks navigation until cloud save finishes and preserves edits made during saving', async ({page}) => {

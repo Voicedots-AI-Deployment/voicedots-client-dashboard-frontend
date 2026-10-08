@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import { useSearchParams } from "react-router-dom";
-import { ExternalLink, Download } from "lucide-react";
+import { ExternalLink, Download, Users, CheckCircle2, CircleDashed, Clock, UserCheck, Send } from "lucide-react";
 import {
   collegeApi,
   collegeError,
@@ -2319,7 +2319,7 @@ export default function DriveManagement({
                 <div><p className="text-xs font-semibold uppercase tracking-[0.14em] text-violet-700">Placement overview</p><h3 id="results-heading" className="mt-1 text-xl font-bold tracking-tight text-slate-900">Interview results</h3><p className="mt-1 text-sm text-slate-500">Review candidate evidence, compare outcomes and record placement decisions.</p></div>
                 <span className="rounded-full border border-slate-200 bg-white px-3 py-1.5 text-xs font-medium text-slate-600">{loading ? "Updating results…" : `${total} candidate${total === 1 ? "" : "s"}`}</span>
               </div>
-              <div className="grid grid-cols-2 overflow-hidden rounded-2xl border border-violet-100 bg-white sm:grid-cols-3 xl:grid-cols-6">
+              <div className="result-kpi-grid">
                 {[
                   { key: "all", label: "Candidates", value: resultKpis.candidates, view: "all" },
                   { key: "completed", label: "Interviewed", value: resultKpis.interviewed, view: "all", completed: true },
@@ -2327,7 +2327,7 @@ export default function DriveManagement({
                   { key: "decision_pending", label: "Decision pending", value: resultKpis.decisionPending, view: "decision_pending" },
                   { key: "shortlist", label: "Shortlisted", value: resultKpis.shortlisted, view: "all", decision: "shortlist" },
                   { key: "released", label: "Results released", value: resultKpis.released, view: "all", publication: "released" },
-                ].map(tile=><button type="button" aria-pressed={resultQuickView === tile.key} onClick={()=>{const reset=resultQuickView===tile.key;setOffset(0);setResultQuickView(reset?"all":tile.key);setResultView(reset?"all":tile.view);}} className={`border-r border-b border-slate-100 px-4 py-4 text-left transition hover:bg-violet-50 focus-visible:outline focus-visible:outline-2 focus-visible:outline-violet-500 ${resultQuickView === tile.key ? "bg-violet-50 ring-2 ring-inset ring-violet-300" : "border-slate-200"}`} key={tile.key}><p className="text-[11px] font-semibold uppercase tracking-[0.09em] text-slate-500">{tile.label}</p><strong className="mt-2 block text-3xl font-medium tracking-tight text-slate-900">{resultKpisState === "ready" ? tile.value : "—"}</strong>{resultKpisState === "error" && <span className="text-[10px] text-slate-400">Unavailable</span>}</button>)}
+                ].map((tile,index)=><button type="button" aria-pressed={resultQuickView === tile.key} onClick={()=>{const reset=resultQuickView===tile.key;setOffset(0);setResultQuickView(reset?"all":tile.key);setResultView(reset?"all":tile.view);}} className="result-kpi-card focus-visible:outline focus-visible:outline-2 focus-visible:outline-violet-500" key={tile.key}><span className="result-kpi-icon">{(() => {const Icon=[Users,CheckCircle2,CircleDashed,Clock,UserCheck,Send][index];return <Icon size={18}/>;})()}</span><p className="text-[11px] font-semibold uppercase tracking-[0.09em] text-slate-500">{tile.label}</p><strong className="mt-2 block text-3xl font-medium tracking-tight text-slate-900">{resultKpisState === "ready" ? tile.value : "—"}</strong>{resultKpisState === "error" && <span className="text-[10px] text-slate-400">Unavailable</span>}<span className="result-kpi-note">{["Assigned to this drive","Completed interviews","Requires follow-up","Awaiting officer review","Officer-selected candidates","Visible to students"][index]}</span></button>)}
               </div>
               <div className="flex flex-wrap items-end gap-3 rounded-2xl border border-slate-200 bg-slate-50/70 p-4">
                 <label className="min-w-60 flex-1 text-xs font-medium text-slate-500">Search candidates<input className={`${field} mt-1`} value={search} onChange={event=>{setOffset(0);setSearch(event.target.value)}} placeholder="Name, email or roll number" /></label>
