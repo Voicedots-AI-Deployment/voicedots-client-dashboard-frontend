@@ -1912,3 +1912,25 @@ for (const duration of [5, 10]) {
     expect(request?.interview_duration_minutes).toBe(duration);
   });
 }
+
+test('neutral full report renders canonical round evidence and opens skills and proctor bookmarks',async({page})=>{
+ await setup(page,true,{initialPath:'/dashboard/placement-management?drive=drive-1&section=results&candidate=s1'});
+ const started='2026-10-08T10:00:00Z';
+ await page.route('**/v3/college/students/s1/reports',route=>route.fulfill({json:{student:{full_name:'Asha Test',program:'B.Tech'},reports:[{source:'drive',drive_id:'drive-1',session_id:'session-1',overall_score:70,completed_at:started,detail:{status:'released',placement_readiness:{score:70,comparable:true},job_fit:{score:75},question_reviews:[{answer_id:1,turn_id:'t1',round:'hr',question:'How did you test your service?',answer:'I verified failed inputs.',evidence_status:'answered',has_audio:false}],agent_breakdown:[{agent_type:'hr',sub_score:70,dimensions:[{dimension:'structured_thinking',band:3,reason:'Specific testing steps were explained.'}]}],core_dimensions:[{dimension:'structured_thinking',percentage:70,reason:'Specific testing steps were explained.'}],resume_alignment:{skills:[{skill:'Testing',evidence_level:'verified',note:'Explained failed input checks.'}]},requirement_evidence_matrix:[{requirement:'Testing',requirement_was_asked:true,candidate_mentioned:true,evidence_strength:'strong',answer_ids:[1]},{requirement:'Budgeting',requirement_was_asked:false,candidate_mentioned:false,evidence_strength:'none',answer_ids:[]}],proctoring_score:{overall_score:98,status:'minor_flags',sub_scores:{camera_presence:{score:98}}}}}]}}));
+ await page.route('**/v3/college/students/s1/reports/session-1/transcript',route=>route.fulfill({json:{turns:[{turn_id:'t1',question_text:'How did you test your service?',transcript:'I verified failed inputs.',asked_at:'2026-10-08T10:00:05Z',has_audio:false}]}}));
+ await page.route('**/v3/college/students/s1/reports/session-1/recording',route=>route.fulfill({json:{status:'ready',playback_url:'https://media.example/report.webm',started_at:started,duration_seconds:120,segment_count:1}}));
+ await page.route('**/v3/college/students/s1/reports/session-1/integrity-events',route=>route.fulfill({json:{events:[{event_id:'e1',event_type:'phone_detected',occurred_at:'2026-10-08T10:00:20Z',severity:'violation'}]}}));
+ await page.route('https://media.example/**',route=>route.abort());
+ await page.reload();
+ const report=page.locator('.candidate-review'),tabs=page.getByRole('tablist',{name:'Candidate report sections'});
+ await expect(report.getByRole('heading',{name:'Asha Test'})).toBeVisible();
+ expect(await report.locator('#glance').evaluate(e=>getComputedStyle(e).backgroundImage)).toBe('none');
+ expect(await report.locator('header.report-candidate-header').evaluate(e=>getComputedStyle(e).backgroundImage)).toBe('none');
+ await tabs.getByRole('tab',{name:/Rounds & competencies/}).click();await expect(page.locator('#panel-rounds')).toContainText('1 reviewed answer');await expect(page.locator('#panel-rounds')).toContainText('Specific testing steps were explained.');
+ await tabs.getByRole('tab',{name:/Skills proof/}).click();await page.locator('#role-fit').getByRole('button',{name:'Q1',exact:true}).click();await expect(page.locator('#answer-0')).toHaveAttribute('open','');
+ await tabs.getByRole('tab',{name:/Skills proof/}).click();await page.getByText('Role requirements evidence · 2',{exact:true}).click();await page.getByRole('button',{name:'Asked · no evidence',exact:true}).click();await expect(page.getByText('No role requirement evidence matches this filter.')).toBeVisible();
+ await tabs.getByRole('tab',{name:/AI Proctor/}).click();await expect(page.locator('#integrity')).not.toContainText('[object Object]');await expect(page.getByRole('button',{name:'Save review',exact:true})).toHaveCount(0);
+ const video=page.getByLabel('Interview recording',{exact:true});await video.evaluate((element:any)=>{Object.defineProperty(element,'readyState',{value:4});Object.defineProperty(element,'currentTime',{value:0,writable:true});element.play=()=>Promise.resolve();});await page.getByRole('button',{name:'Watch event',exact:true}).click();expect(await video.evaluate((element:any)=>element.currentTime)).toBe(20);
+ await page.setViewportSize({width:1706,height:960});await page.evaluate(()=>{window.scrollTo(0,0);document.querySelectorAll('*').forEach(e=>e.scrollTop=0);});await page.screenshot({path:'/root/voicedots/artifacts/report-review-redesign-20261008/client-report-desktop.png',fullPage:true});
+ await page.setViewportSize({width:390,height:844});await expect.poll(()=>page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth)).toBe(true);await page.screenshot({path:'/root/voicedots/artifacts/report-review-redesign-20261008/client-report-mobile.png',fullPage:true});
+});
