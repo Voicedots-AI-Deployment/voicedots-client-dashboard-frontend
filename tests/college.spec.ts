@@ -932,17 +932,17 @@ test('agents follow academic setup and defaults cannot be edited', async ({ page
   await page.getByRole('button', { name: 'Interview Agents', exact: true }).click();
   await expect(page.getByText('Locked default')).toHaveCount(4);
   await expect(page.getByRole('button', { name: 'Edit', exact: true })).toHaveCount(0);
-  await page.getByRole('button', { name: 'Create agent', exact: true }).click();
+  await page.getByRole('button', { name: 'Create interview role', exact: true }).click();
   await page.getByLabel('Role', {exact:true}).fill('Product interviewer');
-  await page.getByLabel('First message').fill('Welcome {name} to {company}');
-  await page.getByLabel('System prompt').fill('Interview for {role} using product scenarios.');
+  await page.getByLabel('Opening message').fill('Welcome {name} to {company}');
+  await page.getByLabel('Interview instructions').fill('Interview for {role} using product scenarios.');
   let saved: Record<string, unknown> = {};
   await page.route('**/v3/college/agents', route => {
     if (route.request().method() !== 'POST') return route.fallback();
     saved = route.request().postDataJSON(); return route.fulfill({json:{id:'custom-1',...saved}});
   });
-  await page.getByRole('button', {name:'Save agent'}).click();
-  await expect(page.getByRole('button', {name:'Save agent'})).toHaveCount(0);
+  await page.getByRole('button', {name:'Save interview role'}).click();
+  await expect(page.getByRole('button', {name:'Save interview role'})).toHaveCount(0);
   expect(saved.role).toBe('Product interviewer'); expect(saved.intro_message).toContain('{company}');
 });
 
@@ -1516,4 +1516,75 @@ test('report answers can expand and collapse without losing saved per-question f
   await page.reload();await expect(page.getByText('Evidence question 6',{exact:true})).toHaveCount(0);
   await page.getByRole('button',{name:'Show all 6 answers'}).click();await expect(page.getByText('Evidence question 6',{exact:true})).toBeVisible();
   await page.getByRole('button',{name:'Show less',exact:true}).click();await expect(page.getByText('Evidence question 6',{exact:true})).toHaveCount(0);
+});
+
+
+test('roster All programs clears program and department after switching', async ({page}) => {
+  await setup(page,true,{initialPath:'/dashboard/attendance'});
+  let url='';
+  await page.route('**/v3/college/students?**', route => {
+    url=route.request().url(); const program=new URL(url).searchParams.get('program');
+    return route.fulfill({json:{items:program?[{id:'s1',full_name:'Engineering Student',roll_number:'R1',program:'B.Tech',department_code:'CSE',status:'active'}]:[{id:'s1',full_name:'Engineering Student',roll_number:'R1',program:'B.Tech',department_code:'CSE',status:'active'},{id:'s2',full_name:'Other Student',roll_number:'R2',program:'BCA',department_code:'',status:'active'}],total:program?1:2}});
+  });
+  await page.getByLabel('Filter by program').selectOption('B.Tech');
+  await page.getByLabel('Filter by department').selectOption('CSE');
+  await expect.poll(()=>new URL(url).searchParams.get('department')).toBe('CSE');
+  await page.getByLabel('Filter by program').selectOption('');
+  await expect.poll(()=>new URL(url).searchParams.has('program')).toBe(false);
+  await expect.poll(()=>new URL(url).searchParams.has('department')).toBe(false);
+  await expect(page.getByText('Other Student',{exact:true})).toBeVisible();
+});
+
+test('settings load failure disables saving until successful retry', async ({page}) => {
+  await setup(page,true,{initialPath:'/dashboard/placement-management?view=settings'});
+  let available=false;
+  await page.route('**/v3/college/readiness-policy',route=>route.fulfill(available?{json:{interview_readiness:80,resume_readiness:20}}:{status:503,json:{detail:'Settings temporarily unavailable'}}));
+  await page.route('**/v3/college/interview-results-settings',route=>route.fulfill({json:{}}));
+  await page.reload();
+  await expect(page.getByRole('button',{name:'Save formula'})).toBeDisabled();
+  await expect(page.getByLabel('Interview performance (%)')).toBeDisabled();
+  available=true;
+  await page.getByRole('button',{name:'Retry loading settings'}).click();
+  await expect(page.getByLabel('Interview performance (%)')).toHaveValue('80');
+  await expect(page.getByRole('button',{name:'Save formula'})).toBeEnabled();
+});
+
+test('editing a saved interview role retains its tone and requires deletion confirmation', async ({page}) => {
+  await setup(page,true,{initialPath:'/dashboard/placement-management?view=agents'});
+  const agent={id:'a1',track:'domain',role:'Backend interviewer',intro_message:'Hello {name}',personality_prompt:'Ask backend questions',tone:'analytical'};
+  let saved:any;
+  await page.route('**/v3/college/agents',route=>route.fulfill({json:{agents:[agent],tracks:[]}}));
+  await page.route('**/v3/college/agents/a1',route=>{saved=route.request().postDataJSON();return route.fulfill({json:{...agent,...saved}})});
+  await page.reload();
+  await page.getByRole('button',{name:'Edit',exact:true}).click();
+  await page.getByLabel('Role',{exact:true}).fill('Updated backend interviewer');
+  await page.getByRole('button',{name:'Save interview role'}).click();
+  await expect.poll(()=>saved?.tone).toBe('analytical');
+  page.once('dialog',dialog=>dialog.dismiss());
+  await page.getByRole('button',{name:'Delete',exact:true}).click();
+  await expect(page.getByRole('heading',{name:'Backend interviewer'})).toBeVisible();
+});
+
+test('result filters reject empty values and reversed score ranges', async ({page}) => {
+  await setup(page,true,{initialPath:'/dashboard/placement-management?drive=drive-1&section=results',driveDetails:{id:'drive-1',company_name:'Example',role_title:'Engineer',status:'active'}});
+  await page.getByRole('button',{name:'Filters',exact:true}).click();
+  await page.getByRole('button',{name:'Add rule',exact:true}).click();
+  await page.getByRole('button',{name:'Apply filters',exact:true}).click();
+  await expect(page.getByText('Choose a value for each filter and use a valid range.')).toBeVisible();
+  await page.getByLabel('Filter field',{exact:true}).selectOption('interview_score');
+  await page.getByLabel('Filter operator',{exact:true}).selectOption('between');
+  const popup=page.getByRole('region',{name:'Interview result filters',exact:true});
+  await popup.locator('input[type=number]').nth(0).fill('90');
+  await popup.locator('input[type=number]').nth(1).fill('50');
+  await page.getByRole('button',{name:'Apply filters',exact:true}).click();
+  await expect(page.getByRole('heading',{name:'Advanced filters'})).toBeVisible();
+  await popup.locator('input[type=number]').nth(1).fill('95');
+  await page.getByRole('button',{name:'Apply filters',exact:true}).click();
+  await expect(page.getByRole('heading',{name:'Advanced filters'})).toHaveCount(0);
+  await page.setViewportSize({width:390,height:844});
+  await page.getByRole('button',{name:/^Filters/}).click();
+  await expect(page.getByRole('button',{name:'Add rule',exact:true})).toBeVisible();
+  const bounds=await popup.boundingBox();
+  expect(bounds!.x).toBeGreaterThanOrEqual(0);
+  expect(bounds!.x+bounds!.width).toBeLessThanOrEqual(390);
 });
