@@ -193,7 +193,6 @@ function CandidateOfficerActions({ driveId, candidate, onSaved }: { driveId: str
 }
 const sections = {
   overview: "Overview",
-  candidates: "Candidates",
   ats: "ATS fit",
   results: "Interview results",
   skills: "Skill intelligence",
@@ -204,7 +203,6 @@ const sections = {
 type Tab = keyof typeof sections;
 const paths: Record<Tab, string> = {
   overview: "dashboard/overview",
-  candidates: "dashboard/ranking",
   ats: "dashboard/ats-fit",
   results: "dashboard/ranking",
   skills: "dashboard/skill-gap",
@@ -481,11 +479,7 @@ function CandidateDetails({
             <div>
               <dt className="text-slate-500">Interview status</dt>
               <dd className="font-semibold">
-                {displayName(
-                  candidate.evaluation_status ||
-                    candidate.preparation_status ||
-                    "pending",
-                )}
+                <InterviewStatusBadge value={candidateInterviewStatus(candidate)}/>
               </dd>
             </div>
             <div>
@@ -522,6 +516,7 @@ function CandidateDetails({
           </>
         )}
       </dl>
+      {mode === "candidates" && <ResumeMatchSummary driveId={driveId} candidate={candidate}/>}
       {mode === "ats" && !atsPending && skills.length > 0 && (
         <div>
           <h4 className="mb-1 font-semibold">JD requirement and resume evidence</h4>
@@ -1627,11 +1622,17 @@ export default function DriveManagement({
 }) {
   const [params, setParams] = useSearchParams();
   const reportStudentId = params.get("candidate");
+  const requestedSection = params.get("section") === "candidates" ? "results" : params.get("section");
   const tab = (
-    (params.get("section") || "") in sections
-      ? params.get("section")
+    (requestedSection || "") in sections
+      ? requestedSection
       : "overview"
   ) as Tab;
+  useEffect(() => {
+    if (params.get("section") === "candidates") setParams(current => {
+      current.set("section", "results"); return current;
+    }, { replace: true });
+  }, [params, setParams]);
   const [drive, setDrive] = useState<Drive | null>(null),
     [data, setData] = useState<Data | null>(null),
     [detail, setDetail] = useState<unknown>(null);
@@ -1650,6 +1651,7 @@ export default function DriveManagement({
   const [fullEditor, setFullEditor] = useState(false);
   const [editorStep, setEditorStep] = useState(0);
   const [exporting, setExporting] = useState(false);
+  const rankingQueryRef = useRef("");
   const [resultSort, setResultSort] = useState("rank");
   const [resultsLayout, setResultsLayout] = useState<"cards" | "table">("cards");
   const [resultQuickView, setResultQuickView] = useState("all");
@@ -1739,9 +1741,9 @@ export default function DriveManagement({
       offset: String(offset),
       q: search,
     });
-    if (tab === "candidates" || tab === "results") {
+    if (tab === "results") {
       if (departmentFilter) query.set("department", departmentFilter);
-      if (tab === "candidates" && programFilter) query.set("program", programFilter);
+      if (programFilter) query.set("program", programFilter);
       if (statusFilter) query.set("assignment_status", statusFilter);
     }
     if (tab === "ats") {
@@ -1761,7 +1763,7 @@ export default function DriveManagement({
       query.set("match_mode",resultMatchMode);
       if(excludeReviewRequired) query.set("exclude_review_required","true");
     }
-    if (tab === "candidates") query.set("sort_by", listSort === "ats_desc" || listSort === "ats_asc" ? "name" : listSort);
+    if (tab === "results") rankingQueryRef.current = query.toString();
     (tab === "questions" ? Promise.resolve({} as Data) : collegeApi.get<Data>(
       `drives/${driveId}/${paths[tab]}?${query.toString()}`, c.signal,
     ))
@@ -1795,17 +1797,16 @@ export default function DriveManagement({
     resultQuickView,
   ]);
   useEffect(() => {
-    if (!['overview','candidates'].includes(tab)) return;
+    if (!['overview','results'].includes(tab)) return;
     const controller = new AbortController();
     let pending = false;
     const timer = window.setInterval(async () => {
       if (pending || document.visibilityState === 'hidden') return;
       pending = true;
-      const query = new URLSearchParams({limit:'25',offset:String(offset),q:search});
+      const query = tab === 'results' ? new URLSearchParams(rankingQueryRef.current) : new URLSearchParams({limit:'25',offset:String(offset),q:search});
       if (departmentFilter) query.set('department',departmentFilter);
       if (programFilter) query.set('program',programFilter);
       if (statusFilter) query.set('assignment_status',statusFilter);
-      if (tab === 'candidates') query.set('sort_by',listSort);
       try {
         const result = await collegeApi.get<Data>(`drives/${driveId}/${paths[tab]}?${query}`,controller.signal);
         if (!controller.signal.aborted) {
@@ -1816,8 +1817,12 @@ export default function DriveManagement({
       finally { pending = false; }
     },15000);
     return () => {controller.abort();window.clearInterval(timer);};
-  },[tab,driveId,offset,search,departmentFilter,programFilter,statusFilter,listSort]);
+  },[tab,driveId,offset,search,departmentFilter,programFilter,statusFilter,listSort,resultSort,resultView,resultQuickView,resultRules,resultMatchMode,excludeReviewRequired]);
   useEffect(() => {resumeMatchRequests.clear();},[version,driveId]);
+  function openCandidateDetails(candidate: Candidate) {
+    setSelected(candidate); setDetail(candidate);
+    setAttempts(Math.max(Number(candidate.max_attempts || drive?.max_attempts || 1), Number(candidate.attempt_number || 1)));
+  }
   async function exportSelected() {
     setExporting(true);setError('');
     try {
@@ -1885,6 +1890,7 @@ export default function DriveManagement({
     kind: "reports" | "attempts" | "decision",
   ) {
     if (kind === "reports") {
+      setSelected(null); setDetail(null);
       setParams((current) => {
         current.set("candidate", candidate.student_id);
         current.set("section", "results");
@@ -2244,7 +2250,7 @@ export default function DriveManagement({
             </div>
           );
         })()}
-      {["candidates", "ats", "results"].includes(tab) && (
+      {["ats", "results"].includes(tab) && (
         <>
           {tab !== "results" && <div className="grid gap-3 md:grid-cols-3 xl:grid-cols-6">
             <label className="text-sm">
@@ -2274,26 +2280,7 @@ export default function DriveManagement({
                 ))}
               </select>
             </label>
-            {tab === "candidates" && <label className="text-sm">Program<select className={field} value={programFilter} onChange={e=>{setOffset(0);setProgramFilter(e.target.value);}}><option value="">All programs</option>{programOptions.map(program=><option key={program.code} value={program.code}>{displayName(program.display_name)}</option>)}</select></label>}
-            {tab === "candidates" ? (
-              <>
-                <label className="text-sm">
-                  Interview status
-                  <select
-                    className={field}
-                    value={statusFilter}
-                    onChange={(e) => {setOffset(0);setStatusFilter(e.target.value);}}
-                  >
-                    <option value="">All statuses</option>
-                    {["assigned", "invited", "in_progress", "completed", "expired", "cancelled"].map((v) => (
-                      <option key={v} value={v}>
-                        {displayName(v)}
-                      </option>
-                    ))}
-                  </select>
-                </label>
-              </>
-            ) : tab === "ats" ? (
+            {tab === "ats" ? (
               <>
                 <label className="text-sm">
                   Eligibility
@@ -2316,7 +2303,7 @@ export default function DriveManagement({
           {tab === "results" && (
             <section aria-labelledby="results-heading" className="result-workspace space-y-4">
               <div className="flex flex-wrap items-end justify-between gap-3 border-b border-slate-200 pb-4">
-                <div><p className="text-xs font-semibold uppercase tracking-[0.14em] text-violet-700">Placement overview</p><h3 id="results-heading" className="mt-1 text-xl font-bold tracking-tight text-slate-900">Interview results</h3><p className="mt-1 text-sm text-slate-500">Review candidate evidence, compare outcomes and record placement decisions.</p></div>
+                <div><p className="text-xs font-semibold uppercase tracking-[0.14em] text-violet-700">Placement overview</p><h3 id="results-heading" className="mt-1 text-xl font-bold tracking-tight text-slate-900">Interview results</h3><p className="mt-1 text-sm text-slate-500">Manage every assigned candidate, review interview evidence and record placement decisions.</p></div>
                 <span className="rounded-full border border-slate-200 bg-white px-3 py-1.5 text-xs font-medium text-slate-600">{loading ? "Updating results…" : `${total} candidate${total === 1 ? "" : "s"}`}</span>
               </div>
               <div className="result-kpi-grid">
@@ -2332,7 +2319,9 @@ export default function DriveManagement({
               <div className="flex flex-wrap items-end gap-3 rounded-2xl border border-slate-200 bg-slate-50/70 p-4">
                 <label className="min-w-60 flex-1 text-xs font-medium text-slate-500">Search candidates<input className={`${field} mt-1`} value={search} onChange={event=>{setOffset(0);setSearch(event.target.value)}} placeholder="Name, email or roll number" /></label>
                 <label className="min-w-44 text-xs font-medium text-slate-500">Department<select className={`${field} mt-1`} value={departmentFilter} onChange={event=>{setOffset(0);setDepartmentFilter(event.target.value)}}><option value="">All departments</option>{departmentOptions.map(value=><option key={value} value={value}>{value}</option>)}</select></label>
-                <ResultCohortBuilder rules={resultRules} setRules={rules=>{setOffset(0);setResultRules(rules)}} matchMode={resultMatchMode} setMatchMode={value=>{setOffset(0);setResultMatchMode(value)}} total={total} excludeReview={excludeReviewRequired} setExcludeReview={value=>{setOffset(0);setExcludeReviewRequired(value)}} options={resultFilterOptions} onReset={()=>{setResultRules([]);setResultQuickView("all");setExcludeReviewRequired(false);setResultMatchMode("all");setResultView("all");setSearch("");setDepartmentFilter("");setOffset(0)}}/>
+                <label className="min-w-44 text-xs font-medium text-slate-500">Program<select className={`${field} mt-1`} value={programFilter} onChange={event=>{setOffset(0);setProgramFilter(event.target.value)}}><option value="">All programs</option>{programOptions.map(program=><option key={program.code} value={program.code}>{displayName(program.display_name)}</option>)}</select></label>
+                <label className="min-w-44 text-xs font-medium text-slate-500">Interview status<select className={`${field} mt-1`} value={statusFilter} onChange={event=>{setOffset(0);setStatusFilter(event.target.value)}}><option value="">All statuses</option>{["assigned","invited","in_progress","completed","expired","cancelled"].map(status=><option key={status} value={status}>{displayName(status)}</option>)}</select></label>
+                <ResultCohortBuilder rules={resultRules} setRules={rules=>{setOffset(0);setResultRules(rules)}} matchMode={resultMatchMode} setMatchMode={value=>{setOffset(0);setResultMatchMode(value)}} total={total} excludeReview={excludeReviewRequired} setExcludeReview={value=>{setOffset(0);setExcludeReviewRequired(value)}} options={resultFilterOptions} onReset={()=>{setResultRules([]);setResultQuickView("all");setExcludeReviewRequired(false);setResultMatchMode("all");setResultView("all");setSearch("");setDepartmentFilter("");setProgramFilter("");setStatusFilter("");setOffset(0)}}/>
                 <label className="min-w-44 text-xs font-medium text-slate-500">Sort results<select className={`${field} mt-1`} value={resultSort} onChange={event=>{setOffset(0);setResultSort(event.target.value);}}><option value="rank">Rank</option><option value="score_desc">Interview score</option><option value="pri_desc">PRI</option><option value="name">Candidate name</option></select></label>
               </div>
             </section>
@@ -2382,6 +2371,7 @@ export default function DriveManagement({
                 <input type="checkbox" className="h-4 w-4 accent-violet-600" aria-label={`Select ${candidate.full_name}`} checked={checked.includes(candidate.student_id)} onChange={event=>setChecked(current=>event.target.checked ? [...new Set([...current,candidate.student_id])] : current.filter(id=>id!==candidate.student_id))}/>
                 <StudentAvatar student={candidate} size="h-11 w-11"/>
                 <div className="min-w-0 flex-1"><div className="flex flex-wrap items-center gap-2"><h4 className="text-base font-medium text-slate-900">{candidate.full_name}</h4>{candidate.rank != null && <span className="rounded-full bg-violet-50 px-2 py-0.5 text-xs text-violet-700">#{candidate.rank} in drive</span>}<InterviewStatusBadge value={candidateInterviewStatus(candidate)}/></div><p className="mt-1 text-xs text-slate-500">{candidate.roll_number} · {[candidate.program,candidate.department_code].filter(Boolean).join(' · ')} · Attempt {candidate.attempt_number || 1}</p></div>
+                <button className={btn} onClick={()=>openCandidateDetails(candidate)}>Candidate details</button>
                 <button className={`${btn} inline-flex shrink-0 items-center gap-2 whitespace-nowrap border-violet-200 text-violet-700`} disabled={busy || !candidate.report_ready} onClick={()=>void inspect(candidate,'reports')}>{candidate.report_ready?'Open full report':'Report pending'} <ExternalLink size={14}/></button>
               </header>
               <div className="result-assessment-band flex flex-wrap items-center gap-3 border-b border-violet-100 bg-violet-50/60 px-5 py-3">
@@ -2390,6 +2380,7 @@ export default function DriveManagement({
                 <span className="ml-auto text-xs text-slate-500">Attempt {candidate.attempt_number || 1}</span>
               </div>
               <dl className="result-evidence-rows">
+                <div><dt>Candidate & attempts</dt><dd className="flex flex-wrap items-center gap-3"><span className="text-xs text-slate-600">{candidate.email || "Email unavailable"}</span><AttemptBadge candidate={candidate} driveMaxAttempts={drive?.max_attempts}/><ResumeMatchSummary driveId={driveId} candidate={candidate}/></dd></div>
                 <div><dt>Interview assessment</dt><dd className="flex flex-wrap items-center gap-2">{[['Interview',candidate.overall_score],['Readiness / PRI',candidate.ranking_score],['Job fit',candidate.job_fit_score]].map(([label,value])=><span key={String(label)} className={`result-score-chip ${typeof value !== 'number' ? 'score-unavailable' : value >= 75 ? 'score-strong' : value >= 50 ? 'score-developing' : 'score-review'}`}><span>{label}</span><strong>{typeof value === 'number' ? `${value}/100` : 'Not assessed'}</strong></span>)}{candidate.readiness && <span className="rounded-full bg-slate-100 px-3 py-1.5 text-xs text-slate-600">{displayName(candidate.readiness)}</span>}</dd></div>
                 <div><dt>Interview rounds</dt><dd className="flex flex-wrap items-center gap-2">{candidate.agent_summary?.length ? candidate.agent_summary.map((round,index)=><span key={index} className="result-round-chip"><span>{String(round.label || displayName(String(round.agent_type || `Round ${index+1}`)))}</span><strong>{round.score==null?'Not assessed':`${round.score}/100`}</strong></span>) : <span className="text-xs text-slate-500">Round scores not available</span>}</dd></div>
                 <div><dt>AI Proctor</dt><dd className="flex flex-wrap items-center gap-3"><span className={`result-score-chip ${candidate.proctoring_score == null ? 'score-unavailable' : candidate.proctoring_score >= 75 ? 'score-strong' : candidate.proctoring_score >= 50 ? 'score-developing' : 'score-review'}`}><span>Integrity</span><strong>{candidate.proctoring_score==null?'Not assessed':`${candidate.proctoring_score}/100`}</strong></span><span className={`text-xs ${candidate.integrity_review_status === 'review_required' ? 'text-amber-700' : 'text-slate-500'}`}>{candidate.integrity_review_status === 'not_available' && candidate.proctoring_score != null ? 'Recorded integrity score' : candidate.integrity_review_label || displayName(candidate.integrity_review_status || 'not assessed')}</span>{candidate.assessment_coverage != null && <span className="ml-auto text-xs text-slate-500">Evidence coverage {candidate.assessment_coverage}%</span>}</dd></div>
@@ -2408,7 +2399,7 @@ export default function DriveManagement({
                 <thead className="bg-slate-50 text-[11px] uppercase tracking-wide text-slate-500">
                   <tr>
                     {(tab === "results"
-                      ? ["Candidate", "Interview / PRI", "Role fit", "Integrity", "AI assessment", "Decision / release", "Actions"]
+                      ? ["Candidate", "Status / attempts", "Interview / PRI", "Role fit", "Integrity", "AI assessment", "Decision / release", "Actions"]
                       : tab === "ats"
                         ? [
                             "Candidate",
@@ -2462,11 +2453,12 @@ export default function DriveManagement({
                         <div className="flex min-w-0 items-center gap-3"><StudentAvatar student={c}/><div className="min-w-0"><strong>{c.full_name}</strong>{tab==='results' && c.rank != null && <span className="ml-2 text-xs text-violet-600">#{c.rank}</span>}<p className="text-xs text-slate-500">
                           {c.roll_number}
                           {c.email ? ` · ${c.email}` : ""}
-                        </p>{(tab==="candidates"||tab==="ats")&&drive&&<ResumeMatchSummary driveId={driveId} candidate={c}/>}</div></div>
+                        </p>{(tab==="ats")&&drive&&<ResumeMatchSummary driveId={driveId} candidate={c}/>}</div></div>
                         </div>
                       </td>
                       {tab === "results" ? (
                         <>
+                          <td className="p-3"><InterviewStatusBadge value={candidateInterviewStatus(c)}/><div className="mt-2"><AttemptBadge candidate={c} driveMaxAttempts={drive?.max_attempts}/></div><p className="mt-2 text-xs text-slate-500">{[c.program,c.department_code].filter(Boolean).join(" · ") || "Academic details unavailable"}</p></td>
                           <td className="p-3"><span className="text-base font-medium">{c.overall_score==null?'—':`${c.overall_score}/100`}</span><p className="mt-1 text-xs text-slate-500">PRI {c.ranking_score==null?'—':`${c.ranking_score}/100`}</p></td>
                           <td className="p-3"><p>{c.job_fit_score==null?'—':`${c.job_fit_score}/100`}</p><p className="mt-1 text-xs text-slate-500">{c.readiness || 'Not assessed'}</p></td>
                           <td className="p-3"><p>{c.proctoring_score==null?'—':`${c.proctoring_score}/100`}</p><div className="mt-1"><StatusBadge value={c.integrity_review_label || c.integrity_review_status || 'not assessed'}/></div></td>
@@ -2513,13 +2505,13 @@ export default function DriveManagement({
                       )}
                       <td className="whitespace-nowrap px-4 py-3">
                         {tab === "results" ? (
-                          <button
+                          <div className="flex flex-wrap gap-2"><button className={btn} onClick={()=>openCandidateDetails(c)}>Candidate details</button><button
                             className={btn}
                             disabled={busy || !c.report_ready}
                             onClick={() => void inspect(c, "reports")}
                           >
                             {c.report_ready ? "Open report" : "Report pending"}
-                          </button>
+                          </button></div>
                         ) : (
                           <button
                             className={btn}
@@ -2551,15 +2543,13 @@ export default function DriveManagement({
             <span className="text-sm">
               {offset + (candidates.length ? 1 : 0)}–
               {offset + candidates.length}
-              {tab !== "candidates" ? ` of ${total}` : ""}
+              {` of ${total}`}
             </span>
             <button
               className={btn}
               disabled={
                 loading ||
-                (tab === "candidates"
-                  ? candidates.length < 25
-                  : offset + candidates.length >= total)
+                offset + candidates.length >= total
               }
               onClick={() => setOffset((n) => n + 25)}
             >
@@ -2638,7 +2628,7 @@ export default function DriveManagement({
                 driveId={driveId}
                 drive={drive}
               />
-              {tab === "candidates" && (
+              {tab === "results" && (
                 <>
                   <div className="flex flex-wrap gap-3">
                     {["completed", "released", "held_for_review"].includes(

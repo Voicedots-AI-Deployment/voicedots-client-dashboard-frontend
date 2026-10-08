@@ -1090,7 +1090,7 @@ test('candidate resume match opens from keyboard focus with only ATS evidence an
   await page.route('**/v3/college/drives/drive-1/dashboard/ranking**',route=>route.fulfill({json:{candidates:[{student_id:'s1',full_name:'Anu Candidate',roll_number:'R1',email:'anu@example.test',department_code:'CSE',program:'B.Tech',assignment_status:'completed'}],total_count:1}}));
   await page.route('**/v3/college/drives/drive-1/dashboard/ats-fit**',route=>route.fulfill({json:{candidates:[{student_id:'s1',assignment_status:'completed',ats_fit_score:82,skills:[{skill:'Python',match_status:'FULL_MATCH',evidence_text:'Built production services in Python'},{skill:'Kubernetes',match_status:'NO_EVIDENCE'}]}]}}));
   await page.getByRole('button',{name:'Manage drive',exact:true}).click();
-  await page.getByRole('button',{name:'Candidates',exact:true}).click();
+  await page.getByRole('button',{name:'Interview results',exact:true}).click();
   const trigger=page.getByRole('button',{name:'AI resume match'});
   await trigger.focus();
   const popup=page.getByRole('dialog',{name:'Resume match for Anu Candidate'});
@@ -1109,7 +1109,7 @@ test('pending candidate resume summary stays neutral when role analysis is unava
   await page.route('**/v3/college/drives/drive-1/dashboard/ranking**',route=>route.fulfill({json:{candidates:[{student_id:'s1',full_name:'Pending Candidate',roll_number:'R1',assignment_status:'invited'}],total_count:1}}));
   await page.route('**/v3/college/drives/drive-1/dashboard/ats-fit**',route=>route.fulfill({json:{candidates:[{student_id:'s1',assignment_status:'invited',ats_fit_score:null,skills:[]}]}}));
   await page.getByRole('button',{name:'Manage drive',exact:true}).click();
-  await page.getByRole('button',{name:'Candidates',exact:true}).click();
+  await page.getByRole('button',{name:'Interview results',exact:true}).click();
   await page.getByRole('button',{name:'AI resume match'}).focus();
   const popup=page.getByRole('dialog',{name:'Resume match for Pending Candidate'});
   await expect(popup).toContainText('Role-specific resume evidence is unavailable');
@@ -1405,7 +1405,7 @@ test('candidate stopped by proctor has an ended label and attempt policy control
   await page.route('**/v3/college/drives/drive-1/dashboard/ranking**',route=>route.fulfill({json:{candidates:[{student_id:'s1',full_name:'Ended Candidate',roll_number:'R1',assignment_status:'expired',preparation_status:'ready',live_session_status:'candidate_ended',live_session_termination_source:'proctor'}],pagination:{total:1}}}));
   await page.reload();
   await expect(page.getByText('Ended by proctor',{exact:true})).toBeVisible();
-  await page.getByRole('button',{name:'View details',exact:true}).click();
+  await page.getByRole('button',{name:'Candidate details',exact:true}).click();
   await expect(page.getByText('Attempt policy & AI Coach')).toBeVisible();
   await expect(page.getByRole('button',{name:'Configure attempt & Coach rules'})).toBeVisible();
 });
@@ -1447,7 +1447,7 @@ test('ATS popup reuses already loaded evidence without another matching request'
 test('attempt rules open the existing drive at Interview setup rather than a new draft',async({page})=>{
   await setup(page,true,{initialPath:'/dashboard/placement-management?drive=drive-1&section=candidates',driveDetails:{id:'drive-1',company_name:'Existing Company',role_title:'Engineer',location:'Remote',jd_raw_text:'Build Python services for customers.',status:'draft',max_attempts:3,window_start_at:'2099-01-01T00:00:00Z',window_end_at:'2099-01-02T00:00:00Z'}});
   await page.route('**/v3/college/drives/drive-1/dashboard/ranking**',route=>route.fulfill({json:{candidates:[{student_id:'s1',full_name:'Anu',roll_number:'R1',assignment_status:'assigned'}],pagination:{total:1}}}));
-  await page.reload();await page.getByRole('button',{name:'View details',exact:true}).click();
+  await page.reload();await page.getByRole('button',{name:'Candidate details',exact:true}).click();
   await page.getByRole('button',{name:'Configure attempt & Coach rules'}).click();
   await expect(page.getByRole('heading',{name:'Modify placement drive'})).toBeVisible();
   await expect(page.getByRole('button',{name:'2. Interview setup'})).toHaveAttribute('aria-current','step');
@@ -1471,7 +1471,7 @@ test('results export includes selected candidates and compact strengths with rep
   const download=page.waitForEvent('download');await page.getByRole('button',{name:'Export Excel'}).click();
   expect((await download).suggestedFilename()).toBe('interview-results.xlsx');expect(selected).toEqual(['s1']);
   await page.getByRole('group',{name:'Results layout'}).getByRole('button',{name:'Table',exact:true}).click();
-  await expect(page.locator('#result-candidate-table th')).toHaveCount(7);
+  await expect(page.getByRole('columnheader',{name:'Status / attempts',exact:true})).toBeVisible();
   await expect(page.getByLabel('Select Selected Candidate',{exact:true})).toBeChecked();
   await page.getByRole('group',{name:'Results layout'}).getByRole('button',{name:'Cards',exact:true}).click();
   await page.setViewportSize({width:390,height:844});
@@ -1663,7 +1663,7 @@ test('row based interview results show concise evidence and persist candidate de
   });
   await page.route('**/v3/college/drives/drive-1/dashboard/overview**',route=>route.fulfill({json:{interview_progress:{completed:1}}}));
   await page.reload();await expect(page.locator('.result-kpi-grid')).toHaveCSS('column-gap','12px');const card=page.locator('#result-candidate-cards');
-  await expect(card.locator('dl>div')).toHaveCount(4);
+  await expect(card.locator('dt').getByText('Candidate & attempts',{exact:true})).toBeVisible();
   await expect(card.getByText('46.2/100',{exact:true})).toBeVisible();
   await expect(card.getByText('Review required',{exact:true})).toBeVisible();
   await expect(card.getByText('Developing',{exact:true})).toBeVisible();
@@ -1963,4 +1963,45 @@ test('switching candidates ignores a delayed main report refresh', async ({page}
   release();await page.waitForTimeout(300);
   await expect(page.getByRole('heading',{name:'Second Candidate',exact:true})).toBeVisible();
   await expect(page.getByRole('heading',{name:'First Candidate',exact:true})).toHaveCount(0);
+});
+
+
+test('Interview results merges candidate details and attempt controls in cards and table, including legacy links', async ({page}) => {
+  await setup(page,true,{initialPath:'/dashboard/placement-management?drive=drive-1&section=candidates',driveDetails:{id:'drive-1',company_name:'Example',role_title:'Engineer',status:'active',max_attempts:3}});
+  const candidate={student_id:'merged-student',full_name:'Merged Candidate',roll_number:'CS-001',email:'merged@example.edu',program:'B.Tech',department_code:'CSE',cgpa:8.2,graduation_year:2027,assignment_status:'assigned',attempt_number:1,max_attempts:3,report_ready:false};
+  const queries:string[]=[];
+  await page.route('**/v3/college/drives/drive-1/dashboard/ranking**',route=>{queries.push(route.request().url());return route.fulfill({json:{candidates:[candidate],pagination:{total:1}}})});
+  await page.route('**/v3/college/drives/drive-1/candidates/merged-student/attempts',route=>route.fulfill({json:{attempts:[{attempt_number:1,status:'assigned'}]}}));
+  let savedAttempts=0;
+  await page.route('**/v3/college/drives/drive-1/candidates/merged-student/attempt-limit',route=>{savedAttempts=route.request().postDataJSON().max_attempts;return route.fulfill({json:{status:'updated'}})});
+  await page.reload();
+  await expect(page).toHaveURL(/section=results/);
+  await expect(page.getByRole('button',{name:'Candidates',exact:true})).toHaveCount(0);
+  await expect(page.getByRole('heading',{name:'Interview results',exact:true})).toBeVisible();
+  await expect(page.getByText('merged@example.edu',{exact:true})).toBeVisible();
+  await page.getByRole('button',{name:'Candidate details',exact:true}).click();
+  const drawer=page.getByRole('dialog',{name:'Candidate details for Merged Candidate'});
+  await expect(drawer).toContainText('8.2 / 2027');
+  await expect(drawer).toContainText('Attempt policy & AI Coach');
+  await drawer.getByLabel('Allowed attempts').fill('4');
+  await drawer.getByRole('button',{name:'Save allowed attempts'}).click();
+  await expect.poll(()=>savedAttempts).toBe(4);
+  await page.getByRole('button',{name:'Close details',exact:true}).click();
+  await page.getByRole('group',{name:'Results layout'}).getByRole('button',{name:'Table',exact:true}).click();
+  const row=page.getByRole('row').filter({hasText:'Merged Candidate'});
+  await expect(row).toContainText('B.Tech · CSE');
+  await expect(row).toContainText('0/3 used · attempt 1 available');
+  await expect(row.getByRole('button',{name:'Report pending'})).toBeDisabled();
+  await row.getByRole('button',{name:'Candidate details'}).click();
+  await drawer.getByRole('button',{name:'View attempt history'}).click();
+  await expect(drawer).toContainText('Attempt policy & AI Coach');
+  await page.getByRole('button',{name:'Close details',exact:true}).click();
+  await page.getByLabel('Program',{exact:true}).selectOption('B.Tech');
+  await page.getByLabel('Interview status',{exact:true}).selectOption('assigned');
+  await expect.poll(()=>queries.some(url=>{const q=new URL(url).searchParams;return q.get('program')==='B.Tech'&&q.get('assignment_status')==='assigned'})).toBe(true);
+  await page.screenshot({path:'/root/voicedots/artifacts/merged-candidates-results-desktop.png',fullPage:true});
+  await page.setViewportSize({width:390,height:844});
+  await page.getByRole('group',{name:'Results layout'}).getByRole('button',{name:'Cards',exact:true}).click();
+  await expect(page.getByRole('button',{name:'Candidate details',exact:true})).toBeVisible();
+  await page.screenshot({path:'/root/voicedots/artifacts/merged-candidates-results-mobile.png',fullPage:true});
 });
