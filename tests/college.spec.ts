@@ -1645,3 +1645,32 @@ test('result card keeps report icon aligned and does not contradict its proctor 
   await page.waitForTimeout(200);
   await page.screenshot({path:'/root/voicedots/artifacts/report-polish-20261008/results-mobile.png',fullPage:true});
 });
+
+test('row based interview results show concise evidence and persist candidate decisions', async ({page}) => {
+  await setup(page,true,{initialPath:'/dashboard/placement-management?drive=drive-1&section=results',driveDetails:{id:'drive-1',company_name:'Razorpay',role_title:'Backend Developer',status:'active'}});
+  await page.setViewportSize({width:1706,height:960});
+  let decision='',savedNote='';
+  await page.route('**/v3/college/drives/drive-1/dashboard/ranking**',route=>{const url=new URL(route.request().url());if(url.searchParams.get('result_view')==='incomplete'||url.searchParams.has('decision')||(url.searchParams.get('result_view')==='decision_pending'&&decision))return route.fulfill({json:{candidates:[],pagination:{total:0}}});return route.fulfill({json:{candidates:[{student_id:'s1',full_name:'DSCET Test Student',roll_number:'DSCET-TEST-001',program:'B.Tech',department_code:'CSE',rank:1,overall_score:46.2,ranking_score:58.9,job_fit_score:88.6,readiness:'Developing',proctoring_score:88.8,integrity_review_status:'review_required',integrity_review_label:'Review required',assessment_coverage:100,assignment_status:'completed',report_ready:true,recommendation:'Consider',officer_decision:decision,publication:{state:'released'},agent_summary:[{label:'Problem Solving',score:28.7},{label:'Domain',score:44.2},{label:'Practical',score:10.3},{label:'Hiring Manager',score:19.1}]}],pagination:{total:1}}});});
+  await page.route('**/v3/college/drives/drive-1/candidates/s1/decision',route=>{
+    if(route.request().method()==='PUT'){const body=route.request().postDataJSON();decision=body.decision;savedNote=body.note;return route.fulfill({json:{status:'saved'}});}
+    return route.fulfill({json:{decision:{decision,note:savedNote},publication:{state:'released'}}});
+  });
+  await page.route('**/v3/college/drives/drive-1/dashboard/overview**',route=>route.fulfill({json:{interview_progress:{completed:1}}}));
+  await page.reload();const card=page.locator('#result-candidate-cards');
+  await expect(card.locator('dl>div')).toHaveCount(4);
+  await expect(card.getByText('46.2/100',{exact:true})).toBeVisible();
+  await expect(card.getByText('Review required',{exact:true})).toBeVisible();
+  await expect(card.getByText('Developing',{exact:true})).toBeVisible();
+  await card.getByRole('button',{name:'Hold',exact:true}).click();
+  await expect(card.getByLabel('Officer decision',{exact:true})).toHaveValue('hold');
+  await card.getByLabel('Officer note',{exact:true}).fill('Review domain evidence in the next round.');
+  await card.getByRole('button',{name:'Save decision & note'}).click();
+  await expect.poll(()=>decision).toBe('hold');expect(savedNote).toBe('Review domain evidence in the next round.');
+  await expect(card.getByRole('button',{name:'Save decision & note'})).toHaveCount(0);
+  await page.evaluate(()=>{window.scrollTo(0,0);document.querySelectorAll('*').forEach(e=>{if(e.scrollTop>0)e.scrollTop=0;});});
+  await page.screenshot({path:'/root/voicedots/artifacts/results-row-redesign-20261008/results-desktop.png',fullPage:true});
+  await page.setViewportSize({width:390,height:844});
+  await page.waitForTimeout(350); // Let the responsive sidebar finish its exit transition.
+  await expect.poll(()=>page.evaluate(()=>document.documentElement.scrollWidth<=window.innerWidth)).toBe(true);
+  await page.screenshot({path:'/root/voicedots/artifacts/results-row-redesign-20261008/results-mobile.png',fullPage:true});
+});

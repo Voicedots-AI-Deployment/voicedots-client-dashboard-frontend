@@ -106,3 +106,36 @@ body {
 .candidate-review summary:focus-visible {outline:2px solid #8b5cf6;outline-offset:4px;}
 .candidate-review .report-nav {gap:4px;}
 .candidate-review .report-nav button {padding:10px 12px;}
+
+/* Candidate review cards: consistent evidence rows and a distinct decision footer. */
+.result-evidence-rows>div {display:grid;grid-template-columns:168px minmax(0,1fr);gap:16px;padding:14px 20px;border-bottom:1px solid #f1eff7;align-items:center;}
+.result-evidence-rows>div:last-child {border-bottom:0;}
+.result-evidence-rows dt {font-size:12px;font-weight:400;color:#7c7892;}
+.result-evidence-rows dd {min-width:0;}
+.result-score-chip,.result-round-chip {display:inline-flex;align-items:center;gap:8px;border-radius:999px;padding:6px 10px;font-size:12px;line-height:18px;}
+.result-score-chip strong,.result-round-chip strong {font-weight:500;font-variant-numeric:tabular-nums;}
+.result-score-chip.score-strong {background:#def7ed;color:#08785f;}
+.result-score-chip.score-developing {background:#fff3d5;color:#956000;}
+.result-score-chip.score-review {background:#ffe8ed;color:#ba2447;}
+.result-score-chip.score-unavailable {background:#f1f3f8;color:#64748b;}
+.result-round-chip {border:1px solid #e5e0f3;background:#fff;color:#64547e;}
+.result-decision-footer>div:last-child>button:first-of-type {margin-right:auto;}
+.result-decision-footer button {font-weight:500;}
+#result-candidate-cards>article {box-shadow:0 2px 6px #34215404;}
+#result-candidate-cards>article:hover {border-color:#d9d0f0;}
+@media(max-width:640px) {
+ .result-evidence-rows>div {grid-template-columns:1fr;gap:8px;padding:14px 16px;}
+ #result-candidate-cards header {padding:16px;}
+ .result-assessment-band {padding:12px 16px;}
+ .result-decision-footer {padding:14px 16px;}
+ .result-decision-footer>div:first-child {flex-wrap:wrap;}
+ .result-score-chip,.result-round-chip {font-size:11px;gap:5px;padding:5px 9px;}
+}
+
+@media(max-width:640px) {
+ #result-candidate-cards header {display:grid;grid-template-columns:16px 44px minmax(0,1fr);gap:10px;}
+ #result-candidate-cards header>button {grid-column:2 / -1;justify-self:start;}
+ .result-decision-footer>div:last-child {display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px;}
+ .result-decision-footer>div:last-child>button:first-of-type {margin-right:0;}
+ .result-decision-footer>div:last-child>span {grid-column:1 / -1;}
+}
