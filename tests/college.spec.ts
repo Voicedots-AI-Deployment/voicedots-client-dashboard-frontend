@@ -361,7 +361,8 @@ async function driveFields(page: Page) {
   await page.locator('#graduation_from').selectOption('2027');
   await page.locator('#graduation_to').selectOption('2028');
   await page.getByRole('button',{name:'Continue'}).click();
-  if(await page.getByRole('dialog').isVisible().catch(()=>false)) await page.getByRole('button',{name:'Confirm and review'}).click();
+  await page.getByRole('button',{name:'Confirm and review'}).click();
+  await expect(page.getByText('STEP 6 OF 6')).toBeVisible();
 }
 
 test('unassigned client cannot see management navigation or controls', async ({ page }) => {
@@ -580,7 +581,8 @@ test('interview window accepts any minute and saves it precisely', async ({page}
   await page.locator('#graduation_from').selectOption('2027');
   await page.locator('#graduation_to').selectOption('2028');
   await page.getByRole('button',{name:'Continue'}).click();
-  if(await page.getByRole('dialog').isVisible().catch(()=>false)) await page.getByRole('button',{name:'Confirm and review'}).click();
+  await page.getByRole('button',{name:'Confirm and review'}).click();
+  await expect(page.getByText('STEP 6 OF 6')).toBeVisible();
   await page.getByRole('button',{name:'Create placement drive'}).click();
   expect(payload.window_start).toMatch(/^2027-01-10T04:05:00\.000Z$/);
   await expect(page.getByRole('alert')).toHaveCount(0);
@@ -890,8 +892,8 @@ test('analytics has honest empty data and fits a mobile viewport',async ({page})
 
 test('roster imports a workbook and offers a downloadable CSV template',async({page})=>{
  await setup(page,true,{initialPath:'/dashboard/attendance'});await page.route('**/v3/college/students/upload',async route=>{expect(route.request().headers()['content-type']).toContain('multipart/form-data; boundary=');expect(route.request().postDataBuffer()?.toString()).toContain('roster.csv');return route.fulfill({json:{records_created:2,records_updated:1,records_processed:3,errors_count:1,errors_sample:['Students row 5: Email is required'],warnings_count:0,warnings_sample:[]}})});
- await page.route('**/v3/college/students/template?format=csv',route=>route.fulfill({contentType:'text/csv',body:'roll_number,full_name,email\r\n'}));
- await page.getByRole('button',{name:'Student Roster',exact:true}).click();await page.getByText('Import students from CSV or Excel',{exact:true}).click();const downloaded=page.waitForEvent('download');await page.getByRole('button',{name:'Download CSV template'}).click();expect((await downloaded).suggestedFilename()).toBe('student-import-template.csv');await page.getByLabel('Student import file').setInputFiles({name:'roster.csv',mimeType:'text/csv',buffer:Buffer.from('roll_number,full_name,email\n001,Asha,asha@example.com')});await page.getByRole('button',{name:'Import students',exact:true}).click();await expect(page.getByText('2 created · 1 updated · 1 errors · 0 warnings')).toBeVisible();await expect(page.getByText('Students row 5: Email is required')).toBeVisible();
+ await page.route('**/v3/college/students/template?format=csv**',route=>route.fulfill({contentType:'text/csv',body:'roll_number,full_name,email\r\n'}));
+ await page.getByRole('button',{name:'Student Roster',exact:true}).click();await page.getByText('Import students or update CGPA in bulk',{exact:true}).click();const downloaded=page.waitForEvent('download');await page.getByRole('button',{name:'Download CSV template'}).click();expect((await downloaded).suggestedFilename()).toBe('student-import-template.csv');await page.getByLabel('Student import file').setInputFiles({name:'roster.csv',mimeType:'text/csv',buffer:Buffer.from('roll_number,full_name,email\n001,Asha,asha@example.com')});await page.getByRole('button',{name:'Import students',exact:true}).click();await expect(page.getByText('2 created · 1 updated · 1 errors · 0 warnings')).toBeVisible();await expect(page.getByText('Students row 5: Email is required')).toBeVisible();
 });
 
 for (const existing of [true, false]) {
@@ -1770,4 +1772,63 @@ test('report never substitutes cached answer text for an empty saved transcript'
   await expect(page.getByRole('rowheader',{name:'Tab Hidden',exact:true})).toBeVisible();
   await expect(page.getByRole('rowheader',{name:'Multiple Faces',exact:true})).toBeVisible();
   await expect(page.getByRole('heading',{name:'Decision & publication'})).toBeVisible();
+});
+
+test('CGPA is optional when adding a student and bulk scores use a separate import action',async({page})=>{
+  await setup(page,true,{initialPath:'/dashboard/attendance'});
+  let saved:Record<string,unknown>|undefined,bulkUrl='';
+  await page.route('**/v3/college/students',route=>{if(route.request().method()==='POST'){saved=route.request().postDataJSON();return route.fulfill({json:{student_id:'new-student',welcome_email_status:'queued'}});}return route.fallback();});
+  await page.getByRole('button',{name:'Add student',exact:true}).click();
+  await page.getByLabel('Full name',{exact:false}).fill('Optional Score Student');
+  await page.getByLabel('Student ID / Roll number').fill('NO-CGPA-01');
+  await page.getByRole('dialog').locator('input[name=email]').fill('optional@example.edu');
+  await page.getByPlaceholder('Phone number',{exact:true}).fill('9999999999');
+  await page.getByLabel('Department',{exact:false}).last().selectOption('CSE');
+  await expect(page.getByLabel('CGPA (optional)')).not.toHaveAttribute('required');
+  await page.getByRole('dialog').getByRole('button',{name:/Save student|Create student|Add student/}).click();
+  await expect.poll(()=>saved?.cgpa).toBeNull();
+  await page.getByText('Import students or update CGPA in bulk',{exact:true}).click();
+  await page.getByLabel('Student import action').selectOption('cgpa');
+  await page.route('**/v3/college/students/upload?mode=cgpa',route=>{bulkUrl=route.request().url();return route.fulfill({json:{records_created:0,records_updated:1,errors_count:0,warnings_count:0}});});
+  await page.getByLabel('Student import file').setInputFiles({name:'scores.csv',mimeType:'text/csv',buffer:Buffer.from('roll_number,cgpa\nNO-CGPA-01,8.75\n')});
+  await page.getByRole('button',{name:'Update CGPA',exact:true}).click();
+  await expect.poll(()=>bulkUrl).toContain('mode=cgpa');
+  await expect(page.getByRole('status').filter({hasText:'0 created · 1 updated'})).toBeVisible();
+});
+
+test('report shows one labeled transcript and answer playback scrolls to the video',async({page})=>{
+  await setup(page,true,{initialPath:'/dashboard/placement-management?drive=drive-1&section=results&candidate=s1'});
+  await page.setViewportSize({width:1280,height:720});
+  const started='2026-10-01T10:00:00Z';
+  await page.route('**/v3/college/students/s1/reports',route=>route.fulfill({json:{student:{full_name:'Playback Candidate',roll_number:'R1'},reports:[{source:'drive',drive_id:'drive-1',session_id:'session-1',detail:{status:'released',question_reviews:[{turn_id:'turn-1',question:'How did you solve the problem?',answer:'I checked the logs and fixed the timeout.',answer_state:'answered'}]}}]}}));
+  await page.route('**/v3/college/students/s1/reports/session-1/transcript',route=>route.fulfill({json:{turns:[{turn_id:'turn-1',transcript:'I checked the logs and fixed the timeout.',has_audio:false,asked_at:started,answer_started_at:'2026-10-01T10:00:00.500Z'}]}}));
+  await page.route('**/v3/college/students/s1/reports/session-1/recording',route=>route.fulfill({json:{status:'ready',playback_url:'https://media.example/playback.webm',started_at:started,duration_seconds:2,segment_count:1}}));
+  await page.route('https://media.example/playback.webm',route=>route.fulfill({contentType:'video/webm',body:readFileSync('tests/fixtures/interview-test.webm')}));
+  await page.reload();
+  const video=page.getByLabel('Interview recording',{exact:true});await expect(video).toBeVisible();
+  await page.getByRole('tablist',{name:'Candidate report sections'}).getByRole('tab',{name:/Answers/}).click();
+  await page.locator('#answer-0 summary').click();
+  await expect(page.locator('#answer-0').getByText('Saved candidate transcript',{exact:true})).toHaveCount(1);
+  await expect(page.locator('#answer-0').getByText('I checked the logs and fixed the timeout.',{exact:true})).toHaveCount(1);
+  await page.getByRole('button',{name:/Play this answer/}).click();
+  await expect.poll(()=>video.evaluate(element=>{const r=element.getBoundingClientRect();return r.top<innerHeight&&r.bottom>0;})).toBe(true);
+  await expect.poll(()=>video.evaluate(element=>(element as HTMLVideoElement).currentTime)).toBeGreaterThanOrEqual(.5);
+});
+
+test('existing active drives can regenerate editable questions using selected difficulty',async({page})=>{
+  await setup(page,true,{initialPath:'/dashboard/placement-management?drive=drive-1&section=settings',driveDetails:{id:'drive-1',company_name:'Example',role_title:'Backend Engineer',location:'Remote',jd_raw_text:'Build Python backend APIs and SQL services.',status:'active',difficulty_tier:'beginner',interview_duration_minutes:15,window_start_at:'2099-01-01T00:00:00Z',window_end_at:'2099-01-02T00:00:00Z'}});
+  const requests:Record<string,any>[]=[];
+  await page.route('**/v3/college/drive-questions/preview',route=>{const body=route.request().postDataJSON();requests.push(body);return route.fulfill({json:{scripted_questions:{[body.target_track]:body.difficulty_tier==='advanced'?['How would you diagnose a distributed transaction timeout?','How would you design an idempotent API?']:['What is a REST API?','How do you query a SQL table?']}}});});
+  await page.getByRole('button',{name:'Edit complete setup'}).click();
+  await page.getByRole('button',{name:'2. Interview setup'}).click();await expect(page.locator('#difficulty_tier')).toBeEnabled();
+  await page.getByRole('button',{name:'4. Questions'}).click();
+  await page.getByRole('button',{name:/AI Generated Generate from this job description/}).first().click();
+  await page.getByRole('button',{name:'Generate from job description',exact:true}).first().click();
+  await expect(page.locator('#question-hr-1')).toHaveValue('How do you query a SQL table?');expect(requests[0].difficulty_tier).toBe('beginner');expect(requests[0].target_track).toBe('hr');
+  await page.locator('#question-hr-0').fill('Explain a basic API you built?');
+  await expect(page.locator('#question-hr-0')).toHaveValue('Explain a basic API you built?');
+  await page.getByRole('button',{name:'2. Interview setup'}).click();await page.locator('#difficulty_tier').selectOption('advanced');
+  await page.getByRole('button',{name:'4. Questions'}).click();await expect(page.locator('#question-hr-0')).toHaveCount(0);
+  await page.getByRole('button',{name:'Generate from job description',exact:true}).first().click();
+  await expect(page.locator('#question-hr-1')).toHaveValue('How would you design an idempotent API?');expect(requests.at(-1)?.difficulty_tier).toBe('advanced');expect(requests.at(-1)?.avoid_questions).toContain('How do you query a SQL table?');
 });

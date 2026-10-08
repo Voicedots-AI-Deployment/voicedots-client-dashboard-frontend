@@ -2,7 +2,7 @@ import { useCallback, useEffect, useState, type FormEvent } from 'react';
 import { collegeApi, collegeError, type Program } from '@/api/collegeApi';
 import { AttendanceEditor, ReviewEditor, ContactsEditor } from './StudentSupportEditors';
 
-type Student = { id:string; full_name:string; roll_number:string; email:string; phone:string|null; program:string; department_code:string; graduation_year:number; cgpa:number; date_of_birth?:string|null; status:string };
+type Student = { id:string; full_name:string; roll_number:string; email:string; phone:string|null; program:string; department_code:string; graduation_year:number; cgpa:number|null; date_of_birth?:string|null; status:string };
 type Payment = { id:string; amount:number; paid_on:string; reference:string; note:string };
 type Mark = { id:string; subject:string; exam:string; semester:number|null; score:number; maximum:number; exam_date:string|null; grade:string|null };
 type Records = { total_fee:number; amount_paid:number; balance:number; currency:string; imported_paid_amount:number; payments:Payment[]; marks:Mark[]; fee_history:{ previous_total:number; new_total:number; changed_at:string }[] };
@@ -84,7 +84,7 @@ export default function TeacherStudentRecords() {
           full_name:String(values.get('full_name')||'').trim(),roll_number:String(values.get('roll_number')||'').trim(),
           email:String(values.get('email')||'').trim(),phone:String(values.get('phone')||'').trim()||null,
           program,department_code:department,batch_label:String(values.get('batch_label')||'').trim()||null,
-          cgpa:Number(values.get('cgpa')),graduation_year:Number(values.get('graduation_year')),
+          cgpa:String(values.get('cgpa')||'').trim()?Number(values.get('cgpa')):null,graduation_year:Number(values.get('graduation_year')),
           date_of_birth:values.get('date_of_birth')||null,status:'active',
         });
         setView('list'); await refresh();
@@ -93,7 +93,7 @@ export default function TeacherStudentRecords() {
         const changes = {
           full_name:String(values.get('full_name')||'').trim(),email:String(values.get('email')||'').trim(),
           phone:String(values.get('phone')||'').trim()||null,
-          cgpa:Number(values.get('cgpa')),graduation_year:Number(values.get('graduation_year')),
+          cgpa:String(values.get('cgpa')||'').trim()?Number(values.get('cgpa')):null,graduation_year:Number(values.get('graduation_year')),
           date_of_birth:String(values.get('date_of_birth')||'')||null,status:String(values.get('status')),
         };
         await collegeApi.save(`${base}/students/${selected.id}`,changes,true);
@@ -187,7 +187,7 @@ export default function TeacherStudentRecords() {
         <label className="text-sm">Department *<select className={input} value={department} required onChange={e=>setDepartment(e.target.value)}>{currentProgram?.departments.map(d=><option key={d.code} value={d.code}>{d.display_name}</option>)}</select></label>
         {field('Batch label (if assigned)','batch_label','text','',false)}
         {field('Graduation year *','graduation_year','number',new Date().getFullYear()+1)}
-        {field('CGPA *','cgpa','number')}{field('Date of birth','date_of_birth','date','',false)}
+        {field('CGPA (optional)','cgpa','number','',false)}{field('Date of birth','date_of_birth','date','',false)}
       </div><div className="flex gap-2"><button className={primary} disabled={busy}>{busy?'Saving…':'Add student'}</button><button type="button" className={button} disabled={busy} onClick={backToList}>Cancel</button></div></form>
     </section>}
 
@@ -203,7 +203,7 @@ export default function TeacherStudentRecords() {
           {field('Email *','email','email',selected.email)}
           <div>{field('Registered mobile number (optional)','phone','tel',selected.phone||'',false)}<p className="mt-1 text-xs text-slate-500">Leave blank if unavailable. Calls can only find this student after a number is added.</p></div>
           {field('Graduation year *','graduation_year','number',selected.graduation_year)}
-          {field('CGPA *','cgpa','number',selected.cgpa)}
+          {field('CGPA (optional)','cgpa','number',selected.cgpa??'',false)}
           {field('Date of birth','date_of_birth','date',selected.date_of_birth?.slice(0,10)||'',false)}
           <label className="text-sm">Status<select className={input} name="status" defaultValue={selected.status}><option value="active">Active</option><option value="inactive">Inactive</option><option value="placed">Placed</option></select></label>
         </div><button className={primary} disabled={busy}>{busy?'Saving…':'Save personal details'}</button></form>
