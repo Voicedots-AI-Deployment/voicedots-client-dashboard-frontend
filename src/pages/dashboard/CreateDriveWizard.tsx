@@ -63,6 +63,8 @@ export default function CreateDriveWizard({programs,drive,draftId,initialStep=0,
   const [fieldErrors,setFieldErrors]=useState<Record<string,string>>({}),[formError,setFormError]=useState(''),[notice,setNotice]=useState('');
   const [draftLoaded,setDraftLoaded]=useState(Boolean(drive)),[draftStatus,setDraftStatus]=useState<'saved'|'saving'|'error'|'idle'>('idle');
   const [creationKey,setCreationKey]=useState<string>(()=>crypto.randomUUID());
+  const [advancing,setAdvancing]=useState(false);
+  const advancingRef=useRef(false),submittingRef=useRef(false);
   const draftIdRef=useRef<string|null>(draftId||null),draftSavingRef=useRef(false),draftResaveRef=useRef(false),draftSaveWaitersRef=useRef<Array<()=>void>>([]),companyPickerRef=useRef<HTMLDivElement|null>(null);
 
   const availableDepartments=useMemo(()=>programs.filter(program=>programIds.includes(program.code)).flatMap(program=>program.departments),[programs,programIds]);
@@ -157,7 +159,7 @@ export default function CreateDriveWizard({programs,drive,draftId,initialStep=0,
   latestDraftRef.current=currentDraftPayload();
 
   async function saveDraft(manual=false,nextStep=step){
-    if(drive)return false;
+    if(drive||submittingRef.current)return false;
     if(draftSavingRef.current){draftResaveRef.current=true;if(manual)setNotice('A draft save is already finishing. Wait for its status before continuing.');return false;}
     const payload={...latestDraftRef.current,step:nextStep};
     localStorage.setItem(DRAFT_KEY,JSON.stringify({id:draftIdRef.current,payload,saved_at:new Date().toISOString()}));
@@ -172,7 +174,7 @@ export default function CreateDriveWizard({programs,drive,draftId,initialStep=0,
         }
       }else row=await collegeApi.save<DriveDraft>('drive-drafts',{payload,step:nextStep,client_draft_key:creationKey});
       draftIdRef.current=row.id;setDraftStatus('saved');setNotice(manual?'Draft saved.':'');
-      localStorage.setItem(DRAFT_KEY,JSON.stringify({id:row.id,payload,saved_at:new Date().toISOString()}));
+      localStorage.setItem(DRAFT_KEY,JSON.stringify({id:row.id,payload:{...latestDraftRef.current,step:manual?nextStep:latestDraftRef.current.step},saved_at:new Date().toISOString()}));
       return true;
     }catch(e){setDraftStatus('error');if(manual)setNotice(`Draft kept on this device; cloud save failed: ${collegeError(e)}`);return false;}
     finally{draftSavingRef.current=false;for(const resolve of draftSaveWaitersRef.current.splice(0))resolve();if(draftResaveRef.current){draftResaveRef.current=false;void saveDraft(false,latestDraftRef.current.step);}}
@@ -263,6 +265,7 @@ export default function CreateDriveWizard({programs,drive,draftId,initialStep=0,
   }
   function focusError(errors:Record<string,string>){const first=Object.keys(errors)[0];if(first)setTimeout(()=>document.getElementById(first)?.focus(),0);}
   function goTo(target:number){
+    if(advancingRef.current||submittingRef.current)return;
     if(drive){setFieldErrors({});setFormError('');setStep(target);return;}
     const nextErrors:Record<string,string>={};
     for(let index=0;index<target;index++)Object.assign(nextErrors,validate(index));
@@ -270,12 +273,19 @@ export default function CreateDriveWizard({programs,drive,draftId,initialStep=0,
     setFieldErrors({});setFormError('');setStep(target);
   }
   async function next(){
+    if(advancingRef.current||submittingRef.current)return;
     const errors=validate(step);if(Object.keys(errors).length){setFieldErrors(errors);focusError(errors);return;}
     setFieldErrors({});setFormError('');
     if(step===4&&ambiguousDifficulty&&!difficultyConfirmed){setConfirmDifficulty(true);return;}
-    const target=Math.min(5,step+1);
-    if(!drive){while(draftSavingRef.current)await new Promise<void>(resolve=>draftSaveWaitersRef.current.push(resolve));if(!await saveDraft(true,target))return;}
-    setStep(target);
+    await advanceTo(Math.min(5,step+1));
+  }
+  async function advanceTo(target:number){
+    if(advancingRef.current||submittingRef.current)return;
+    advancingRef.current=true;setAdvancing(true);
+    try{
+      if(!drive){while(draftSavingRef.current)await new Promise<void>(resolve=>draftSaveWaitersRef.current.push(resolve));if(!await saveDraft(true,target))return;}
+      setStep(target);
+    }finally{advancingRef.current=false;setAdvancing(false);}
   }
   function moveRole(index:number,direction:number){const target=index+direction;if(target<0||target>=selection.length)return;setSelection(current=>{const rows=[...current];[rows[index],rows[target]]=[rows[target],rows[index]];return rows;});}
   function addRole(track:string){if(selection.length>=4||selection.some(item=>item.track===track))return;setSelection(current=>[...current,{track,agent_id:null}]);}
@@ -301,14 +311,16 @@ export default function CreateDriveWizard({programs,drive,draftId,initialStep=0,
     };
   }
   async function submit(){
+    if(submittingRef.current||advancingRef.current)return;
     for(let index=0;index<5;index++){const errors=validate(index);if(Object.keys(errors).length){setStep(index);setFieldErrors(errors);focusError(errors);return;}}
     if(ambiguousDifficulty&&!difficultyConfirmed){setStep(4);setConfirmDifficulty(true);return;}
-    setBusy(true);setFormError('');setFieldErrors({});
+    submittingRef.current=true;setBusy(true);setFormError('');setFieldErrors({});
     try{
+      while(draftSavingRef.current)await new Promise<void>(resolve=>draftSaveWaitersRef.current.push(resolve));
       const result=await collegeApi.save<{status?:string;warnings?:string[]}>(drive?`drives/${drive.id}`:'drives',apiPayload(),!!drive);
       localStorage.removeItem(DRAFT_KEY);draftIdRef.current=null;
       onSaved([drive?'Drive changes saved.':`Drive created (${displayName(result.status||'draft')}).`,...(result.warnings||[])].join(' '));
-    }catch(error){applyBackendErrors(error);}finally{setBusy(false);}
+    }catch(error){applyBackendErrors(error);}finally{submittingRef.current=false;setBusy(false);}
   }
 
   function fieldError(key:string){return fieldErrors[key]?<span id={`${key}-error`} className="mt-1.5 flex items-start gap-1.5 text-xs font-medium text-rose-600"><CircleAlert size={14} className="mt-0.5 shrink-0"/>{fieldErrors[key]}</span>:null;}
@@ -328,7 +340,7 @@ export default function CreateDriveWizard({programs,drive,draftId,initialStep=0,
 
   return <section className="drive-wizard space-y-6 text-slate-900 dark:text-white">
     <div className="flex flex-wrap items-center justify-between gap-3"><button className={button} onClick={onCancel}><ArrowLeft size={16}/>Back to placement drives</button>{!drive&&<div className="flex items-center gap-2 text-xs text-slate-500" role="status">{draftStatus==='saving'?<><span className="rs-save-dot saving"/>Saving draft…</>:draftStatus==='saved'?<><span className="rs-save-dot"/>Draft saved</>:draftStatus==='error'?<><span className="rs-save-dot error"/>Offline draft saved on this device</>:<><span className="rs-save-dot"/>Draft auto-save ready</>}</div>}</div>
-    <header className="dw-heading"><div><p className="text-sm font-semibold uppercase tracking-[.16em] text-violet-600">Placement management</p><h1 className="mt-2 text-3xl font-bold tracking-tight">{drive?'Modify placement drive':'Create placement drive'}</h1><p className="mt-2 max-w-2xl text-sm leading-6 text-slate-500">{drive?'Modify the saved configuration for this drive. All sections are available; changes apply when you save.':'Set up a clear hiring workflow. Your draft saves as you work; publish after reviewing all details.'}</p></div>{!drive&&<button className={button} disabled={draftStatus==='saving'} onClick={()=>void saveDraft(true)}><Save size={16}/>Save draft</button>}</header>
+    <header className="dw-heading"><div><p className="text-sm font-semibold uppercase tracking-[.16em] text-violet-600">Placement management</p><h1 className="mt-2 text-3xl font-bold tracking-tight">{drive?'Modify placement drive':'Create placement drive'}</h1><p className="mt-2 max-w-2xl text-sm leading-6 text-slate-500">{drive?'Modify the saved configuration for this drive. All sections are available; changes apply when you save.':'Set up a clear hiring workflow. Your draft saves as you work; publish after reviewing all details.'}</p></div>{!drive&&<button className={button} disabled={draftStatus==='saving'||advancing||busy} onClick={()=>void saveDraft(true)}><Save size={16}/>Save draft</button>}</header>
     <nav className="dw-stepper" aria-label="Drive creation steps">{steps.map((name,index)=>{
       const completed=index<step,active=index===step,blocked=!drive&&index>step&&Object.keys(validate(index-1)).length>0;
       return <button type="button" key={name} aria-current={active?'step':undefined} aria-label={`${index+1}. ${name}`} title={blocked?'Complete the previous step to continue':`Go to ${name}`} className={`dw-step ${active?'active':''} ${completed?'completed':''}`} onClick={()=>goTo(index)}><span className="dw-step-number">{completed?<Check size={15}/>:index+1}</span><span className="dw-step-title">{name}</span>{index<steps.length-1&&<span className="dw-step-line"/>}</button>;
@@ -432,8 +444,8 @@ export default function CreateDriveWizard({programs,drive,draftId,initialStep=0,
         <section className="dw-review-card"><header><h3>Final check</h3></header><div>{[[Boolean(form.company_name.trim()&&form.role_title.trim()&&form.location.trim()&&form.jd_text.trim()),'Company, role, location, and job description'],[Boolean(form.window_start&&form.window_end&&wallTimeToInstant(form.window_end,collegeTimezone)>wallTimeToInstant(form.window_start,collegeTimezone)),'Interview window and attempt limit'],[Boolean(selection.length>=1&&selection.length<=4&&rounds.every(round=>round.question_source==='personalized'||round.questions.some(question=>question.trim()))),'Interview roles and question configuration'],[Boolean(programIds.length&&(!availableDepartments.length||departments.length>0)&&selectedYears.length&&preview),'Eligibility criteria and latest preview']].map(([ok,text])=><p key={String(text)}><span className={ok?'text-emerald-700':'text-amber-700'}>{ok?'✓':'○'}</span> {String(text)}</p>)}<p className="mt-2 text-xs text-slate-500">Eligibility is recalculated and saved when the drive is created. The application deadline, interview window, and drive event date are separate dates.</p></div></section>
       </div>}
     </main>
-    <footer className="dw-footer"><button className={button} disabled={!step||busy} onClick={()=>{setFieldErrors({});setFormError('');setStep(value=>value-1);}}><ArrowLeft size={16}/>Back</button><div className="flex flex-wrap justify-end gap-2">{step<5?<button className={primary} disabled={previewBusy} onClick={()=>void next()}>{drive?'Continue':'Save draft & continue'}<ArrowRight size={16}/></button>:<button className={primary} disabled={busy} onClick={()=>void submit()}>{busy?(drive?'Saving changes…':'Creating drive…'):drive?'Save changes':'Create placement drive'}<ArrowRight size={16}/></button>}</div></footer>
-    {confirmDifficulty&&<dialog open aria-modal="true" aria-labelledby="difficulty-title" className={`${panel} fixed inset-0 z-50 m-auto max-w-lg text-slate-900 shadow-2xl backdrop:bg-slate-950/50 dark:text-white`}><div className="flex items-start justify-between gap-3"><div><h2 id="difficulty-title" className="text-xl font-bold">Confirm interview difficulty</h2><p className="mt-2 text-sm text-slate-600 dark:text-slate-300">Selected graduation years suggest more than one level. This drive will use <strong>{displayName(form.difficulty_tier)}</strong>.</p></div><button type="button" className={button} aria-label="Close difficulty confirmation" onClick={()=>setConfirmDifficulty(false)}><X size={16}/></button></div><div className="mt-6 flex justify-end gap-3"><button type="button" className={button} onClick={()=>setConfirmDifficulty(false)}>Review setup</button><button type="button" className={primary} onClick={()=>{setDifficultyConfirmed(true);setConfirmDifficulty(false);setStep(5);}}><Check size={16}/>Confirm and review</button></div></dialog>}
+    <footer className="dw-footer"><button className={button} disabled={!step||busy||advancing} onClick={()=>{setFieldErrors({});setFormError('');setStep(value=>value-1);}}><ArrowLeft size={16}/>Back</button><div className="flex flex-wrap justify-end gap-2">{step<5?<button className={primary} disabled={previewBusy||advancing||busy} onClick={()=>void next()}>{advancing?'Saving draft…':drive?'Continue':'Save draft & continue'}<ArrowRight size={16}/></button>:<button className={primary} disabled={busy} onClick={()=>void submit()}>{busy?(drive?'Saving changes…':'Creating drive…'):drive?'Save changes':'Create placement drive'}<ArrowRight size={16}/></button>}</div></footer>
+    {confirmDifficulty&&<dialog open aria-modal="true" aria-labelledby="difficulty-title" className={`${panel} fixed inset-0 z-50 m-auto max-w-lg text-slate-900 shadow-2xl backdrop:bg-slate-950/50 dark:text-white`}><div className="flex items-start justify-between gap-3"><div><h2 id="difficulty-title" className="text-xl font-bold">Confirm interview difficulty</h2><p className="mt-2 text-sm text-slate-600 dark:text-slate-300">Selected graduation years suggest more than one level. This drive will use <strong>{displayName(form.difficulty_tier)}</strong>.</p></div><button type="button" className={button} aria-label="Close difficulty confirmation" onClick={()=>setConfirmDifficulty(false)}><X size={16}/></button></div><div className="mt-6 flex justify-end gap-3"><button type="button" className={button} onClick={()=>setConfirmDifficulty(false)}>Review setup</button><button type="button" className={primary} onClick={()=>{setDifficultyConfirmed(true);setConfirmDifficulty(false);void advanceTo(5);}}><Check size={16}/>Confirm and review</button></div></dialog>}
   </section>;
 }
 

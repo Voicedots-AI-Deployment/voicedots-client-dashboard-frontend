@@ -1674,3 +1674,68 @@ test('row based interview results show concise evidence and persist candidate de
   await expect.poll(()=>page.evaluate(()=>document.documentElement.scrollWidth<=window.innerWidth)).toBe(true);
   await page.screenshot({path:'/root/voicedots/artifacts/results-row-redesign-20261008/results-mobile.png',fullPage:true});
 });
+
+test('draft continue locks navigation until cloud save finishes and preserves edits made during saving', async ({page}) => {
+  await setup(page);
+  let release:(()=>void)|undefined;
+  await page.route('**/v3/college/drive-drafts**',async route=>{
+    if(route.request().method()==='GET')return route.fulfill({json:[]});
+    const body=route.request().postDataJSON();
+    await new Promise<void>(resolve=>{release=resolve;});
+    return route.fulfill({json:{id:'audit-draft',payload:body.payload,step:body.step}});
+  });
+  await page.getByRole('button',{name:'Create drive',exact:true}).click();
+  await page.getByLabel('Company name').fill('Audit Employer');await page.locator('#role_title').fill('Engineer');await page.getByLabel('Location').fill('Remote');await page.getByLabel('Job description').fill('Build and test backend services.');
+  await page.getByRole('button',{name:'Save draft & continue'}).click();
+  const saving=page.locator('.dw-footer').getByRole('button',{name:'Saving draft…'});
+  await expect(saving).toBeDisabled();await expect(page.getByRole('button',{name:'Back',exact:true})).toBeDisabled();
+  await page.getByLabel('Company name').fill('Updated Audit Employer');
+  await expect.poll(()=>!!release).toBe(true);release!();
+  await expect(page.getByText('STEP 2 OF 6')).toBeVisible();
+  const local=await page.evaluate(()=>JSON.parse(localStorage.getItem('voicedots:placement-drive-draft:v2')||'{}'));
+  expect(local.payload.form.company_name).toBe('Updated Audit Employer');expect(local.payload.step).toBe(1);
+});
+
+test('failed draft continue stays on the same step and supports retry without losing input', async ({page}) => {
+  await setup(page);let fail=true;
+  await page.route('**/v3/college/drive-drafts**',route=>{
+    if(route.request().method()==='GET')return route.fulfill({json:[]});
+    if(fail)return route.fulfill({status:503,json:{detail:'Draft service unavailable'}});
+    const body=route.request().postDataJSON();return route.fulfill({json:{id:'recovered-draft',payload:body.payload,step:body.step}});
+  });
+  await page.getByRole('button',{name:'Create drive',exact:true}).click();await page.getByLabel('Company name').fill('Retry Employer');await page.locator('#role_title').fill('Engineer');await page.getByLabel('Location').fill('Remote');await page.getByLabel('Job description').fill('Build backend services.');
+  await page.getByRole('button',{name:'Save draft & continue'}).click();
+  await expect(page.getByText(/cloud save failed/)).toBeVisible();await expect(page.getByText('STEP 1 OF 6')).toBeVisible();await expect(page.getByLabel('Company name')).toHaveValue('Retry Employer');
+  fail=false;await page.getByRole('button',{name:'Save draft & continue'}).click();await expect(page.getByText('STEP 2 OF 6')).toBeVisible();
+});
+
+test('all six Create Drive steps save correctly and final creation waits for the last draft save', async ({page}) => {
+  await setup(page,true,{initialPath:'/dashboard/placement-management'});
+  const savedSteps:number[]=[];let pause=false,finishDraft:(()=>void)|undefined,created:Record<string,unknown>|undefined;
+  await page.route('**/v3/college/drive-drafts**',async route=>{
+    if(route.request().method()==='GET')return route.fulfill({json:[]});
+    const body=route.request().postDataJSON();savedSteps.push(body.step);
+    if(pause){pause=false;await new Promise<void>(resolve=>{finishDraft=resolve;});}
+    return route.fulfill({json:{id:'full-audit-draft',step:body.step,payload:body.payload}});
+  });
+  await page.route('**/v3/college/drives',route=>{if(route.request().method()!=='POST')return route.fallback();created=route.request().postDataJSON();return route.fulfill({json:{drive_id:'isolated-audit-drive',status:'draft'}});});
+  await page.getByRole('button',{name:'Create drive',exact:true}).click();await page.getByLabel('Company name').fill('Full Flow Audit Employer');await page.locator('#role_title').fill('Backend Engineer');await page.getByLabel('Location').fill('Remote');await page.getByLabel('Job description').fill('Build tested Python backend APIs and communicate with customers.');
+  await page.getByRole('button',{name:'Save draft & continue'}).click();await expect(page.getByText('STEP 2 OF 6')).toBeVisible();
+  await page.getByLabel('Interview starts date').fill('2027-01-10');await page.getByLabel('Interview starts hour').selectOption('9');await page.getByLabel('Interview starts AM / PM').selectOption('AM');await page.getByLabel('Interview ends date').fill('2027-01-11');await page.getByLabel('Interview ends hour').selectOption('6');await page.getByLabel('Interview ends AM / PM').selectOption('PM');
+  await page.getByRole('button',{name:'Save draft & continue'}).click();await expect(page.getByText('STEP 3 OF 6')).toBeVisible();
+  await page.getByRole('button',{name:'Save draft & continue'}).click();await expect(page.getByText('STEP 4 OF 6')).toBeVisible();
+  await page.getByRole('button',{name:'Save draft & continue'}).click();await expect(page.getByText('STEP 5 OF 6')).toBeVisible();
+  await page.getByRole('checkbox',{name:/Bachelor Of Technology B\.Tech/}).check();await page.getByRole('checkbox',{name:/Computer Science · CSE/}).check();await page.locator('#graduation_from').selectOption('2027');await page.locator('#graduation_to').selectOption('2027');
+  await page.getByRole('button',{name:'Save draft & continue'}).click();await expect(page.getByText('STEP 6 OF 6')).toBeVisible();
+  for(const step of [1,2,3,4,5])expect(savedSteps).toContain(step);
+  const save=page.getByRole('button',{name:'Save draft',exact:true});await expect(save).toBeEnabled();pause=true;await save.click();await expect.poll(()=>!!finishDraft).toBe(true);
+  await page.getByRole('button',{name:'Create placement drive',exact:true}).click();await expect(page.getByRole('button',{name:'Creating drive…'})).toBeDisabled();expect(created).toBeUndefined();finishDraft!();
+  await expect(page.getByText('Drive created (draft).')).toBeVisible();expect(created?.source_draft_id).toBe('full-audit-draft');expect(created?.eligible_departments).toEqual(['CSE']);expect(String(created?.idempotency_key).length).toBeGreaterThan(16);
+  await expect.poll(()=>page.evaluate(()=>localStorage.getItem('voicedots:placement-drive-draft:v2'))).toBeNull();
+});
+
+test('difficulty confirmation saves the review step before continuing', async ({page}) => {
+  await setup(page,true,{initialPath:'/dashboard/placement-management'});const savedSteps:number[]=[];
+  await page.route('**/v3/college/drive-drafts**',route=>{if(route.request().method()==='GET')return route.fulfill({json:[]});const body=route.request().postDataJSON();savedSteps.push(body.step);return route.fulfill({json:{id:'difficulty-draft',payload:body.payload,step:body.step}});});
+  await page.getByRole('button',{name:'Create drive',exact:true}).click();await driveFields(page);await expect(page.getByText('STEP 6 OF 6')).toBeVisible();expect(savedSteps).toContain(5);
+});
