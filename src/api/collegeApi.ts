@@ -9,6 +9,7 @@ export const collegeApi = {
   remove: async (path: string) => (await apiClient.delete(`/v3/college/${path}`)).data,
   get: async <T,>(path: string, signal?: AbortSignal) => (await apiClient.get<T>(`/v3/college/${path}`, { signal })).data,
   audio: async (path: string) => URL.createObjectURL((await apiClient.get(`/v3/college/${path}`, { responseType: 'blob' })).data),
+  exportFile: async (path: string, body: unknown) => (await apiClient.post(`/v3/college/${path}`,body,{responseType:'blob',timeout:125000})).data as Blob,
   file: async (path: string) => (await apiClient.get(`/v3/college/${path}`, { responseType: 'blob' })).data as Blob,
   upload: async <T,>(path: string, file: File) => { const data = new FormData(); data.append('file', file); return (await apiClient.post<T>(`/v3/college/${path}`, data, { headers: { 'Content-Type': 'multipart/form-data' }, timeout: 125000 })).data; },
   save: async <T,>(path: string, body: unknown, edit = false) => {

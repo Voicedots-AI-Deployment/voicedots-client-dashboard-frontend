@@ -1,3 +1,4 @@
+import { readFileSync } from 'node:fs';
 import { test, expect, type Page } from '@playwright/test';
 async function setup(page: Page, enabled = true, options: { notFound?: string[]; driveRows?: unknown[]; driveDetails?: unknown; companyProfiles?: unknown[]; academicCatalog?: unknown; initialPath?: string; portalRole?: string } = {}) {
   await page.addInitScript(() => localStorage.setItem('access_token', 'test-session'));
@@ -1434,4 +1435,85 @@ test('ATS popup reuses already loaded evidence without another matching request'
   await page.getByRole('button',{name:'AI resume match'}).focus();
   await expect(page.getByRole('dialog',{name:'Resume match for Evidence Candidate'})).toContainText('82/100');
   expect(requests).toBe(1);
+});
+
+
+test('attempt rules open the existing drive at Interview setup rather than a new draft',async({page})=>{
+  await setup(page,true,{initialPath:'/dashboard/placement-management?drive=drive-1&section=candidates',driveDetails:{id:'drive-1',company_name:'Existing Company',role_title:'Engineer',location:'Remote',jd_raw_text:'Build Python services for customers.',status:'draft',max_attempts:3,window_start_at:'2099-01-01T00:00:00Z',window_end_at:'2099-01-02T00:00:00Z'}});
+  await page.route('**/v3/college/drives/drive-1/dashboard/ranking**',route=>route.fulfill({json:{candidates:[{student_id:'s1',full_name:'Anu',roll_number:'R1',assignment_status:'assigned'}],pagination:{total:1}}}));
+  await page.reload();await page.getByRole('button',{name:'View details',exact:true}).click();
+  await page.getByRole('button',{name:'Configure attempt & Coach rules'}).click();
+  await expect(page.getByRole('heading',{name:'Modify placement drive'})).toBeVisible();
+  await expect(page.getByRole('button',{name:'2. Interview setup'})).toHaveAttribute('aria-current','step');
+  await expect(page.getByText('Score-based attempt rules',{exact:false}).first()).toBeVisible();
+  await expect(page.getByRole('heading',{name:'Create placement drive'})).toHaveCount(0);
+  await page.getByRole('button',{name:'1. Drive & company'}).click();
+  await expect(page.locator('#company_name')).toHaveValue('Existing Company');
+});
+
+test('results export includes selected candidates and compact strengths with report access',async({page})=>{
+  await setup(page,true,{initialPath:'/dashboard/placement-management?drive=drive-1&section=results'});
+  await page.route('**/v3/college/drives/drive-1/dashboard/ranking**',route=>route.fulfill({json:{candidates:[{student_id:'s1',full_name:'Selected Candidate',roll_number:'R1',overall_score:83,ranking_score:80,job_fit_score:78,assignment_status:'completed',report_ready:true}],pagination:{total:1}}}));
+  let selected:string[]=[];
+  await page.route('**/v3/college/drives/drive-1/results/export',route=>{selected=route.request().postDataJSON().student_ids;return route.fulfill({contentType:'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',body:Buffer.from('PK-test')});});
+  await page.route('**/v3/college/students/s1/reports',route=>route.fulfill({json:{reports:[{drive_id:'drive-1',detail:{strengths:['Strength one','Strength two','Strength three','Strength four'],priority_improvement_areas:['Gap one','Gap two','Gap three','Gap four']}}]}}));
+  await page.reload();await page.getByRole('button',{name:/View strengths/}).click();
+  const evidence=page.getByRole('dialog',{name:'Interview strengths and gaps for Selected Candidate'});
+  await expect(evidence.getByText('Strength three')).toBeVisible();await expect(evidence.getByText('Strength four')).toHaveCount(0);
+  await expect(evidence.getByText('Gap four')).toHaveCount(0);await page.getByRole('button',{name:'Close strengths and gaps'}).click();
+  await page.getByLabel('Select Selected Candidate',{exact:true}).check();
+  const download=page.waitForEvent('download');await page.getByRole('button',{name:'Export Excel'}).click();
+  expect((await download).suggestedFilename()).toBe('interview-results.xlsx');expect(selected).toEqual(['s1']);
+  await page.getByRole('group',{name:'Results layout'}).getByRole('button',{name:'Table',exact:true}).click();
+  await expect(page.locator('#result-candidate-table th')).toHaveCount(7);
+  await expect(page.getByLabel('Select Selected Candidate',{exact:true})).toBeChecked();
+  await page.getByRole('group',{name:'Results layout'}).getByRole('button',{name:'Cards',exact:true}).click();
+  await page.setViewportSize({width:390,height:844});
+  await expect(page.getByRole('button',{name:'Open full report'})).toBeVisible();
+  await page.screenshot({path:'/root/voicedots/artifacts/interview-review-20261008/results-mobile.png',fullPage:true});
+});
+
+test('report plays real video and audio bytes and has one proctor timeline',async({page})=>{
+  await setup(page,true,{initialPath:'/dashboard/placement-management?drive=drive-1&section=results&candidate=s1'});
+  const start='2026-10-01T10:00:00Z';
+  await page.route('**/v3/college/students/s1/reports',route=>route.fulfill({json:{student:{full_name:'Recorded Candidate',roll_number:'R1'},reports:[{source:'drive',drive_id:'drive-1',session_id:'session-1',completed_at:start,overall_score:83,recording:{status:'processing'},detail:{status:'released'}}]}}));
+  await page.route('**/v3/college/students/s1/reports/session-1/recording',route=>route.fulfill({json:{status:'ready',playback_url:'https://media.example/real.webm',started_at:start,duration_seconds:2,segment_count:1}}));
+  await page.route('https://media.example/real.webm',route=>route.fulfill({contentType:'video/webm',body:readFileSync('tests/fixtures/interview-test.webm')}));
+  await page.reload();const video=page.getByLabel('Interview recording',{exact:true});
+  await expect(video).toBeVisible();await expect(video).toHaveAttribute('controls','');
+  await video.evaluate(async element=>{const v=element as HTMLVideoElement;await v.play();});
+  await expect.poll(()=>video.evaluate(element=>(element as HTMLVideoElement).currentTime)).toBeGreaterThan(0);
+  await expect.poll(()=>video.evaluate(element=>(element as HTMLVideoElement).videoWidth)).toBe(160);
+  await expect(page.getByRole('group',{name:'Recording timeline',exact:true})).toHaveCount(1);
+  await page.screenshot({path:'/root/voicedots/artifacts/interview-review-20261008/full-report.png',fullPage:true});
+});
+
+test('result KPI, search, sorting and advanced reset preserve correct server filters',async({page})=>{
+  await setup(page,true,{initialPath:'/dashboard/placement-management?drive=drive-1&section=results'});
+  const requests:URL[]=[];
+  await page.route('**/v3/college/drives/drive-1/dashboard/ranking**',route=>{
+    const url=new URL(route.request().url());if(url.searchParams.get('limit')==='25')requests.push(url);
+    return route.fulfill({json:{candidates:[{student_id:'s1',full_name:'Filter Candidate',roll_number:'R1',report_ready:true,assignment_status:'completed'}],pagination:{total:30}}});
+  });
+  await page.reload();await page.getByRole('button',{name:/^Shortlisted/}).click();
+  await expect.poll(()=>requests.at(-1)?.searchParams.get('decision')).toBe('shortlist');
+  await page.getByPlaceholder('Name, email or roll number').fill('Filter');
+  await expect.poll(()=>requests.at(-1)?.searchParams.get('q')).toBe('Filter');
+  await page.getByRole('button',{name:'Next',exact:true}).click();
+  await expect.poll(()=>requests.at(-1)?.searchParams.get('offset')).toBe('25');
+  await page.getByLabel('Sort results').selectOption('name');
+  await expect.poll(()=>requests.at(-1)?.searchParams.get('offset')).toBe('0');
+  await page.getByRole('button',{name:/^Filters/}).click();await page.getByRole('button',{name:'Reset',exact:true}).click();
+  await expect(page.getByPlaceholder('Name, email or roll number')).toHaveValue('');
+  await expect.poll(()=>requests.at(-1)?.searchParams.get('decision')).toBeNull();
+});
+
+
+test('report answers can expand and collapse without losing saved per-question feedback',async({page})=>{
+  await setup(page,true,{initialPath:'/dashboard/placement-management?drive=drive-1&section=results&candidate=s1'});
+  const reviews=Array.from({length:6},(_,i)=>({turn_id:`t${i}`,question:`Evidence question ${i+1}`,answer:'Saved response',strength_feedback:['Specific evidence'],improvement_feedback:['Explain the result']}));
+  await page.route('**/v3/college/students/s1/reports',route=>route.fulfill({json:{student:{full_name:'Evidence Candidate'},reports:[{source:'drive',drive_id:'drive-1',session_id:'session-1',completed_at:'2026-10-01T10:00:00Z',detail:{question_reviews:reviews}}]}}));
+  await page.reload();await expect(page.getByText('Evidence question 6',{exact:true})).toHaveCount(0);
+  await page.getByRole('button',{name:'Show all 6 answers'}).click();await expect(page.getByText('Evidence question 6',{exact:true})).toBeVisible();
+  await page.getByRole('button',{name:'Show less',exact:true}).click();await expect(page.getByText('Evidence question 6',{exact:true})).toHaveCount(0);
 });

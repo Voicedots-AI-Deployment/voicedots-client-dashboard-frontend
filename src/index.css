@@ -88,3 +88,13 @@ body {
 .drive-overview dl { line-height: 1.6; }
 .dark :is(.drive-tab-candidates,.drive-tab-ats) thead { background: #251b39; }
 .dark :is(.drive-tab-candidates,.drive-tab-ats) tbody tr:hover { background: #201a2c; }
+
+/* Recruiter review surfaces: compact hierarchy and consistent portal typography. */
+.result-workspace th { background:#f7f3ff; font-weight:500; color:#7c7892; padding:12px 16px; }
+.result-workspace td { padding:16px; border-bottom:1px solid #f1eff7; }
+.result-workspace tbody tr:hover { background:#fcfaff; }
+.result-workspace strong,.result-workspace h3,.candidate-review h2,.candidate-review h3 { font-weight:500; }
+.candidate-review article { box-shadow:none; }
+.candidate-review .candidate-report-content>section { border-color:#ebe8f4; }
+.candidate-review summary { line-height:1.6; }
+@media (max-width:640px) {.candidate-review {padding:0;} .candidate-review .candidate-report-content>section {padding:16px;}}

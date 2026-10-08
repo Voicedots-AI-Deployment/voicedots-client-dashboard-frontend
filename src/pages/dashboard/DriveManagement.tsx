@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import { useSearchParams } from "react-router-dom";
-import { ExternalLink } from "lucide-react";
+import { ExternalLink, Download } from "lucide-react";
 import {
   collegeApi,
   collegeError,
@@ -76,6 +76,8 @@ type Candidate = Data & {
   publication?: { state?: string; scheduled_for?: string | null; released_at?: string | null };
 };
 
+function shortEvidence(value:string) { const text=value.replace(/\s+/g,' ').trim(); const sentence=text.match(/^.{1,180}?[.!?](?:\s|$)/)?.[0]; return sentence?.trim() || (text.length>180 ? text.slice(0,177).trimEnd()+'…' : text); }
+
 function CandidateStrengthGap({ driveId, candidate, onOpenReport }: { driveId: string; candidate: Candidate; onOpenReport: () => void }) {
   const [open, setOpen] = useState(false);
   const [loading, setLoading] = useState(false);
@@ -114,13 +116,13 @@ function CandidateStrengthGap({ driveId, candidate, onOpenReport }: { driveId: s
     <button type="button" className="text-sm font-semibold text-indigo-700 underline-offset-2 hover:underline focus-visible:outline focus-visible:outline-2 focus-visible:outline-indigo-600" aria-haspopup="dialog" aria-expanded={open} onClick={() => open ? setOpen(false) : void load()}>
       View strengths &amp; gaps <span aria-hidden="true">›</span>
     </button>
-    {open && <span role="dialog" aria-label={`Interview strengths and gaps for ${candidate.full_name}`} className="absolute left-0 top-full z-40 mt-2 block w-[min(34rem,calc(100vw-2rem))] rounded-xl border border-slate-200 bg-white p-4 text-left shadow-xl sm:p-5">
+    {open && <span role="dialog" aria-label={`Interview strengths and gaps for ${candidate.full_name}`} className="absolute left-0 top-full z-40 mt-2 block w-[min(30rem,calc(100vw-2rem))] rounded-xl border border-slate-200 bg-white p-4 text-left shadow-xl sm:p-5">
       <span className="flex items-start justify-between gap-3 border-b border-slate-100 pb-3"><span><strong className="text-sm text-slate-900">{candidate.full_name}</strong><span className="mt-0.5 block text-xs text-slate-500">Interview evidence · {candidate.recommendation || "AI recommendation unavailable"}</span></span><button type="button" aria-label="Close strengths and gaps" className="rounded-md px-2 text-lg leading-6 text-slate-500 hover:bg-slate-100" onClick={() => setOpen(false)}>×</button></span>
       {loading ? <span role="status" className="mt-4 block text-sm text-slate-500">Loading interview evidence…</span> : error ? <span role="alert" className="mt-4 block text-sm text-rose-700">{error}<button className="ml-2 font-semibold underline" onClick={() => { setLoaded(false); void load(); }}>Retry</button></span> : <span className="mt-4 grid gap-4 sm:grid-cols-2">
-        <span><strong className="text-xs font-bold uppercase tracking-wide text-emerald-700">Strengths</strong>{strengthItems.length ? <span className="mt-2 block space-y-2">{strengthItems.map((item,index)=><span key={`strength-${index}`} className="block text-sm leading-5 text-slate-700">{textOf(item) || "No text supplied for this report item."}</span>)}</span> : <span className="mt-2 block text-sm text-slate-500">No strengths were included in the available report.</span>}</span>
-        <span><strong className="text-xs font-bold uppercase tracking-wide text-amber-700">Growth areas</strong>{gapItems.length ? <span className="mt-2 block space-y-2">{gapItems.map((item,index)=><span key={`gap-${index}`} className="block text-sm leading-5 text-slate-700">{textOf(item) || "No text supplied for this report item."}</span>)}</span> : <span className="mt-2 block text-sm text-slate-500">No growth areas were included in the available report.</span>}</span>
+        <span><strong className="text-xs font-bold uppercase tracking-wide text-emerald-700">Strengths</strong>{strengthItems.length ? <span className="mt-2 block space-y-2">{strengthItems.slice(0,3).map((item,index)=><span key={`strength-${index}`} className="block text-sm leading-5 text-slate-700">{shortEvidence(textOf(item)) || "No text supplied for this report item."}</span>)}</span> : <span className="mt-2 block text-sm text-slate-500">No strengths were included in the available report.</span>}</span>
+        <span><strong className="text-xs font-bold uppercase tracking-wide text-amber-700">Growth areas</strong>{gapItems.length ? <span className="mt-2 block space-y-2">{gapItems.slice(0,3).map((item,index)=><span key={`gap-${index}`} className="block text-sm leading-5 text-slate-700">{shortEvidence(textOf(item)) || "No text supplied for this report item."}</span>)}</span> : <span className="mt-2 block text-sm text-slate-500">No growth areas were included in the available report.</span>}</span>
       </span>}
-      {loaded && rounds.length > 0 && <span className="mt-4 block border-t border-slate-100 pt-3"><strong className="text-xs font-bold uppercase tracking-wide text-slate-600">Interview rounds</strong><span className="mt-2 flex flex-wrap gap-2">{rounds.map((item,index)=>{const row=(item||{}) as Data;return <span key={`round-${index}`} className="rounded-lg border border-slate-200 bg-slate-50 px-2.5 py-1.5 text-xs text-slate-700">{String(row.agent_type || row.track || `Round ${index+1}`)}{row.score != null ? ` · ${String(row.score)}/100` : ""}</span>})}</span></span>}
+      {loaded && rounds.length > 0 && <span className="mt-4 block border-t border-slate-100 pt-3"><strong className="text-xs font-bold uppercase tracking-wide text-slate-600">Interview rounds</strong><span className="mt-2 flex flex-wrap gap-2">{rounds.slice(0,4).map((item,index)=>{const row=(item||{}) as Data;return <span key={`round-${index}`} className="rounded-lg border border-slate-200 bg-slate-50 px-2.5 py-1.5 text-xs text-slate-700">{String(row.agent_type || row.track || `Round ${index+1}`)}{row.score != null ? ` · ${String(row.score)}/100` : ""}</span>})}</span></span>}
       <button type="button" onClick={onOpenReport} className="mt-4 inline-flex text-sm font-semibold text-indigo-700 hover:underline">Open full interview report <span aria-hidden="true" className="ml-1">↗</span></button>
     </span>}
   </span>;
@@ -1641,6 +1643,8 @@ export default function DriveManagement({
     [attempts, setAttempts] = useState(2);
   const [schedule, setSchedule] = useState("");
   const [fullEditor, setFullEditor] = useState(false);
+  const [editorStep, setEditorStep] = useState(0);
+  const [exporting, setExporting] = useState(false);
   const [resultSort, setResultSort] = useState("rank");
   const [resultsLayout, setResultsLayout] = useState<"cards" | "table">("cards");
   const [resultQuickView, setResultQuickView] = useState("all");
@@ -1808,6 +1812,15 @@ export default function DriveManagement({
     return () => {controller.abort();window.clearInterval(timer);};
   },[tab,driveId,offset,search,departmentFilter,programFilter,statusFilter,listSort]);
   useEffect(() => {resumeMatchRequests.clear();},[version,driveId]);
+  async function exportSelected() {
+    setExporting(true);setError('');
+    try {
+      const blob=await collegeApi.exportFile(`drives/${driveId}/results/export`,{student_ids:checked});
+      const url=URL.createObjectURL(blob),anchor=document.createElement('a');
+      anchor.href=url;anchor.download='interview-results.xlsx';anchor.click();setTimeout(()=>URL.revokeObjectURL(url),1000);
+      setNotice(`Exported ${checked.length} selected candidates.`);
+    } catch(error) {setError(collegeError(error));} finally {setExporting(false);}
+  }
   async function act(path: string, body: unknown = {}, put = true) {
     setBusy(true);
     setError("");
@@ -2295,12 +2308,12 @@ export default function DriveManagement({
             {(search||departmentFilter||programFilter||statusFilter||atsEligibility||atsMinimum) && <button type="button" className={`${btn} self-end`} onClick={()=>{setSearch("");setDepartmentFilter("");setProgramFilter("");setStatusFilter("");setAtsEligibility("");setAtsMinimum("");setOffset(0);}}>Clear filters</button>}
           </div>}
           {tab === "results" && (
-            <section aria-labelledby="results-heading" className="space-y-4">
+            <section aria-labelledby="results-heading" className="result-workspace space-y-4">
               <div className="flex flex-wrap items-end justify-between gap-3 border-b border-slate-200 pb-4">
                 <div><p className="text-xs font-semibold uppercase tracking-[0.14em] text-violet-700">Placement overview</p><h3 id="results-heading" className="mt-1 text-xl font-bold tracking-tight text-slate-900">Interview results</h3><p className="mt-1 text-sm text-slate-500">Review candidate evidence, compare outcomes and record placement decisions.</p></div>
                 <span className="rounded-full border border-slate-200 bg-white px-3 py-1.5 text-xs font-medium text-slate-600">{loading ? "Updating results…" : `${total} candidate${total === 1 ? "" : "s"}`}</span>
               </div>
-              <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3 2xl:grid-cols-6">
+              <div className="grid grid-cols-2 overflow-hidden rounded-2xl border border-violet-100 bg-white sm:grid-cols-3 xl:grid-cols-6">
                 {[
                   { key: "all", label: "Candidates", value: resultKpis.candidates, view: "all" },
                   { key: "completed", label: "Interviewed", value: resultKpis.interviewed, view: "all", completed: true },
@@ -2308,22 +2321,22 @@ export default function DriveManagement({
                   { key: "decision_pending", label: "Decision pending", value: resultKpis.decisionPending, view: "decision_pending" },
                   { key: "shortlist", label: "Shortlisted", value: resultKpis.shortlisted, view: "all", decision: "shortlist" },
                   { key: "released", label: "Results released", value: resultKpis.released, view: "all", publication: "released" },
-                ].map(tile=><button type="button" aria-pressed={resultQuickView === tile.key} onClick={()=>{const reset=resultQuickView===tile.key;setOffset(0);setResultQuickView(reset?"all":tile.key);setResultView(reset?"all":tile.view);}} className={`rounded-xl border bg-white px-4 py-3 text-left shadow-sm transition hover:border-indigo-300 focus-visible:outline focus-visible:outline-2 focus-visible:outline-indigo-500 ${resultQuickView === tile.key ? "border-indigo-400 ring-2 ring-indigo-100" : "border-slate-200"}`} key={tile.key}><p className="text-[11px] font-semibold uppercase tracking-[0.09em] text-slate-500">{tile.label}</p><strong className="mt-1 block text-2xl font-bold tracking-tight text-slate-900">{resultKpisState === "ready" ? tile.value : "—"}</strong>{resultKpisState === "error" && <span className="text-[10px] text-slate-400">Unavailable</span>}</button>)}
+                ].map(tile=><button type="button" aria-pressed={resultQuickView === tile.key} onClick={()=>{const reset=resultQuickView===tile.key;setOffset(0);setResultQuickView(reset?"all":tile.key);setResultView(reset?"all":tile.view);}} className={`border-r border-b border-slate-100 px-4 py-4 text-left transition hover:bg-violet-50 focus-visible:outline focus-visible:outline-2 focus-visible:outline-violet-500 ${resultQuickView === tile.key ? "bg-violet-50 ring-2 ring-inset ring-violet-300" : "border-slate-200"}`} key={tile.key}><p className="text-[11px] font-semibold uppercase tracking-[0.09em] text-slate-500">{tile.label}</p><strong className="mt-2 block text-3xl font-medium tracking-tight text-slate-900">{resultKpisState === "ready" ? tile.value : "—"}</strong>{resultKpisState === "error" && <span className="text-[10px] text-slate-400">Unavailable</span>}</button>)}
               </div>
               <div className="flex flex-wrap items-end gap-3 rounded-2xl border border-slate-200 bg-slate-50/70 p-4">
                 <label className="min-w-60 flex-1 text-xs font-medium text-slate-500">Search candidates<input className={`${field} mt-1`} value={search} onChange={event=>{setOffset(0);setSearch(event.target.value)}} placeholder="Name, email or roll number" /></label>
                 <label className="min-w-44 text-xs font-medium text-slate-500">Department<select className={`${field} mt-1`} value={departmentFilter} onChange={event=>{setOffset(0);setDepartmentFilter(event.target.value)}}><option value="">All departments</option>{departmentOptions.map(value=><option key={value} value={value}>{value}</option>)}</select></label>
-                <ResultCohortBuilder rules={resultRules} setRules={rules=>{setOffset(0);setResultRules(rules)}} matchMode={resultMatchMode} setMatchMode={value=>{setOffset(0);setResultMatchMode(value)}} total={total} excludeReview={excludeReviewRequired} setExcludeReview={value=>{setOffset(0);setExcludeReviewRequired(value)}} options={resultFilterOptions} onReset={()=>{setResultRules([]);setResultQuickView("all");setExcludeReviewRequired(false);setResultMatchMode("all");setResultView("all");setOffset(0)}}/>
-                <label className="min-w-44 text-xs font-medium text-slate-500">Sort results<select className={`${field} mt-1`} value={resultSort} onChange={event=>setResultSort(event.target.value)}><option value="rank">Rank</option><option value="score_desc">Interview score</option><option value="pri_desc">PRI</option><option value="name">Candidate name</option></select></label>
+                <ResultCohortBuilder rules={resultRules} setRules={rules=>{setOffset(0);setResultRules(rules)}} matchMode={resultMatchMode} setMatchMode={value=>{setOffset(0);setResultMatchMode(value)}} total={total} excludeReview={excludeReviewRequired} setExcludeReview={value=>{setOffset(0);setExcludeReviewRequired(value)}} options={resultFilterOptions} onReset={()=>{setResultRules([]);setResultQuickView("all");setExcludeReviewRequired(false);setResultMatchMode("all");setResultView("all");setSearch("");setDepartmentFilter("");setOffset(0)}}/>
+                <label className="min-w-44 text-xs font-medium text-slate-500">Sort results<select className={`${field} mt-1`} value={resultSort} onChange={event=>{setOffset(0);setResultSort(event.target.value);}}><option value="rank">Rank</option><option value="score_desc">Interview score</option><option value="pri_desc">PRI</option><option value="name">Candidate name</option></select></label>
               </div>
             </section>
           )}
           {tab === "results" && (
-            <section aria-label="Schedule result publication" className="flex flex-wrap items-end gap-3 rounded-2xl border border-slate-200 bg-white p-4 shadow-sm"><div className="mr-auto min-w-52"><h3 className="font-semibold text-slate-900">Result release</h3><p className="mt-1 max-w-md text-xs leading-5 text-slate-500">Schedule publication for candidates with a recorded officer decision.</p></div><label className="text-xs font-medium text-slate-500">Release date<input className={`${field} mt-1`} type="date" value={schedule.split("T")[0]||""} onChange={event=>setSchedule(`${event.target.value}T${schedule.split("T")[1]||"09:00"}`)} /></label><label className="text-xs font-medium text-slate-500">Release time<input className={`${field} mt-1`} type="time" value={schedule.split("T")[1]||""} onChange={event=>setSchedule(`${schedule.split("T")[0]||new Date().toISOString().slice(0,10)}T${event.target.value}`)} /></label><button className={`${btn} border-violet-600 bg-violet-600 text-white hover:bg-violet-700`} disabled={busy||!schedule.includes("T")||!schedule.split("T")[1]} onClick={()=>void act("candidates/release-all/schedule",{scheduled_for:new Date(schedule).toISOString()})}>Save schedule</button></section>
+            <details className="rounded-xl border border-slate-200 bg-white p-3"><summary className="cursor-pointer text-sm font-medium text-slate-600">Schedule student results</summary><section aria-label="Schedule result publication" className="mt-3 flex flex-wrap items-end gap-3 rounded-2xl border border-slate-200 bg-white p-4 shadow-sm"><div className="mr-auto min-w-52"><h3 className="font-semibold text-slate-900">Result release</h3><p className="mt-1 max-w-md text-xs leading-5 text-slate-500">Schedule publication for candidates with a recorded officer decision.</p></div><label className="text-xs font-medium text-slate-500">Release date<input className={`${field} mt-1`} type="date" value={schedule.split("T")[0]||""} onChange={event=>setSchedule(`${event.target.value}T${schedule.split("T")[1]||"09:00"}`)} /></label><label className="text-xs font-medium text-slate-500">Release time<input className={`${field} mt-1`} type="time" value={schedule.split("T")[1]||""} onChange={event=>setSchedule(`${schedule.split("T")[0]||new Date().toISOString().slice(0,10)}T${event.target.value}`)} /></label><button className={`${btn} border-violet-600 bg-violet-600 text-white hover:bg-violet-700`} disabled={busy||!schedule.includes("T")||!schedule.split("T")[1]} onClick={()=>void act("candidates/release-all/schedule",{scheduled_for:new Date(schedule).toISOString()})}>Save schedule</button></section></details>
           )}
           {tab === "results" && checked.length > 0 && (
             <div className="sticky bottom-4 z-20 flex flex-wrap items-center gap-3 rounded-2xl border bg-white p-4 shadow-lg dark:border-slate-800 dark:bg-slate-900">
-              <strong className="mr-auto text-sm">{checked.length} candidate{checked.length === 1 ? "" : "s"} selected</strong>
+              <strong className="mr-auto text-sm">{checked.length} candidate{checked.length === 1 ? "" : "s"} selected</strong><button className={btn} disabled={exporting} onClick={()=>void exportSelected()}><Download size={16}/>{exporting?'Exporting…':'Export Excel'}</button>
               {(["shortlist", "hold", "reject"] as const).map((value) => (
                 <button
                   key={value}
@@ -2357,64 +2370,39 @@ export default function DriveManagement({
             <div className="flex rounded-lg border border-slate-200 bg-slate-50 p-1" role="group" aria-label="Results layout"><button type="button" aria-pressed={resultsLayout === "cards"} onClick={()=>setResultsLayout("cards")} className={`rounded-md px-3 py-1.5 text-xs font-semibold transition ${resultsLayout === "cards" ? "bg-white text-violet-700 shadow-sm" : "text-slate-500 hover:text-slate-800"}`}>Cards</button><button type="button" aria-pressed={resultsLayout === "table"} onClick={()=>setResultsLayout("table")} className={`rounded-md px-3 py-1.5 text-xs font-semibold transition ${resultsLayout === "table" ? "bg-white text-violet-700 shadow-sm" : "text-slate-500 hover:text-slate-800"}`}>Table</button></div>
           </div>}
           {!loading && !error && !candidates.length && <p className={`${panel} border-dashed p-8 text-center text-sm text-slate-500`}>No candidates found for this view. Adjust the filters or choose another result view.</p>}
-          {!!candidates.length && tab === "results" && resultsLayout === "cards" && <div id="result-candidate-cards" className="space-y-4">
-            {candidates.map(candidate=>{
-              const rounds = Array.isArray(candidate.interview_rounds) ? candidate.interview_rounds : [];
-              const scoreDetails = candidate.scores || {};
-              const score = (value: unknown) => typeof value === "number" ? `${value}/100` : "Not assessed";
-              return <article key={candidate.student_id || candidate.roll_number} className="overflow-visible rounded-xl border border-slate-200 bg-white shadow-sm transition hover:border-slate-300">
-                <header className="flex flex-wrap items-start gap-3 p-4 sm:items-center sm:px-5 sm:py-5">
-                  <input className="mt-3 h-4 w-4 shrink-0 rounded accent-indigo-600 sm:mt-0" type="checkbox" aria-label={`Select ${candidate.full_name}`} checked={checked.includes(candidate.student_id)} onChange={event=>setChecked(current=>event.target.checked ? [...new Set([...current,candidate.student_id])] : current.filter(id=>id!==candidate.student_id))}/>
-                  <StudentAvatar student={candidate} size="h-11 w-11"/>
-                  <div className="min-w-0 flex-1"><div className="flex flex-wrap items-center gap-2"><h4 className="truncate text-base font-bold text-slate-900">{candidate.full_name}</h4>{candidate.rank != null && <span className="rounded-md bg-slate-100 px-2 py-0.5 text-xs font-semibold text-slate-600">Rank #{candidate.rank}</span>}<InterviewStatusBadge value={candidate.assignment_status === "in_progress" ? "in_progress" : candidate.evaluation_status === "held_for_review" ? "needs_review" : candidate.evaluation_status === "released" ? "completed" : candidate.preparation_status || "not_started"}/>{candidate.eligible === false && <StatusBadge value="Eligibility review"/>}</div><p className="mt-1 break-words text-xs leading-5 text-slate-500">{candidate.roll_number}{candidate.email ? ` · ${candidate.email}` : ""}{candidate.department_code ? ` · ${candidate.department_code}` : ""}{candidate.program ? ` · ${candidate.program}` : ""}{candidate.cgpa != null ? ` · CGPA ${candidate.cgpa}` : ""}</p>{candidate.eligibility_note && candidate.eligible === false && <p className="mt-1 text-xs text-amber-800">{candidate.eligibility_note}</p>}{candidate.last_activity_label && <p className="mt-1 text-xs text-slate-500">{candidate.last_activity_label}{candidate.last_activity_at ? ` · ${formatPlacementDateTime(candidate.last_activity_at, collegeTimezone)}` : ""}</p>}</div>
-                  <button className={`${btn} shrink-0`} disabled={busy || !candidate.report_ready} onClick={()=>void inspect(candidate,"reports")}>{candidate.report_ready ? "View full report" : "Report pending"}</button>
-                </header>
-                <div className="flex flex-wrap items-center gap-3 border-y border-slate-100 bg-indigo-50/50 px-4 py-3 sm:px-5">
-                  <span className="text-sm font-semibold text-slate-800">AI Recommendation</span><StatusBadge value={candidate.recommendation || "Not assessed"}/>
-                  {candidate.recommendation_confidence != null && <span className="text-xs text-slate-600">Confidence {candidate.recommendation_confidence}/100</span>}
-                  {candidate.report_ready && <CandidateStrengthGap driveId={driveId} candidate={candidate} onOpenReport={()=>void inspect(candidate,"reports")}/>}
+          {!!candidates.length && tab === "results" && resultsLayout === "cards" && <div id="result-candidate-cards" className="result-workspace grid gap-4">
+            {candidates.map(candidate=> <article key={candidate.student_id} className="overflow-visible rounded-2xl border border-slate-200 bg-white shadow-sm">
+              <header className="flex flex-wrap items-center gap-3 border-b border-slate-100 px-5 py-4">
+                <input type="checkbox" className="h-4 w-4 accent-violet-600" aria-label={`Select ${candidate.full_name}`} checked={checked.includes(candidate.student_id)} onChange={event=>setChecked(current=>event.target.checked ? [...new Set([...current,candidate.student_id])] : current.filter(id=>id!==candidate.student_id))}/>
+                <StudentAvatar student={candidate} size="h-11 w-11"/>
+                <div className="min-w-0 flex-1"><div className="flex flex-wrap items-center gap-2"><h4 className="text-base font-medium text-slate-900">{candidate.full_name}</h4>{candidate.rank != null && <span className="rounded-full bg-violet-50 px-2 py-0.5 text-xs text-violet-700">#{candidate.rank} in drive</span>}<InterviewStatusBadge value={candidateInterviewStatus(candidate)}/></div><p className="mt-1 text-xs text-slate-500">{candidate.roll_number} · {[candidate.program,candidate.department_code].filter(Boolean).join(' · ')} · Attempt {candidate.attempt_number || 1}</p></div>
+                <button className={`${btn} border-violet-200 text-violet-700`} disabled={busy || !candidate.report_ready} onClick={()=>void inspect(candidate,'reports')}>{candidate.report_ready?'Open full report':'Report pending'} <ExternalLink size={14}/></button>
+              </header>
+              <div className="grid lg:grid-cols-[minmax(0,1fr)_300px]">
+                <div className="min-w-0 px-5 py-4">
+                  <div className="flex flex-wrap items-center gap-2"><span className="text-xs text-slate-500">AI interview assessment</span><StatusBadge value={candidate.recommendation || 'Not assessed'}/>{candidate.report_ready && <CandidateStrengthGap driveId={driveId} candidate={candidate} onOpenReport={()=>void inspect(candidate,'reports')}/>}</div>
+                  <div className="mt-4 grid grid-cols-3 gap-3">{[['Interview',candidate.overall_score],['Readiness / PRI',candidate.ranking_score],['Job fit',candidate.job_fit_score]].map(([label,value])=><div key={String(label)}><p className="text-xs text-slate-500">{label}</p><p className="mt-1 text-2xl font-medium tabular-nums text-slate-900">{typeof value==='number'?value:'—'}{typeof value==='number'&&<span className="ml-1 text-xs font-normal text-slate-400">/100</span>}</p><div className="mt-2 h-1 rounded-full bg-slate-100"><div className="h-full rounded-full bg-violet-500" style={{width:`${typeof value==='number'?Math.min(100,Math.max(0,value)):0}%`}}/></div></div>)}</div>
+                  <div className="mt-4 flex flex-wrap gap-2">{candidate.agent_summary?.length ? candidate.agent_summary.map((round,index)=><span key={index} className="rounded-lg bg-slate-50 px-2.5 py-1.5 text-xs text-slate-600">{String(round.label || displayName(String(round.agent_type || `Round ${index+1}`)))} · {round.score==null?'Not assessed':`${round.score}/100`}</span>) : <span className="text-xs text-slate-400">Round scores unavailable</span>}</div>
+                  {(candidate.recommendation_reasons?.length || candidate.recommendation_risks?.length) ? <div className="mt-4 grid gap-3 text-xs sm:grid-cols-2"><div><p className="font-medium text-emerald-700">Supporting evidence</p>{candidate.recommendation_reasons?.slice(0,2).map((text,index)=><p key={index} className="mt-1 leading-5 text-slate-600">{shortEvidence(text)}</p>)}</div><div><p className="font-medium text-amber-700">Review next</p>{candidate.recommendation_risks?.slice(0,2).map((text,index)=><p key={index} className="mt-1 leading-5 text-slate-600">{shortEvidence(text)}</p>)}</div></div>:null}
                 </div>
-                {(candidate.recommendation_reasons?.length || candidate.recommendation_risks?.length) ? <details className="border-b border-slate-100 px-4 py-2.5 sm:px-5"><summary className="cursor-pointer text-xs font-semibold text-slate-600">Recommendation evidence and risks</summary><div className="mt-2 grid gap-3 text-xs sm:grid-cols-2"><div><strong className="text-emerald-700">Evidence</strong>{candidate.recommendation_reasons?.map((item,index)=><p key={`reason-${index}`} className="mt-1 leading-5 text-slate-600">{item}</p>)}</div><div><strong className="text-amber-800">Risks</strong>{candidate.recommendation_risks?.map((item,index)=><p key={`risk-${index}`} className="mt-1 leading-5 text-slate-600">{item}</p>)}</div></div></details> : null}
-                <div className="grid border-b border-slate-100 sm:grid-cols-2 lg:grid-cols-4">
-                  {[ ["Interview score", score(candidate.overall_score)], ["PRI", score(candidate.ranking_score)], ["Job fit", score(candidate.job_fit_score)], ["Readiness", candidate.readiness || "Not assessed"] ].map(([label,value],index)=><div key={label} className={`px-4 py-3 ${index%2===0?"sm:border-r":""} ${index<2?"border-b lg:border-b-0":""} ${index<3?"lg:border-r":""}`}><p className="text-[11px] font-semibold uppercase tracking-wide text-slate-500">{label}</p><p className="mt-1 text-sm font-semibold text-slate-900">{value}</p></div>)}
-                </div>
-                <div className="grid gap-3 border-b border-slate-100 px-4 py-3 text-sm sm:grid-cols-2 sm:px-5 lg:grid-cols-3">
-                  <div><p className="text-xs font-semibold text-slate-500">AI Interview rounds</p><p className="mt-1 text-slate-700">{candidate.agent_summary?.length ? candidate.agent_summary.map((round,index)=><span key={`agent-${index}`} className="mr-2 inline-block rounded-full border border-slate-200 bg-white px-2.5 py-1 text-xs">{String(round.label || displayName(String(round.agent_type || `Round ${index+1}`)))}{round.score == null ? ` · ${displayName(String(round.status || "not assessed"))}` : ` · ${String(round.score)}/100`}</span>) : rounds.length ? rounds.map((round,index)=><span key={`${round}-${index}`} className="mr-2 inline-block rounded-full border border-slate-200 bg-white px-2.5 py-1 text-xs">{displayName(round)}</span>) : "No round details available"} {candidate.report_ready && <button type="button" className="ml-1 text-xs font-semibold text-indigo-700 hover:underline" onClick={()=>void inspect(candidate,"reports")}>View report ›</button>}</p></div>
-                  <div><p className="text-xs font-semibold text-slate-500">AI Proctor</p><p className="mt-1 text-slate-700">Score {candidate.proctoring_score == null ? "Not assessed" : `${candidate.proctoring_score}/100`} · {candidate.integrity_review_label || displayName(candidate.integrity_review_status || "not assessed")}</p></div>
-                  <div><p className="text-xs font-semibold text-slate-500">Assessment detail</p><p className="mt-1 text-slate-700">Coverage {candidate.assessment_coverage == null ? "Not available" : `${candidate.assessment_coverage}%`} · Confidence {String(candidate.evaluation_confidence_label || score(candidate.evaluation_confidence_score))}</p><div className="mt-1 flex flex-wrap gap-x-2 text-[11px] text-slate-500">{(["communication","domain","problem_solving","confidence"] as const).filter(key=>typeof scoreDetails[key]==="number").map(key=><span key={key}>{displayName(key)} {String(scoreDetails[key])}/100</span>)}</div></div>
-                </div>
-                <div className="flex flex-wrap items-center gap-x-5 gap-y-2 border-b border-slate-100 px-4 py-3 text-sm sm:px-5">
-                  <span className="text-slate-600">Officer decision <span className="ml-1"><StatusBadge value={candidate.officer_decision || "pending"}/></span></span>
-                  <span className="text-slate-600">Student result <span className="ml-1"><StatusBadge value={candidate.publication?.state || "hidden"}/></span></span>
-                  {candidate.publication?.scheduled_for && <span className="text-xs text-slate-500">Scheduled {formatPlacementDateTime(candidate.publication.scheduled_for, collegeTimezone)}</span>}
-                  {candidate.publication?.released_at && <span className="text-xs text-slate-500">Released {formatPlacementDateTime(candidate.publication.released_at, collegeTimezone)}</span>}
-                </div>
-                <footer className="flex flex-wrap items-center justify-between gap-3 px-4 py-3 sm:px-5">
-                  {candidate.report_ready ? <CandidateOfficerActions driveId={driveId} candidate={candidate} onSaved={()=>setVersion(current=>current+1)}/> : <span className="text-xs text-slate-500">Officer actions become available when interview evidence is ready.</span>}
-                  <button className={`${btn} shrink-0`} disabled={busy || !candidate.report_ready} onClick={()=>void inspect(candidate,"reports")}>{candidate.report_ready ? "Open report" : "Report pending"}</button>
-                </footer>
-              </article>;
-            })}
+                <aside className="border-t border-slate-100 bg-slate-50/60 px-5 py-4 lg:border-l lg:border-t-0">
+                  <p className="text-xs font-medium text-slate-500">REVIEW & DECISION</p><div className="mt-3 flex items-center justify-between gap-2"><span className="text-sm text-slate-600">Officer decision</span><StatusBadge value={candidate.officer_decision || 'pending'}/></div>
+                  <p className="mt-3 text-xs leading-5 text-slate-500">AI Proctor <span className="font-medium text-slate-700">{candidate.proctoring_score==null?'Not assessed':`${candidate.proctoring_score}/100`}</span><br/>{candidate.integrity_review_label || displayName(candidate.integrity_review_status || 'not assessed')}</p>
+                  <p className="mt-2 text-xs text-slate-500">Evidence coverage {candidate.assessment_coverage==null?'—':`${candidate.assessment_coverage}%`}</p>
+                  <div className="mt-3 flex flex-wrap items-center gap-2 text-xs text-slate-500">Student result <StatusBadge value={candidate.publication?.state || 'hidden'}/></div>
+                  {candidate.publication?.released_at && <p className="mt-1 text-xs text-slate-400">Released {formatPlacementDateTime(candidate.publication.released_at,collegeTimezone)}</p>}
+                  <div className="mt-4">{candidate.report_ready?<CandidateOfficerActions driveId={driveId} candidate={candidate} onSaved={()=>setVersion(v=>v+1)}/>:<p className="text-xs text-slate-400">Decision actions open when evidence is ready.</p>}</div>
+                </aside>
+              </div>
+            </article>)}
           </div>}
           {!!candidates.length && (tab !== "results" || resultsLayout === "table") && (
-            <div id="result-candidate-table" className={`${panel} overflow-x-auto p-0`}>
+            <div id="result-candidate-table" className={`${panel} result-workspace overflow-x-auto p-0`}>
               <table className="w-full min-w-[1080px] text-left text-sm">
                 <thead className="bg-slate-50 text-[11px] uppercase tracking-wide text-slate-500">
                   <tr>
                     {(tab === "results"
-                      ? [
-                          "Rank",
-                          "Candidate",
-                          "Interview Score",
-                          "PRI",
-                          "Job Fit",
-                          "AI Proctor / integrity",
-                          "Readiness",
-                          "AI Recommendation",
-                          "Officer Decision",
-                          "Student Result",
-                          "Action",
-                        ]
+                      ? ["Candidate", "Interview / PRI", "Role fit", "Integrity", "AI assessment", "Decision / release", "Actions"]
                       : tab === "ats"
                         ? [
                             "Candidate",
@@ -2448,11 +2436,6 @@ export default function DriveManagement({
                       className="border-t border-slate-100 transition-colors hover:bg-violet-50/40"
                       key={c.student_id || c.roll_number}
                     >
-                      {tab === "results" && (
-                        <td className="px-4 py-3 text-lg font-bold text-slate-500">
-                          {c.rank ? `#${c.rank}` : "—"}
-                        </td>
-                      )}
                       <td className="p-3">
                         <div className="flex min-w-64 items-center gap-3">
                         {tab === "results" && (
@@ -2470,7 +2453,7 @@ export default function DriveManagement({
                             }
                           />
                         )}
-                        <div className="flex min-w-0 items-center gap-3"><StudentAvatar student={c}/><div className="min-w-0"><strong>{c.full_name}</strong><p className="text-xs text-slate-500">
+                        <div className="flex min-w-0 items-center gap-3"><StudentAvatar student={c}/><div className="min-w-0"><strong>{c.full_name}</strong>{tab==='results' && c.rank != null && <span className="ml-2 text-xs text-violet-600">#{c.rank}</span>}<p className="text-xs text-slate-500">
                           {c.roll_number}
                           {c.email ? ` · ${c.email}` : ""}
                         </p>{(tab==="candidates"||tab==="ats")&&drive&&<ResumeMatchSummary driveId={driveId} candidate={c}/>}</div></div>
@@ -2478,32 +2461,11 @@ export default function DriveManagement({
                       </td>
                       {tab === "results" ? (
                         <>
-                          <td className="p-3">
-                            <strong>
-                              {c.overall_score == null
-                                ? "—"
-                                : `${c.overall_score}/100`}
-                            </strong>
-                          </td>
-                          <td className="p-3">
-                            {c.ranking_score == null
-                              ? "—"
-                              : `${c.ranking_score}/100`}
-                          </td>
-                          <td className="p-3">{c.job_fit_score == null ? "—" : `${c.job_fit_score}/100`}</td>
-                          <td className="p-3"><div>{c.proctoring_score == null ? "—" : `${c.proctoring_score}/100`}</div><div className="mt-1"><StatusBadge value={c.integrity_review_label || c.integrity_review_status || "not assessed"}/></div></td>
-                          <td className="p-3">
-                            <StatusBadge value={c.readiness || c.evaluation_status || "pending"} />
-                          </td>
-                          <td className="p-3">
-                            <StatusBadge value={c.recommendation || "Review Required"} />
-                          </td>
-                          <td className="p-3">
-                            <StatusBadge value={c.officer_decision || "pending"} />
-                          </td>
-                          <td className="p-3">
-                            <StatusBadge value={c.publication?.state || "hidden"} />
-                          </td>
+                          <td className="p-3"><span className="text-base font-medium">{c.overall_score==null?'—':`${c.overall_score}/100`}</span><p className="mt-1 text-xs text-slate-500">PRI {c.ranking_score==null?'—':`${c.ranking_score}/100`}</p></td>
+                          <td className="p-3"><p>{c.job_fit_score==null?'—':`${c.job_fit_score}/100`}</p><p className="mt-1 text-xs text-slate-500">{c.readiness || 'Not assessed'}</p></td>
+                          <td className="p-3"><p>{c.proctoring_score==null?'—':`${c.proctoring_score}/100`}</p><div className="mt-1"><StatusBadge value={c.integrity_review_label || c.integrity_review_status || 'not assessed'}/></div></td>
+                          <td className="p-3"><StatusBadge value={c.recommendation || 'Review Required'}/>{c.report_ready && <div className="mt-2"><CandidateStrengthGap driveId={driveId} candidate={c} onOpenReport={()=>void inspect(c,'reports')}/></div>}</td>
+                          <td className="p-3"><StatusBadge value={c.officer_decision || 'pending'}/><div className="mt-2 text-xs text-slate-500">Result <StatusBadge value={c.publication?.state || 'hidden'}/></div></td>
                         </>
                       ) : tab === "ats" ? (
                         <>
@@ -2605,8 +2567,8 @@ export default function DriveManagement({
       {tab === "departments" && data && <DepartmentView data={data} onViewReport={(student) => setParams(current => { current.set("section", "results"); current.set("candidate", String(student.student_id)); return current; })} />}{" "}
       {tab === "settings" && drive && (
         <div className="space-y-5">
-          <div className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-violet-200 bg-violet-50 p-4"><div><h3 className="font-medium">Complete drive setup</h3><p className="text-sm text-slate-500">Edit all Create Drive fields, eligibility, roles, questions and attempt rules.</p></div><button className={btn} disabled={Boolean(drive.is_locked) || ['closed','cancelled'].includes(drive.status)} onClick={() => setFullEditor(value => !value)}>{fullEditor ? 'Close complete editor' : 'Edit complete setup'}</button></div>
-          {fullEditor && <CreateDriveWizard programs={programOptions} drive={drive} collegeTimezone={collegeTimezone} onCancel={() => setFullEditor(false)} onSaved={message => {setNotice(message);setFullEditor(false);setVersion(v => v + 1);}}/>}
+          <div className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-violet-200 bg-violet-50 p-4"><div><h3 className="font-medium">Complete drive setup</h3><p className="text-sm text-slate-500">Edit all Create Drive fields, eligibility, roles, questions and attempt rules.</p></div><button className={btn} disabled={Boolean(drive.is_locked) || ['closed','cancelled'].includes(drive.status)} onClick={() => {setEditorStep(0);setFullEditor(value => !value);}}>{fullEditor ? 'Close complete editor' : 'Edit complete setup'}</button></div>
+          {fullEditor && <CreateDriveWizard programs={programOptions} drive={drive} initialStep={editorStep} collegeTimezone={collegeTimezone} onCancel={() => setFullEditor(false)} onSaved={message => {setNotice(message);setFullEditor(false);setVersion(v => v + 1);}}/>}
           {!fullEditor && <DriveSettings
           drive={drive}
           collegeTimezone={collegeTimezone}
@@ -2692,7 +2654,7 @@ export default function DriveManagement({
                       View attempt history
                     </button>
                   </div>
-                  <section className="rounded-xl border border-slate-200 bg-slate-50 p-4"><h4 className="font-medium">Attempt policy & AI Coach</h4><p className="mt-1 text-sm text-slate-500">Drive default: {drive?.max_attempts || 1} attempt(s). Manual limits apply only to this candidate.</p>{(drive?.score_attempt_rules || []).map((rule,index) => <p key={index} className="mt-2 text-sm">Score {rule.min_score}–{rule.max_score}: {rule.max_attempts} attempt(s){rule.require_coach ? ' · Complete AI Coach before the next attempt' : ''}</p>)}{!(drive?.score_attempt_rules || []).length && <p className="mt-2 text-sm text-slate-500">No score-based rules configured.</p>}<button className={`${btn} mt-3`} onClick={() => {setSelected(null);setDetail(null);setFullEditor(true);setParams(p => {p.set('section','settings');return p;});}}>Configure attempt & Coach rules</button></section>
+                  <section className="rounded-xl border border-slate-200 bg-slate-50 p-4"><h4 className="font-medium">Attempt policy & AI Coach</h4><p className="mt-1 text-sm text-slate-500">Drive default: {drive?.max_attempts || 1} attempt(s). Manual limits apply only to this candidate.</p>{(drive?.score_attempt_rules || []).map((rule,index) => <p key={index} className="mt-2 text-sm">Score {rule.min_score}–{rule.max_score}: {rule.max_attempts} attempt(s){rule.require_coach ? ' · Complete AI Coach before the next attempt' : ''}</p>)}{!(drive?.score_attempt_rules || []).length && <p className="mt-2 text-sm text-slate-500">No score-based rules configured.</p>}<button className={`${btn} mt-3`} onClick={() => {setSelected(null);setDetail(null);setEditorStep(1);setFullEditor(true);setParams(p => {p.set('section','settings');return p;});}}>Configure attempt & Coach rules</button></section>
                   {drive && ["scheduled", "active"].includes(drive.status) && String(selected.assignment_status) !== "in_progress" && (
                       <>
                         <label className="block max-w-xs text-sm">
