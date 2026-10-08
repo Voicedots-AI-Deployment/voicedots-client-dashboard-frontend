@@ -17,4 +17,5 @@ export const qpgApi = {
   get: <T,>(path:string, signal?:AbortSignal) => collegeApi.get<T>(`question-papers/${path}`,signal),
   save: <T,>(path:string, body:unknown, edit=false) => collegeApi.save<T>(`question-papers/${path}`,body,edit),
 };
-export const label = (value:string) => value.replaceAll('_',' ').toLowerCase().replace(/\b\w/g, c=>c.toUpperCase());
+const bloomNames:Record<string,string>={K1:'K1 — Remember',K2:'K2 — Understand',K3:'K3 — Apply',K4:'K4 — Analyze',K5:'K5 — Evaluate',K6:'K6 — Create'};
+export const label = (value:string) => bloomNames[value] || value.replaceAll('_',' ').toLowerCase().replace(/\b\w/g, c=>c.toUpperCase());

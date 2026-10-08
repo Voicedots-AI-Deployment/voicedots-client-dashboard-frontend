@@ -795,7 +795,7 @@ function DriveSettings({
   collegeTimezone: string;
 }) {
   const [editing, setEditing] = useState<string | null>(
-      initialSection === "company" ? "Drive and company" : null,
+      initialSection === "company" ? "Drive and company" : initialSection === "configuration" ? "Interview configuration" : null,
     ),
     [library, setLibrary] = useState<AgentLibrary | null>(null),
     [selection, setSelection] = useState<Selection[]>(
@@ -829,6 +829,7 @@ function DriveSettings({
     interview_duration_minutes: drive.interview_duration_minutes || 30,
     difficulty_tier: drive.difficulty_tier || "intermediate",
     max_attempts: drive.max_attempts || 1,
+    score_attempt_rules: drive.score_attempt_rules || [],
     window_start: wallTimeFromInstant(drive.window_start_at, collegeTimezone),
     window_end: wallTimeFromInstant(drive.window_end_at, collegeTimezone),
     min_cgpa: drive.criteria_min_cgpa ?? "",
@@ -858,6 +859,7 @@ function DriveSettings({
       interview_duration_minutes: drive.interview_duration_minutes || 30,
       difficulty_tier: drive.difficulty_tier || "intermediate",
       max_attempts: drive.max_attempts || 1,
+      score_attempt_rules: drive.score_attempt_rules || [],
       window_start: wallTimeFromInstant(drive.window_start_at, collegeTimezone),
       window_end: wallTimeFromInstant(drive.window_end_at, collegeTimezone),
       min_cgpa: drive.criteria_min_cgpa ?? "",
@@ -1042,6 +1044,7 @@ function DriveSettings({
       body = {
         interview_duration_minutes: Number(form.interview_duration_minutes),
         max_attempts: Number(form.max_attempts),
+        score_attempt_rules: form.score_attempt_rules || [],
         difficulty_tier: form.difficulty_tier,
         window_start: new Date(start).toISOString(),
         window_end: new Date(end).toISOString(),
@@ -1236,7 +1239,11 @@ function DriveSettings({
             ))}
           </select>
         </label>
-        {input("max_attempts", "Attempts per student", "number")}
+        {input("max_attempts", "Default attempts per student", "number")}
+        <div className="sm:col-span-2 rounded-xl border border-slate-200 p-4 dark:border-slate-700">
+          <h3 className="font-semibold">Score-based attempt rules</h3>
+          {Array.isArray(form.score_attempt_rules) && form.score_attempt_rules.length > 0 ? <div className="mt-3 space-y-2">{form.score_attempt_rules.map((rule: Data, index: number) => <div className="grid gap-2 rounded-lg bg-slate-50 p-3 text-sm dark:bg-slate-800 sm:grid-cols-4" key={index}><label>Minimum score<input className={field} type="number" aria-label={`Rule ${index + 1} minimum score`} value={String(rule.min_score ?? "")}/></label><label>Maximum score<input className={field} type="number" aria-label={`Rule ${index + 1} maximum score`} value={String(rule.max_score ?? "")}/></label><label>Maximum attempts<input className={field} type="number" aria-label={`Rule ${index + 1} maximum attempts`} value={String(rule.max_attempts ?? "")}/></label><label className="flex items-center gap-2"><input type="checkbox" aria-label={`Rule ${index + 1} requires AI Coach`} checked={Boolean(rule.require_coach)} readOnly/>Require AI Coach</label></div>)}</div> : <p className="mt-2 text-sm text-slate-500">No score-based rules. The fixed attempt limit applies.</p>}
+        </div>
         <label className="block text-sm">
           Difficulty
           <select

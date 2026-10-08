@@ -425,7 +425,7 @@ export default function CollegeManagementPage() {
             setParams((p) => {
               p.set("drive", id);
               p.set("section", "settings");
-              p.set("edit", "company");
+              p.set("edit", "configuration");
               return p;
             })
           }

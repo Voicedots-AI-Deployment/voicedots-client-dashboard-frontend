@@ -258,6 +258,16 @@ test('placement staff manage drive questions and validate a CSV before import', 
   expect(imported).toBe(true);
 });
 
+test('placement staff paste multiple questions and edit/remove duplicate preview rows before save',async({page})=>{
+ await setup(page,true,{initialPath:'/dashboard/placement-management?drive=drive-1&section=questions',driveRows:[{id:'drive-1',company_name:'Example Company',role_title:'Software Engineer',status:'active'}],driveDetails:{id:'drive-1',company_name:'Example Company',role_title:'Software Engineer',status:'active'}});
+ let saveBody:Record<string,unknown>|undefined;
+ await page.route('**/v3/college/drives/drive-1/previous-interview-questions',route=>route.fulfill({json:{company_name:'Example Company',role_name:'Software Engineer',count:0,questions:[]}}));
+ await page.route('**/v3/college/previous-interview-questions/paste',async route=>{const body=route.request().postDataJSON();if(body.save){saveBody=body;return route.fulfill({json:{saved:1,duplicates_merged:1}})}return route.fulfill({json:{preview:[{question_text:'How would you design an API?',round_type:'Technical',difficulty:'Intermediate',preview_status:'new'},{question_text:'Explain SQL indexes.',round_type:'Technical',difficulty:'Intermediate',preview_status:'likely_duplicate'}]}})});
+ await page.getByRole('button',{name:'Paste Questions'}).click();await page.getByLabel('Paste one question per line').fill('1. How would you design an API?\n- Explain SQL indexes.');await page.getByRole('button',{name:'Preview questions'}).click();
+ await expect(page.getByText('new · Skill to review · Intermediate')).toBeVisible();await expect(page.getByText('likely duplicate · Skill to review · Intermediate')).toBeVisible();
+ await page.getByRole('button',{name:'Remove pasted question'}).last().click();await page.getByRole('button',{name:'Confirm save questions'}).click();await expect(page.getByText('Saved 1; merged 1 duplicate(s).')).toBeVisible();expect(saveBody?.drive_id).toBe('drive-1');
+});
+
 test('active drive closes through the persisted lifecycle API and remains closed after refresh', async ({ page }) => {
   let currentStatus = 'active';
   await setup(page, true, {
@@ -351,6 +361,8 @@ async function driveFields(page: Page) {
   await page.getByLabel('Interview ends date').fill('2027-01-11');
   await page.getByLabel('Interview ends hour').selectOption('6');
   await page.getByLabel('Interview ends AM / PM').selectOption('PM');
+  await page.getByLabel('Application deadline',{exact:true}).fill('2027-01-09');
+  await page.getByLabel('Application deadline time').fill('17:15');
   await page.getByRole('button',{name:'4. Questions'}).click();
   await page.getByRole('button',{name:'5. Eligibility'}).click();
   await page.getByRole('checkbox',{name:/Bachelor Of Technology B\.Tech/}).check();
@@ -400,6 +412,53 @@ test('drive form uses the client API and does not supply a college identity', as
   expect(payload).not.toHaveProperty('college_id');
   expect(payload.window_start).toMatch(/^2027-01-10T03:30:00\.000Z$/);
   expect(payload.window_end).toMatch(/^2027-01-11T12:30:00\.000Z$/);
+  expect(payload.application_deadline).toBe('09-01-2027');
+  expect(payload.application_deadline_at).toBe('2027-01-09T11:45:00.000Z');
+});
+
+test('program without configured departments can preview and create a placement drive', async ({page}) => {
+  await setup(page,true,{initialPath:'/dashboard/placement-management'});
+  await page.route('**/v3/college/academic-catalog',route=>route.fulfill({json:{programs:[{code:'BCA',display_name:'Bachelor of Computer Applications',duration_years:3,departments:[]}],graduation_years:[2027,2028]}}));
+  let preview:Record<string,unknown>|undefined,created:Record<string,unknown>|undefined;
+  await page.route('**/v3/college/drives/eligibility/preview',route=>{preview=route.request().postDataJSON();return route.fulfill({json:{total_students:0,eligible_count:0,not_eligible_count:0,missing_photo_count:0,candidates:[]}})});
+  await page.route('**/v3/college/drives',route=>{
+    if(route.request().method()!=='POST')return route.fallback();
+    created=route.request().postDataJSON();return route.fulfill({json:{drive_id:'new-drive',status:'draft',warnings:[]}});
+  });
+  await page.getByRole('button',{name:'Create drive',exact:true}).click();
+  await page.getByLabel('Company name').fill('Campus Employer');
+  await page.locator('#role_title').fill('Business Analyst');
+  await page.getByLabel('Location').fill('Chennai');
+  await page.getByLabel('Job description').fill('Analyze business requirements and document solutions.');
+  await page.getByRole('button',{name:'Continue'}).click();
+  await page.getByLabel('Interview starts date').fill('2027-01-10');
+  await page.getByLabel('Interview starts hour').selectOption('9');
+  await page.getByLabel('Interview starts AM / PM').selectOption('AM');
+  await page.getByLabel('Interview ends date').fill('2027-01-11');
+  await page.getByLabel('Interview ends hour').selectOption('6');
+  await page.getByLabel('Interview ends AM / PM').selectOption('PM');
+  await page.getByRole('button',{name:'4. Questions'}).click();
+  await page.getByRole('button',{name:'5. Eligibility'}).click();
+  await page.getByRole('checkbox',{name:/Bachelor Of Computer Applications BCA/}).check();
+  const departmentGroup=page.locator('fieldset[aria-label="Eligible departments"]');
+  await expect(departmentGroup).toContainText('Optional');
+  await expect(departmentGroup).toContainText('Selected programs have no departments configured');
+  await page.locator('#graduation_from').selectOption('2027');
+  await page.locator('#graduation_to').selectOption('2027');
+  await expect.poll(()=>preview?.eligible_departments).toEqual([]);
+  await page.getByRole('button',{name:'Continue'}).click();
+  await page.getByRole('button',{name:'Create placement drive'}).click();
+  await expect(page.getByText('Drive created (draft).')).toBeVisible();
+  expect(created?.eligible_departments).toEqual([]);
+});
+
+test('drive application deadline stores its selected IST time and Modify Drive opens interview configuration', async ({page})=>{
+  const details={id:'drive-1',company_name:'Example Company',role_title:'Engineer',status:'draft',application_deadline:'15-01-2027',application_deadline_at:'2027-01-15T12:00:00Z',max_attempts:3,score_attempt_rules:[{min_score:80,max_score:100,max_attempts:2,require_coach:true}],agent_selection:[{track:'hr',agent_id:null}],round_configuration:[{track:'hr',question_source:'personalized',questions:[]}]};
+  await setup(page,true,{initialPath:'/dashboard/placement-management',driveRows:[{id:'drive-1',company_name:'Example Company',role_title:'Engineer',status:'draft'}],driveDetails:details});
+  await page.getByRole('button',{name:'Edit drive'}).click();
+  await expect(page.locator('article').filter({has:page.getByRole('heading',{name:'Interview configuration'})}).getByRole('button',{name:'Save this section'})).toBeVisible();
+  await expect(page.getByLabel('Default attempts per student')).toHaveValue('3');
+  await expect(page.getByLabel('Rule 1 requires AI Coach')).toBeChecked();
 });
 
 test('company profile selection fills company information while role suggestions remain drive-specific', async ({page})=>{
@@ -1276,40 +1335,4 @@ test('Student Roster exposes the photo permission during add and edit flows', as
   await expect(page.getByText(/If enabled, the student can upload or capture/)).toBeVisible();
   await permission.check();
   await expect(permission).toBeChecked();
-});
-
-test('program without configured departments can preview and create a placement drive', async ({page}) => {
-  await setup(page,true,{initialPath:'/dashboard/placement-management'});
-  await page.route('**/v3/college/academic-catalog',route=>route.fulfill({json:{programs:[{code:'BCA',display_name:'Bachelor of Computer Applications',duration_years:3,departments:[]}],graduation_years:[2027,2028]}}));
-  let preview:Record<string,unknown>|undefined,created:Record<string,unknown>|undefined;
-  await page.route('**/v3/college/drives/eligibility/preview',route=>{preview=route.request().postDataJSON();return route.fulfill({json:{total_students:0,eligible_count:0,not_eligible_count:0,missing_photo_count:0,candidates:[]}})});
-  await page.route('**/v3/college/drives',route=>{
-    if(route.request().method()!=='POST')return route.fallback();
-    created=route.request().postDataJSON();return route.fulfill({json:{drive_id:'new-drive',status:'draft',warnings:[]}});
-  });
-  await page.getByRole('button',{name:'Create drive',exact:true}).click();
-  await page.getByLabel('Company name').fill('Campus Employer');
-  await page.locator('#role_title').fill('Business Analyst');
-  await page.getByLabel('Location').fill('Chennai');
-  await page.getByLabel('Job description').fill('Analyze business requirements and document solutions.');
-  await page.getByRole('button',{name:'Continue'}).click();
-  await page.getByLabel('Interview starts date').fill('2027-01-10');
-  await page.getByLabel('Interview starts hour').selectOption('9');
-  await page.getByLabel('Interview starts AM / PM').selectOption('AM');
-  await page.getByLabel('Interview ends date').fill('2027-01-11');
-  await page.getByLabel('Interview ends hour').selectOption('6');
-  await page.getByLabel('Interview ends AM / PM').selectOption('PM');
-  await page.getByRole('button',{name:'4. Questions'}).click();
-  await page.getByRole('button',{name:'5. Eligibility'}).click();
-  await page.getByRole('checkbox',{name:/Bachelor Of Computer Applications BCA/}).check();
-  const departmentGroup=page.locator('fieldset[aria-label="Eligible departments"]');
-  await expect(departmentGroup).toContainText('Optional');
-  await expect(departmentGroup).toContainText('Selected programs have no departments configured');
-  await page.locator('#graduation_from').selectOption('2027');
-  await page.locator('#graduation_to').selectOption('2027');
-  await expect.poll(()=>preview?.eligible_departments).toEqual([]);
-  await page.getByRole('button',{name:'Continue'}).click();
-  await page.getByRole('button',{name:'Create placement drive'}).click();
-  await expect(page.getByText('Drive created (draft).')).toBeVisible();
-  expect(created?.eligible_departments).toEqual([]);
 });
