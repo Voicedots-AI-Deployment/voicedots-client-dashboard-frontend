@@ -1726,6 +1726,7 @@ test('all six Create Drive steps save correctly and final creation waits for the
   await page.getByRole('button',{name:'Create drive',exact:true}).click();await page.getByLabel('Company name').fill('Full Flow Audit Employer');await page.locator('#role_title').fill('Backend Engineer');await page.getByLabel('Location').fill('Remote');await page.getByLabel('Job description').fill('Build tested Python backend APIs and communicate with customers.');
   await page.getByRole('button',{name:'Save draft & continue'}).click();await expect(page.getByText('STEP 2 OF 6')).toBeVisible();
   await page.getByLabel('Interview starts date').fill('2027-01-10');await page.getByLabel('Interview starts hour').selectOption('9');await page.getByLabel('Interview starts AM / PM').selectOption('AM');await page.getByLabel('Interview ends date').fill('2027-01-11');await page.getByLabel('Interview ends hour').selectOption('6');await page.getByLabel('Interview ends AM / PM').selectOption('PM');
+  await page.locator('#duration').selectOption('5');
   await page.getByRole('button',{name:'Save draft & continue'}).click();await expect(page.getByText('STEP 3 OF 6')).toBeVisible();
   await page.getByRole('button',{name:'Save draft & continue'}).click();await expect(page.getByText('STEP 4 OF 6')).toBeVisible();
   await page.getByRole('button',{name:'Save draft & continue'}).click();await expect(page.getByText('STEP 5 OF 6')).toBeVisible();
@@ -1734,7 +1735,7 @@ test('all six Create Drive steps save correctly and final creation waits for the
   for(const step of [1,2,3,4,5])expect(savedSteps).toContain(step);
   const save=page.getByRole('button',{name:'Save draft',exact:true});await expect(save).toBeEnabled();pause=true;await save.click();await expect.poll(()=>!!finishDraft).toBe(true);
   await page.getByRole('button',{name:'Create placement drive',exact:true}).click();await expect(page.getByRole('button',{name:'Creating drive…'})).toBeDisabled();expect(created).toBeUndefined();finishDraft!();
-  await expect(page.getByText('Drive created (draft).')).toBeVisible();expect(created?.source_draft_id).toBe('full-audit-draft');expect(created?.eligible_departments).toEqual(['CSE']);expect(String(created?.idempotency_key).length).toBeGreaterThan(16);
+  await expect(page.getByText('Drive created (draft).')).toBeVisible();expect(created?.interview_duration_minutes).toBe(5);expect(created?.source_draft_id).toBe('full-audit-draft');expect(created?.eligible_departments).toEqual(['CSE']);expect(String(created?.idempotency_key).length).toBeGreaterThan(16);
   await expect.poll(()=>page.evaluate(()=>localStorage.getItem('voicedots:placement-drive-draft:v2'))).toBeNull();
 });
 
@@ -1892,3 +1893,20 @@ test('candidate filters do not refetch unchanged drive configuration', async ({p
   await search.fill('Asha');await response;
   expect(driveReads).toBe(reads);
 });
+
+for (const duration of [5, 10]) {
+  test(`short placement duration ${duration} minutes survives modify setup and question generation`, async ({ page }) => {
+    await setup(page, true, { initialPath: '/dashboard/placement-management?drive=drive-1&section=settings', driveDetails: {id:'drive-1',company_name:'Example',role_title:'Backend Engineer',location:'Remote',jd_raw_text:'Build Python backend APIs and SQL services.',status:'active',difficulty_tier:'beginner',interview_duration_minutes:duration,window_start_at:'2099-01-01T00:00:00Z',window_end_at:'2099-01-02T00:00:00Z'} });
+    let request: Record<string, any> | undefined;
+    await page.route('**/v3/college/drive-questions/preview', route => { request = route.request().postDataJSON(); return route.fulfill({json:{scripted_questions:{[request!.target_track]:['Describe an API you built.','How did you test it?']}}}); });
+    await page.getByRole('button', {name:'Edit complete setup'}).click();
+    await page.getByRole('button', {name:'2. Interview setup'}).click();
+    await expect(page.locator('#duration')).toHaveValue(String(duration));
+    await expect(page.locator('#duration option')).toHaveText(['5 minutes','10 minutes','15 minutes','30 minutes','45 minutes']);
+    await page.getByRole('button',{name:'4. Questions'}).click();
+    await page.getByRole('button',{name:/AI Generated Generate from this job description/}).first().click();
+    await page.getByRole('button',{name:'Generate from job description',exact:true}).first().click();
+    await expect(page.locator('#question-hr-0')).toHaveValue('Describe an API you built.');
+    expect(request?.interview_duration_minutes).toBe(duration);
+  });
+}

@@ -1264,7 +1264,7 @@ function DriveSettings({
               }))
             }
           >
-            {[15, 30, 45].map((value) => (
+            {[5, 10, 15, 30, 45].map((value) => (
               <option key={value} value={value}>
                 {value} minutes
               </option>
