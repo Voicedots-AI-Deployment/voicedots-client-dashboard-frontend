@@ -1863,3 +1863,32 @@ test('switching candidates ignores the previous delayed recording request',async
   release();await page.waitForTimeout(300);
   await expect(video).toHaveAttribute('src','https://media.example/second.webm');
 });
+
+test('roster filtering reuses options and still fetches fresh matching students', async ({page}) => {
+  const requests: string[]=[];
+  page.on('request',request=>requests.push(new URL(request.url()).pathname));
+  await setup(page,true,{initialPath:'/dashboard/attendance'});
+  await expect(page.getByRole('heading',{name:'Institution Management'})).toBeVisible({timeout:45000});
+  const program=page.getByRole('combobox').filter({has:page.getByRole('option',{name:'All programs',exact:true})}).first();
+  await expect(program).toBeVisible();
+  await expect.poll(()=>requests.filter(path=>path.endsWith('/roster-options')).length).toBeGreaterThan(0);
+  const count=requests.filter(path=>path.endsWith('/roster-options')).length;
+  await Promise.all([page.waitForResponse(response=>new URL(response.url()).pathname.endsWith('/students')),program.selectOption('B.Tech')]);
+  await Promise.all([page.waitForResponse(response=>new URL(response.url()).pathname.endsWith('/students')),program.selectOption('')]);
+  expect(requests.filter(path=>path.endsWith('/roster-options')).length).toBe(count);
+});
+
+test('candidate filters do not refetch unchanged drive configuration', async ({page}) => {
+  let driveReads=0;
+  await setup(page,true,{initialPath:'/dashboard/placement-management?drive=drive-1&section=candidates',driveDetails:{id:'drive-1',company_name:'Example',role_title:'Engineer',status:'active'}});
+  await page.route('**/v3/college/drives/drive-1',route=>{driveReads++;return route.fulfill({json:{id:'drive-1',company_name:'Example',role_title:'Engineer',status:'active'}})});
+  await page.route('**/v3/college/drives/drive-1/dashboard/ranking**',route=>route.fulfill({json:{candidates:[],pagination:{total:0}}}));
+  await page.reload();
+  await expect.poll(()=>driveReads).toBeGreaterThan(0);
+  const reads=driveReads;
+  const search=page.getByPlaceholder('Name, email or roll number').first();
+  await expect(search).toBeVisible();
+  const response=page.waitForResponse(r=>new URL(r.url()).pathname.endsWith('/dashboard/ranking')&&new URL(r.url()).searchParams.get('q')==='Asha');
+  await search.fill('Asha');await response;
+  expect(driveReads).toBe(reads);
+});

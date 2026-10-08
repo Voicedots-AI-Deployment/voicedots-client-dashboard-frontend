@@ -1681,6 +1681,14 @@ export default function DriveManagement({
     setAtsMinimum("");
     setListSort("name");
   }, [tab]);
+  // Drive configuration changes on refresh/mutations, not on table filters.
+  useEffect(() => {
+    const controller = new AbortController();
+    collegeApi.get<Drive>(`drives/${driveId}`, controller.signal)
+      .then(value => { if (!controller.signal.aborted) setDrive(value); })
+      .catch(error => { if (!controller.signal.aborted) setError(collegeError(error)); });
+    return () => controller.abort();
+  }, [driveId, version]);
   useEffect(() => {
     if (!drive) return;
     const controller = new AbortController();
@@ -1754,18 +1762,11 @@ export default function DriveManagement({
       if(excludeReviewRequired) query.set("exclude_review_required","true");
     }
     if (tab === "candidates") query.set("sort_by", listSort === "ats_desc" || listSort === "ats_asc" ? "name" : listSort);
-    Promise.all([
-      collegeApi.get<Drive>(`drives/${driveId}`, c.signal),
-      tab === "questions" ? Promise.resolve({} as Data) : collegeApi.get<Data>(
-        `drives/${driveId}/${paths[tab]}?${query.toString()}`,
-        c.signal,
-      ),
-    ])
-      .then(([d, result]) => {
-        if (!c.signal.aborted) {
-          setDrive(d);
-          setData(result);
-        }
+    (tab === "questions" ? Promise.resolve({} as Data) : collegeApi.get<Data>(
+      `drives/${driveId}/${paths[tab]}?${query.toString()}`, c.signal,
+    ))
+      .then(result => {
+        if (!c.signal.aborted) setData(result);
       })
       .catch((e) => {
         if (!c.signal.aborted) setError(collegeError(e));
