@@ -2339,7 +2339,7 @@ export default function DriveManagement({
           )}
           {tab === "results" && checked.length > 0 && (
             <div className="sticky bottom-4 z-20 flex flex-wrap items-center gap-3 rounded-2xl border bg-white p-4 shadow-lg dark:border-slate-800 dark:bg-slate-900">
-              <strong className="mr-auto text-sm">{checked.length} candidate{checked.length === 1 ? "" : "s"} selected</strong><button className={btn} disabled={exporting} onClick={()=>void exportSelected()}><Download size={16}/>{exporting?'Exporting…':'Export Excel'}</button>
+              <strong className="mr-auto text-sm">{checked.length} candidate{checked.length === 1 ? "" : "s"} selected</strong><button className={`${btn} inline-flex items-center gap-2 whitespace-nowrap`} disabled={exporting} onClick={()=>void exportSelected()}><Download size={16}/>{exporting?'Exporting…':'Export Excel'}</button>
               {(["shortlist", "hold", "reject"] as const).map((value) => (
                 <button
                   key={value}
@@ -2379,7 +2379,7 @@ export default function DriveManagement({
                 <input type="checkbox" className="h-4 w-4 accent-violet-600" aria-label={`Select ${candidate.full_name}`} checked={checked.includes(candidate.student_id)} onChange={event=>setChecked(current=>event.target.checked ? [...new Set([...current,candidate.student_id])] : current.filter(id=>id!==candidate.student_id))}/>
                 <StudentAvatar student={candidate} size="h-11 w-11"/>
                 <div className="min-w-0 flex-1"><div className="flex flex-wrap items-center gap-2"><h4 className="text-base font-medium text-slate-900">{candidate.full_name}</h4>{candidate.rank != null && <span className="rounded-full bg-violet-50 px-2 py-0.5 text-xs text-violet-700">#{candidate.rank} in drive</span>}<InterviewStatusBadge value={candidateInterviewStatus(candidate)}/></div><p className="mt-1 text-xs text-slate-500">{candidate.roll_number} · {[candidate.program,candidate.department_code].filter(Boolean).join(' · ')} · Attempt {candidate.attempt_number || 1}</p></div>
-                <button className={`${btn} border-violet-200 text-violet-700`} disabled={busy || !candidate.report_ready} onClick={()=>void inspect(candidate,'reports')}>{candidate.report_ready?'Open full report':'Report pending'} <ExternalLink size={14}/></button>
+                <button className={`${btn} inline-flex shrink-0 items-center gap-2 whitespace-nowrap border-violet-200 text-violet-700`} disabled={busy || !candidate.report_ready} onClick={()=>void inspect(candidate,'reports')}>{candidate.report_ready?'Open full report':'Report pending'} <ExternalLink size={14}/></button>
               </header>
               <div className="grid lg:grid-cols-[minmax(0,1fr)_300px]">
                 <div className="min-w-0 px-5 py-4">
@@ -2390,7 +2390,7 @@ export default function DriveManagement({
                 </div>
                 <aside className="border-t border-slate-100 bg-slate-50/60 px-5 py-4 lg:border-l lg:border-t-0">
                   <p className="text-xs font-medium text-slate-500">REVIEW & DECISION</p><div className="mt-3 flex items-center justify-between gap-2"><span className="text-sm text-slate-600">Officer decision</span><StatusBadge value={candidate.officer_decision || 'pending'}/></div>
-                  <p className="mt-3 text-xs leading-5 text-slate-500">AI Proctor <span className="font-medium text-slate-700">{candidate.proctoring_score==null?'Not assessed':`${candidate.proctoring_score}/100`}</span><br/>{candidate.integrity_review_label || displayName(candidate.integrity_review_status || 'not assessed')}</p>
+                  <p className="mt-3 text-xs leading-5 text-slate-500">AI Proctor <span className="font-medium text-slate-700">{candidate.proctoring_score==null?'Not assessed':`${candidate.proctoring_score}/100`}</span><br/>{candidate.integrity_review_status === 'not_available' && candidate.proctoring_score != null ? 'Recorded integrity score' : candidate.integrity_review_label || displayName(candidate.integrity_review_status || 'not assessed')}</p>
                   <p className="mt-2 text-xs text-slate-500">Evidence coverage {candidate.assessment_coverage==null?'—':`${candidate.assessment_coverage}%`}</p>
                   <div className="mt-3 flex flex-wrap items-center gap-2 text-xs text-slate-500">Student result <StatusBadge value={candidate.publication?.state || 'hidden'}/></div>
                   {candidate.publication?.released_at && <p className="mt-1 text-xs text-slate-400">Released {formatPlacementDateTime(candidate.publication.released_at,collegeTimezone)}</p>}

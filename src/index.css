@@ -98,3 +98,11 @@ body {
 .candidate-review .candidate-report-content>section { border-color:#ebe8f4; }
 .candidate-review summary { line-height:1.6; }
 @media (max-width:640px) {.candidate-review {padding:0;} .candidate-review .candidate-report-content>section {padding:16px;}}
+
+/* Report evidence keeps the portal typography and a compact reading hierarchy. */
+.candidate-review button {font-weight:500;}
+.candidate-review h4 {font-weight:500;}
+.candidate-review summary:hover {color:#5b35d5;}
+.candidate-review summary:focus-visible {outline:2px solid #8b5cf6;outline-offset:4px;}
+.candidate-review .report-nav {gap:4px;}
+.candidate-review .report-nav button {padding:10px 12px;}
