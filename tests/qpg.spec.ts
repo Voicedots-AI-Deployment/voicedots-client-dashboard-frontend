@@ -1,4 +1,8 @@
-import {test,expect,type Page} from '@playwright/test';
+import {test,expect,type Page,type Locator} from '@playwright/test';
+async function openDetails(dialog:Locator,title:string){
+ const summary=dialog.getByText(title,{exact:true});
+ if(await summary.count() && await summary.locator('..').getAttribute('open')===null)await summary.click();
+}
 async function setup(page:Page,failed=false,published=false){
  await page.addInitScript(()=>localStorage.setItem('access_token','test-session'));
  let rows:Record<string,unknown>[]=[];
@@ -15,7 +19,7 @@ async function setup(page:Page,failed=false,published=false){
  await page.route(/\/v[13]\//,async route=>{
   const path=new URL(route.request().url()).pathname;const method=route.request().method();
   let json:unknown={};
-  if(path.endsWith('/papers'))json={items:[]};
+  if(path.endsWith('/papers')||path.endsWith('/curricula'))json={items:[]};
   if(path.endsWith('/users/me'))json={user_id:'faculty',name:'Faculty',email:'faculty@example.edu'};
   if(path.endsWith('/college/access'))json={enabled:true,college_name:'Demo College'};
   if(path.endsWith('/academic-options'))json={programs:[{code:'BTECH',display_name:'B.Tech',duration_years:4,departments:[{code:'CSE',display_name:'Computer Science'}]}],erp_subjects:[],can_setup:true,can_write:true};
@@ -62,20 +66,21 @@ async function setup(page:Page,failed=false,published=false){
   await route.fulfill({json});
  });
  await page.goto('/dashboard/question-papers');
- await page.getByRole('navigation',{name:'Question paper sections'}).getByRole('button',{name:'Academic Setup',exact:true}).click();
+ await page.getByRole('navigation',{name:'Question paper sections'}).getByRole('button',{name:'Subject Master',exact:true}).click();
  await page.getByLabel('Program',{exact:true}).selectOption('BTECH');
  await page.getByLabel('Branch',{exact:true}).selectOption('CSE');
  await page.getByLabel('Year',{exact:true}).selectOption('2');
  await page.getByLabel('Semester',{exact:true}).selectOption('4');
  await page.getByLabel('Subject',{exact:true}).selectOption('s1');
- await page.getByRole('navigation',{name:'Question paper sections'}).getByRole('button',{name:'Question Bank',exact:true}).click();
+ await page.getByRole('navigation',{name:'Question paper sections'}).getByRole('button',{name:'Question Papers',exact:true}).click();
+ await page.getByRole('navigation',{name:'Question Papers workspace'}).getByRole('button',{name:'Question Bank',exact:true}).click();
 }
 test('manual question create edit details and archive',async({page})=>{
  await setup(page);
- await page.getByRole('button',{name:'Add Question',exact:true}).click();
+ await page.getByRole('button',{name:'Add Question',exact:true}).first().click();
  const dialog=page.getByRole('dialog');
  await dialog.getByLabel('Question Text').fill('Explain TCP congestion control.');
- await dialog.getByRole('button',{name:'Save Question',exact:true}).click();
+ await dialog.getByRole('button',{name:'Save Draft',exact:true}).click();
  await expect(page.getByRole('button',{name:'Explain TCP congestion control.',exact:true})).toBeVisible();
  await page.getByRole('button',{name:'Edit',exact:true}).click();
  await dialog.getByLabel('Question Text').fill('Explain TCP flow control.');
@@ -90,20 +95,31 @@ test('manual question create edit details and archive',async({page})=>{
  await expect(page.getByRole('table').getByText('Archived',{exact:true})).toBeVisible();
  await expect(page.getByRole('button',{name:'Edit',exact:true})).toHaveCount(0);
 });
+
+test('invalid saved-curriculum response shows an error without crashing subject setup',async({page})=>{
+ await setup(page);
+ const errors:string[]=[];
+ page.on('pageerror',error=>errors.push(error.message));
+ await page.route('**/question-papers/curricula',route=>route.fulfill({json:{}}));
+ await page.reload();
+ await expect(page.getByText('Saved curricula could not be loaded. Please retry.',{exact:true})).toBeVisible();
+ await expect(page.getByRole('navigation',{name:'Question paper sections'})).toBeVisible();
+ expect(errors).toEqual([]);
+});
 test('context resets and mobile dialog closes with escape',async({page})=>{
  await page.setViewportSize({width:390,height:844});await setup(page);
- await page.getByRole('button',{name:'Add Question',exact:true}).click();
+ await page.getByRole('button',{name:'Add Question',exact:true}).first().click();
  await expect(page.getByRole('dialog')).toBeVisible();await page.keyboard.press('Escape');
  await expect(page.getByRole('dialog')).toHaveCount(0);
- await page.getByRole('button',{name:'Change context',exact:true}).click();await page.getByLabel('Year',{exact:true}).selectOption('1');
+ await page.getByRole('button',{name:'Change Subject',exact:true}).click();await page.getByLabel('Year',{exact:true}).selectOption('1');
  await expect(page.getByLabel('Semester',{exact:true})).toHaveValue('');
  await expect(page.getByLabel('Subject',{exact:true})).toHaveValue('');
- await expect(page.getByRole('button',{name:'Add Question',exact:true})).toBeDisabled();
+ await page.getByRole('navigation',{name:'Question paper sections'}).getByRole('button',{name:'Question Papers',exact:true}).click();await page.getByRole('navigation',{name:'Question Papers workspace'}).getByRole('button',{name:'Question Bank',exact:true}).click();await expect(page.getByRole('button',{name:'Add Question',exact:true}).first()).toBeDisabled();
 });
 
 test('document preview correction and explicit confirmation',async({page})=>{
  await setup(page);
- await page.getByRole('navigation',{name:'Question bank views'}).getByRole('button',{name:'Import PYQ'}).click();await page.getByRole('button',{name:'Import Questions',exact:true}).click();
+ await page.getByRole('navigation',{name:'Question bank views'}).getByRole('button',{name:'Import Questions'}).click();await page.getByRole('button',{name:'Choose a file to import',exact:true}).click();
  const dialog=page.getByRole('dialog',{name:'Import Questions'});
  await dialog.getByLabel('Question document').setInputFiles({name:'questions.csv',mimeType:'text/csv',buffer:Buffer.from('Question,Type,Marks\nExplain TCP.,SHORT_ANSWER,bad')});
  await dialog.getByRole('button',{name:'Upload and preview'}).click();
@@ -118,11 +134,11 @@ test('document preview correction and explicit confirmation',async({page})=>{
  await dialog.getByRole('checkbox',{name:'I have reviewed the extracted questions, metadata and duplicate warnings.'}).check();
  await dialog.getByRole('button',{name:'Confirm import',exact:true}).click();
  await expect(dialog.getByRole('status')).toContainText('Imported: 1');
- await dialog.getByRole('button',{name:'Back to Question Bank'}).click();
+ await dialog.getByRole('button',{name:'View imported questions'}).click();
  await expect(page.getByRole('table').getByRole('button',{name:'Explain TCP.',exact:true})).toBeVisible();
 });
 test('unreadable PDF shows processing error and no confirm action',async({page})=>{
- await setup(page,true);await page.getByRole('navigation',{name:'Question bank views'}).getByRole('button',{name:'Import PYQ'}).click();await page.getByRole('button',{name:'Import Questions',exact:true}).click();
+ await setup(page,true);await page.getByRole('navigation',{name:'Question bank views'}).getByRole('button',{name:'Import Questions'}).click();await page.getByRole('button',{name:'Choose a file to import',exact:true}).click();
  const dialog=page.getByRole('dialog');
  await dialog.getByLabel('Question document').setInputFiles({name:'scan.pdf',mimeType:'application/pdf',buffer:Buffer.from('%PDF-test')});
  await dialog.getByRole('button',{name:'Upload and preview'}).click();
@@ -132,8 +148,8 @@ test('unreadable PDF shows processing error and no confirm action',async({page})
 
 test('subject syllabus add save publish and historical view',async({page})=>{
  await setup(page);
- await page.getByRole('button',{name:'Academic Setup',exact:true}).click();await page.getByRole('navigation',{name:'Academic setup views'}).getByRole('button',{name:'Syllabus',exact:true}).click();
- const panel=page.getByRole('region',{name:'Subject syllabus'});
+ await page.getByRole('button',{name:'Subject Master',exact:true}).click();await page.getByRole('navigation',{name:'Question paper sections'}).getByRole('button',{name:'Syllabus Master',exact:true}).click();
+ const panel=page.getByRole('region',{name:'Syllabus Master'});
  await panel.getByRole('button',{name:'Save Draft',exact:true}).click();
  for(const [button,code,title] of [['Add CO','CO1','Understand networks'],['Add Unit','U1','Transport Layer'],['Add Topic to U1','T1','TCP']]){
   await panel.getByRole('button',{name:button,exact:true}).click();
@@ -141,10 +157,10 @@ test('subject syllabus add save publish and historical view',async({page})=>{
   await form.getByRole('button',{name:'Save item',exact:true}).click();await expect(form).toHaveCount(0);
  }
  await panel.getByRole('button',{name:'Save Draft',exact:true}).click();
- await panel.getByRole('button',{name:'Publish',exact:true}).click();
+ await panel.getByRole('button',{name:'Review & Publish',exact:true}).click();await page.getByRole('dialog',{name:'Review syllabus before publishing'}).getByRole('button',{name:'Publish syllabus',exact:true}).click();
  await expect(panel.getByText('Version 1 · Published',{exact:true})).toBeVisible();
  await expect(panel.getByRole('button',{name:'Add CO',exact:true})).toHaveCount(0);
- await panel.getByRole('button',{name:'View version 1',exact:true}).click();
+ await panel.getByText('Previous versions',{exact:true}).click();await panel.getByRole('button',{name:'View version 1',exact:true}).click();
  await expect(panel.getByRole('button',{name:'Back to current syllabus'})).toBeVisible();
  await expect(panel.getByText('CO1 — Understand networks',{exact:true})).toBeVisible();
 });
@@ -162,14 +178,15 @@ test('blueprint offered and attempted totals validate and publish',async({page})
   await section.getByLabel('Questions offered',{exact:true}).fill(String(offered));
   await section.getByLabel('Questions attempted',{exact:true}).fill(String(attempted));
   await section.getByLabel('Marks each',{exact:true}).fill(String(marks));
-  if(i>1)await section.getByRole('checkbox',{name:'All offered questions are mandatory'}).uncheck();
+  if(i>1)await section.getByRole('checkbox',{name:'Students answer all questions in this Part'}).uncheck();
  }
+ await panel.getByText('Advanced: syllabus coverage and Bloom targets',{exact:true}).click();
  await panel.getByLabel('cos CO1 marks',{exact:true}).fill('30');
  await panel.getByLabel('units U1 marks',{exact:true}).fill('30');
  await panel.getByLabel('topics T1 marks',{exact:true}).fill('6');
  await panel.getByLabel('Bloom K2 percent',{exact:true}).fill('100');
  await panel.getByLabel('Difficulty MEDIUM percent',{exact:true}).fill('100');
- await panel.getByRole('button',{name:'Validate Paper Pattern',exact:true}).click();
+ await panel.getByRole('button',{name:'Check Pattern',exact:true}).click();
  await expect(panel.getByRole('status')).toContainText('Offered Marks: 44');
  await expect(panel.getByRole('status')).toContainText('Attempted Marks: 30');
  await panel.getByRole('button',{name:'Publish Paper Pattern',exact:true}).click();
@@ -223,7 +240,7 @@ test('paper assembly selects choice alternatives, validates, previews, saves and
  await assemblySetup(page);
  const panel=page.getByRole('region',{name:'Paper assembly'});
  await expect(panel.getByText('Offered Marks: 2 · Attempted Marks: 1',{exact:true})).toBeVisible();
- await page.getByRole('button',{name:'Validate Paper',exact:true}).click();
+ await page.getByRole('button',{name:'Check Paper',exact:true}).click();
  await expect(page.getByText('Every offered slot needs an Approved question.')).toBeVisible();
  await page.getByRole('button',{name:'Select Alternative',exact:true}).first().click();
  let dialog=page.getByRole('dialog');await expect(dialog.getByText('3 Draft',{exact:false})).toBeVisible();
@@ -234,7 +251,7 @@ test('paper assembly selects choice alternatives, validates, previews, saves and
  await page.getByRole('button',{name:'Select Alternative',exact:true}).click();
  dialog=page.getByRole('dialog');await expect(dialog.getByRole('button',{name:'Use Question',exact:true})).toHaveCount(1);
  await dialog.getByRole('button',{name:'Use Question',exact:true}).click();
- await page.getByRole('button',{name:'Validate Paper',exact:true}).click();
+ await page.getByRole('button',{name:'Check Paper',exact:true}).click();
  await expect(page.getByText('✓ Every permitted choice satisfies configured coverage')).toBeVisible();
  await page.getByRole('button',{name:'Paper Preview',exact:true}).click();
  await expect(page.getByRole('button',{name:'Replace Question',exact:true})).toHaveCount(0);
@@ -244,7 +261,7 @@ test('paper assembly selects choice alternatives, validates, previews, saves and
  await expect(page.getByText('Faculty Review · 60 minutes',{exact:false})).toBeVisible();
  await page.getByLabel('Paper title').fill('Faculty midterm draft');
  await page.getByRole('button',{name:'Save Draft',exact:true}).click();
- await page.getByRole('button',{name:'Edit selections',exact:true}).click();
+ await page.getByRole('button',{name:'Back to questions',exact:true}).click();
  await page.getByRole('button',{name:'Remove',exact:true}).first().click();
  await expect(page.getByText('No question selected.',{exact:true})).toHaveCount(1);
 });
@@ -287,6 +304,7 @@ test('review queue submit draft and approve a question',async({page})=>{
  await page.getByRole('button',{name:'Review',exact:true}).click();const dialog=page.getByRole('dialog',{name:'Review Question'});
  await dialog.getByRole('button',{name:'Submit for Review',exact:true}).click();
  await dialog.getByRole('button',{name:'Approve',exact:true}).click();
+ await expect(dialog).toHaveCount(0);await page.getByLabel('Review status').selectOption('APPROVED');await page.getByRole('button',{name:'Review',exact:true}).click();
  await expect(dialog.getByText('Approved',{exact:true})).toBeVisible();
  await expect(dialog.getByText('Version 3 · Approve · Approved',{exact:true})).toBeVisible();
 });
@@ -315,6 +333,7 @@ test('imported question request changes comment edit and approve through same re
  await page.getByRole('button',{name:'Review',exact:true}).click();dialog=page.getByRole('dialog',{name:'Review Question'});
  await dialog.getByRole('button',{name:'Resubmit for Review',exact:true}).click();
  await dialog.getByRole('button',{name:'Approve',exact:true}).click();
+ await expect(dialog).toHaveCount(0);await page.getByLabel('Review status').selectOption('APPROVED');await page.getByRole('button',{name:'Review',exact:true}).click();
  await expect(dialog.getByText('Approved',{exact:true})).toBeVisible();
  await expect(dialog.getByText('questions.csv',{exact:true})).toBeVisible();
 });
@@ -328,7 +347,7 @@ test('final paper review approves, locks, exports and shows immutable history',a
  await page.getByRole('button',{name:'Approve Paper',exact:true}).click();
  await expect(page.getByLabel('Paper title',{exact:true})).toBeDisabled();
  await expect(page.getByRole('button',{name:'Save Draft',exact:true})).toHaveCount(0);
- await page.getByRole('button',{name:'Lock Paper',exact:true}).click();
+ await page.getByRole('button',{name:'Finalize and Lock',exact:true}).click();
  await expect(page.getByRole('button',{name:'Replace Question',exact:true})).toHaveCount(0);
  const download=page.waitForEvent('download');await page.getByRole('button',{name:'Export PDF',exact:true}).click();
  await expect((await download).suggestedFilename()).toContain('question-paper-v1-r3.pdf');
@@ -348,17 +367,17 @@ test('paper changes requested can edit, validate, resubmit and approve',async({p
  await page.getByLabel('Paper instructions',{exact:true}).fill('Answer one question from the pair.');
  await page.getByLabel('Paper title',{exact:true}).fill('Revised midterm');
  await page.getByRole('button',{name:'Save Draft',exact:true}).click();
- await page.getByRole('button',{name:'Validate Paper',exact:true}).click();
+ await page.getByRole('button',{name:'Check Paper',exact:true}).click();
  await page.getByRole('button',{name:'Send for Faculty Review',exact:true}).click();
  await page.getByRole('button',{name:'Approve Paper',exact:true}).click();
- await expect(page.getByRole('button',{name:'Lock Paper',exact:true})).toBeVisible();
+ await expect(page.getByRole('button',{name:'Finalize and Lock',exact:true})).toBeVisible();
  await expect(page.getByLabel('Paper instructions',{exact:true})).toHaveValue('Answer one question from the pair.');
 });
 
 test('locked paper creates a new editable version with preserved selections',async({page})=>{
  await assemblySetup(page,false,true);
  await page.getByRole('button',{name:'Approve Paper',exact:true}).click();
- await page.getByRole('button',{name:'Lock Paper',exact:true}).click();
+ await page.getByRole('button',{name:'Finalize and Lock',exact:true}).click();
  await page.getByRole('button',{name:'Create New Version',exact:true}).click();
  await expect(page.getByLabel('Paper title',{exact:true})).toBeEnabled();
  await expect(page.getByText('Which network protocol 1?',{exact:true})).toBeVisible();
@@ -385,11 +404,11 @@ async function generationSetup(page:Page,mode='completed'){
   if(path.endsWith('/accept')||path.endsWith('/reject')){const body=route.request().postDataJSON();candidate.decision=path.endsWith('/accept')?'ACCEPTED':'REJECTED';candidate.question={...candidate.question,...(body.question_text?{question_text:body.question_text}:{})};job={...job,revision:4,results:[candidate]};json=job;}
   await route.fulfill({json});
  });
- await page.getByRole('button',{name:'AI Generate',exact:true}).click();
+ await page.getByRole('button',{name:'Question Papers',exact:true}).click();await page.getByRole('button',{name:'Question Bank',exact:true}).click();await page.getByRole('button',{name:'Generate with AI',exact:true}).click();
  await page.getByLabel('Generation syllabus').selectOption('sv1');
- await page.getByLabel('Generation CO',{exact:true}).selectOption('co1');
- await page.getByLabel('Generation Unit',{exact:true}).selectOption('u1');
- await page.getByLabel('Generation Topic',{exact:true}).selectOption('t1');
+ await page.getByLabel('Course Outcome (CO)',{exact:true}).selectOption('co1');
+ await page.getByLabel('Unit',{exact:true}).selectOption('u1');
+ await page.getByLabel('Topic',{exact:true}).selectOption('t1');
  return ()=>job;
 }
 
@@ -398,25 +417,25 @@ test('AI source review generate edit accept needs review and evidence',async({pa
  await page.getByRole('button',{name:'Review source',exact:true}).click();
  const dialog=page.getByRole('dialog');await expect(dialog.getByText('TCP acknowledges packets for reliable delivery.',{exact:true})).toBeVisible();
  await dialog.getByRole('button',{name:'Confirm extraction for retrieval'}).click();
- await expect(page.getByText('notes.txt · 1 chunks · Ready for retrieval')).toBeVisible();
- await page.getByRole('button',{name:'Generate questions',exact:true}).click();
+ await expect(page.getByText('notes.txt · 1 text sections · Ready to use')).toBeVisible();
+ await page.getByRole('button',{name:/^Generate \d+ questions?$/}).click();
  await expect(page.getByText('Explain TCP acknowledgments.',{exact:true})).toBeVisible();
- await expect(page.getByText('paragraph 1 · relevance',{exact:false})).toBeVisible();
- await page.getByRole('button',{name:'Edit candidate'}).click();await page.getByLabel('Candidate question').fill('Explain reliable TCP acknowledgments.');
+ await page.getByText('Sources and supporting evidence (1)',{exact:true}).click();await expect(page.getByText('paragraph 1 · relevance',{exact:false})).toBeVisible();
+ await page.getByRole('button',{name:'Edit question'}).click();await page.getByLabel('Candidate question').fill('Explain reliable TCP acknowledgments.');
  await page.getByRole('button',{name:'Accept for review'}).click();
- await expect(page.getByText('Saved to Question Bank · Needs Review')).toBeVisible();
+ await expect(page.getByText('Saved to Question Bank')).toBeVisible();
  await expect(page.getByRole('button',{name:'Accept for review'})).toHaveCount(0);
 });
 test('AI failed generation gives actionable failure and regenerate',async({page})=>{
- await generationSetup(page,'failed');await page.getByRole('button',{name:'Generate questions',exact:true}).click();
+ await generationSetup(page,'failed');await page.getByRole('button',{name:/^Generate \d+ questions?$/}).click();
  await expect(page.getByRole('alert')).toContainText('Insufficient source coverage');
  await expect(page.getByRole('button',{name:'Regenerate with same settings'})).toBeVisible();
  await expect(page.getByRole('button',{name:'Accept for review'})).toHaveCount(0);
 });
 test('AI generation cancel leaves no candidates',async({page})=>{
  await page.setViewportSize({width:390,height:844});await generationSetup(page,'running');
- await page.getByRole('button',{name:'Generate questions',exact:true}).click();await page.getByRole('button',{name:'Cancel generation'}).click();
- await expect(page.getByRole('heading',{name:'Cancelled',exact:true})).toBeVisible();
+ await page.getByRole('button',{name:/^Generate \d+ questions?$/}).click();await page.getByRole('button',{name:'Cancel generation'}).click();
+ await expect(page.getByRole('region',{name:'Generation results'}).getByText('Cancelled',{exact:true})).toBeVisible();
  await expect(page.getByRole('button',{name:'Accept for review'})).toHaveCount(0);
 });
 
@@ -442,13 +461,13 @@ test('AI acceptance flows through review approval into paper assembly',async({pa
   else return route.fallback();
   await route.fulfill({json});
  });
- await page.getByRole('button',{name:'Generate questions',exact:true}).click();
+ await page.getByRole('button',{name:/^Generate \d+ questions?$/}).click();
  await page.getByRole('button',{name:'Accept for review'}).click();
- await expect(page.getByText('Saved to Question Bank · Needs Review')).toBeVisible();
+ await expect(page.getByText('Saved to Question Bank')).toBeVisible();
  await page.getByRole('button',{name:'Open Review Queue'}).click();
  await page.getByRole('button',{name:'Review',exact:true}).click();const review=page.getByRole('dialog',{name:'Review Question'});
- await expect(review.getByText('Needs Review',{exact:true})).toBeVisible();await review.getByRole('button',{name:'Run Validation',exact:true}).click();await expect(review.getByText('Structural · PASS',{exact:true})).toBeVisible();await expect(review.getByText('Needs Review',{exact:true})).toBeVisible();const beforeApproval=await page.evaluate(async()=>{const r=await fetch('/v3/college/question-papers/papers/pai/eligible');return r.json();});expect(beforeApproval.items).toEqual([]);await review.getByRole('button',{name:'Approve',exact:true}).click();await expect(review.getByText('Approved',{exact:true})).toBeVisible();
- await review.getByRole('button',{name:'Close',exact:true}).click();
+ await expect(review.getByText('Needs Review',{exact:true})).toBeVisible();await openDetails(review,'Additional question checks');await review.getByRole('button',{name:'Run Validation',exact:true}).click();await expect(review.getByText('Structural · PASS',{exact:true})).toBeVisible();await expect(review.getByText('Needs Review',{exact:true})).toBeVisible();const beforeApproval=await page.evaluate(async()=>{const r=await fetch('/v3/college/question-papers/papers/pai/eligible');return r.json();});expect(beforeApproval.items).toEqual([]);await review.getByRole('button',{name:'Approve',exact:true}).click();await expect(review).toHaveCount(0);
+ await page.getByLabel('Review status').selectOption('APPROVED');await page.getByRole('button',{name:'Review',exact:true}).click();await expect(review.getByText('Approved',{exact:true})).toBeVisible();await review.getByRole('button',{name:'Close',exact:true}).click();
  await page.getByRole('button',{name:'Question Papers',exact:true}).click();await page.getByLabel('Paper syllabus').selectOption('sv1');await page.getByLabel('Published paper pattern').selectOption('bai');await page.getByRole('button',{name:'Create Paper',exact:true}).click();
  await page.getByRole('button',{name:'Select Question',exact:true}).click();const picker=page.getByRole('dialog');await expect(picker.getByText('Explain TCP acknowledgments.',{exact:true})).toBeVisible();await picker.getByRole('button',{name:'Use Question',exact:true}).click();await expect(picker).toBeHidden();await expect(page.getByRole('region',{name:'Paper assembly'}).getByText('Explain TCP acknowledgments.',{exact:true})).toBeVisible();
 });
@@ -457,7 +476,7 @@ test('AI duplicate warning requires edit or rejection',async({page})=>{
  await generationSetup(page);
  await page.route('**/questions/generate',async route=>{const body=route.request().postDataJSON();await route.fulfill({json:{id:'duplicate1',status:'COMPLETED',revision:3,request:body,results:[{id:'dup1',decision:'PENDING',duplicate:true,warnings:[],question:{question_text:'Existing TCP question.',answer:'TCP acknowledges packets.',options:[],question_type:'SHORT_ANSWER',marks:2,rationale:'Source based.'},provenance:[]}],failure_reason:'',created_at:new Date().toISOString()}});});
  await page.route('**/generation-jobs/duplicate1/results/dup1/accept',route=>route.fulfill({status:409,json:{detail:'Exact normalized duplicate exists. Edit the candidate or reject it.'}}));
- await page.getByRole('button',{name:'Generate questions',exact:true}).click();await expect(page.getByText('Exact duplicate detected. Edit or reject before acceptance.')).toBeVisible();await page.getByRole('button',{name:'Accept for review'}).click();await expect(page.getByRole('alert')).toContainText('Exact normalized duplicate exists');
+ await page.getByRole('button',{name:/^Generate \d+ questions?$/}).click();await expect(page.getByText('Exact duplicate detected. Edit or reject before acceptance.')).toBeVisible();await page.getByRole('button',{name:'Accept for review'}).click();await expect(page.getByRole('alert')).toContainText('Exact normalized duplicate exists');
 });
 
 async function validationSetup(page:Page,unavailable=false){
@@ -477,17 +496,17 @@ async function validationSetup(page:Page,unavailable=false){
 
 test('AI validation shows evidence then edit makes historical run stale and revalidation stays advisory',async({page})=>{
  await validationSetup(page);let dialog=page.getByRole('dialog',{name:'Review Question'});
- await dialog.getByRole('button',{name:'Run Validation',exact:true}).click();
+ await openDetails(dialog,'Additional question checks');await dialog.getByRole('button',{name:'Run Validation',exact:true}).click();
  await expect(dialog.getByText('Bloom Alignment · WARN',{exact:true})).toBeVisible();await expect(dialog.getByText('transport-notes.txt · page 2',{exact:true})).toBeVisible();await expect(dialog.getByText('Needs Review',{exact:true})).toBeVisible();
  await dialog.getByRole('button',{name:'Edit',exact:true}).click();dialog=page.getByRole('dialog',{name:'Edit Question'});await dialog.locator('[name="question_text"]').fill('Explain TCP flow control with an example.');await dialog.getByRole('button',{name:'Save new version'}).click();
  await page.getByRole('button',{name:'Review',exact:true}).click();dialog=page.getByRole('dialog',{name:'Review Question'});
- await expect(dialog.getByText(/^Stale — revalidation required for this version/)).toBeVisible();
- await dialog.getByRole('button',{name:'Revalidate',exact:true}).click();await expect(dialog.getByText(/Validated question version 2/)).toBeVisible();
- await dialog.getByLabel('View Previous Validation').selectOption('vr1');await expect(dialog.getByText(/Validated question version 1/)).toBeVisible();await expect(dialog.getByText(/^Stale — revalidation required for this version/)).toBeVisible();
- await dialog.getByRole('button',{name:'Approve',exact:true}).click();await expect(dialog.getByText('Approved',{exact:true})).toBeVisible();
+ await openDetails(dialog,'Additional question checks');await expect(dialog.getByText(/^Stale — revalidation required for this version/)).toBeVisible();
+ await openDetails(dialog,'Additional question checks');await dialog.getByRole('button',{name:'Revalidate',exact:true}).click();await expect(dialog.getByText(/Validated question version 2/)).toBeVisible();
+ await dialog.getByLabel('View Previous Validation').selectOption('vr1');await expect(dialog.getByText(/Validated question version 1/)).toBeVisible();await openDetails(dialog,'Additional question checks');await expect(dialog.getByText(/^Stale — revalidation required for this version/)).toBeVisible();
+ await dialog.getByRole('button',{name:'Approve',exact:true}).click();await expect(dialog).toHaveCount(0);await page.getByLabel('Review status').selectOption('APPROVED');await page.getByRole('button',{name:'Review',exact:true}).click();await expect(dialog.getByText('Approved',{exact:true})).toBeVisible();
 });
 test('unavailable AI validation leaves faculty approval controls available',async({page})=>{
- await validationSetup(page,true);const dialog=page.getByRole('dialog',{name:'Review Question'});await dialog.getByRole('button',{name:'Run Validation',exact:true}).click();await expect(dialog.getByText('Provider unavailable; faculty review remains available.',{exact:true})).toBeVisible();await expect(dialog.getByRole('button',{name:'Approve',exact:true})).toBeEnabled();await dialog.getByRole('button',{name:'Approve',exact:true}).click();await expect(dialog.getByText('Approved',{exact:true})).toBeVisible();
+ await validationSetup(page,true);const dialog=page.getByRole('dialog',{name:'Review Question'});await openDetails(dialog,'Additional question checks');await dialog.getByRole('button',{name:'Run Validation',exact:true}).click();await expect(dialog.getByText('Provider unavailable; faculty review remains available.',{exact:true})).toBeVisible();await expect(dialog.getByRole('button',{name:'Approve',exact:true})).toBeEnabled();await dialog.getByRole('button',{name:'Approve',exact:true}).click();await expect(dialog).toHaveCount(0);await page.getByLabel('Review status').selectOption('APPROVED');await page.getByRole('button',{name:'Review',exact:true}).click();await expect(dialog.getByText('Approved',{exact:true})).toBeVisible();
 });
 
 async function intelligenceMocks(page:Page){
@@ -507,13 +526,13 @@ test('Question Bank similarity usage and stale embeddings remain advisory',async
  await reviewSetup(page);await intelligenceMocks(page);
  await page.getByRole('button',{name:'Question Bank',exact:true}).click();await page.getByRole('button',{name:'Explain the TCP protocol.',exact:true}).click();
  let dialog=page.getByRole('dialog',{name:'Question Details'});
- await dialog.getByRole('button',{name:'Find Similar Questions'}).click();await expect(dialog.getByText('Highly Similar · Cosine 0.910',{exact:true})).toBeVisible();
+ await openDetails(dialog,'Advanced: similarity and usage');await openDetails(dialog,'Similarity and past usage');await dialog.getByRole('button',{name:'Find Similar Questions'}).click();await expect(dialog.getByText('Highly Similar · Cosine 0.910',{exact:true})).toBeVisible();
  await dialog.getByText('Inspect matching question',{exact:true}).click();await expect(dialog.getByText(/Version 3/)).toBeVisible();
  await dialog.getByRole('button',{name:'View Usage'}).click();await expect(dialog.getByText(/Times used: 2 · Papers: 2/)).toBeVisible();await expect(dialog.getByText(/Mid-Sem 2025/)).toBeVisible();
  await dialog.getByRole('button',{name:'Close',exact:true}).click();await page.getByRole('button',{name:'Question bank review',exact:true}).last().click();await page.getByRole('button',{name:'Review',exact:true}).click();dialog=page.getByRole('dialog',{name:'Review Question'});
- await dialog.getByRole('button',{name:'Find Similar Questions'}).click();await expect(dialog.getByRole('button',{name:'Approve',exact:true})).toBeEnabled();
+ await openDetails(dialog,'Advanced: similarity and usage');await openDetails(dialog,'Similarity and past usage');await dialog.getByRole('button',{name:'Find Similar Questions'}).click();await expect(dialog.getByRole('button',{name:'Approve',exact:true})).toBeEnabled();
  await dialog.getByRole('button',{name:'Edit',exact:true}).click();dialog=page.getByRole('dialog',{name:'Edit Question'});await dialog.locator('[name="question_text"]').fill('Explain reliable TCP delivery with an example.');await dialog.getByRole('button',{name:'Save new version'}).click();
- await page.getByRole('button',{name:'Review',exact:true}).click();dialog=page.getByRole('dialog',{name:'Review Question'});await dialog.getByRole('button',{name:'Find Similar Questions'}).click();await expect(dialog.getByText(/1 missing or stale embeddings/)).toBeVisible();await dialog.getByRole('button',{name:'Index / Refresh Similarity'}).click();await expect(dialog.getByText('Semantic indexing in progress…')).toBeHidden();await dialog.getByText('Embedding history',{exact:true}).click();await expect(dialog.getByText(/Version 2 · Completed/)).toBeVisible();await expect(dialog.getByRole('button',{name:'Approve',exact:true})).toBeEnabled();
+ await page.getByRole('button',{name:'Review',exact:true}).click();dialog=page.getByRole('dialog',{name:'Review Question'});await openDetails(dialog,'Advanced: similarity and usage');await openDetails(dialog,'Similarity and past usage');await dialog.getByRole('button',{name:'Find Similar Questions'}).click();await expect(dialog.getByText(/1 missing or stale embeddings/)).toBeVisible();await dialog.getByRole('button',{name:'Index / Refresh Similarity'}).click();await expect(dialog.getByText('Semantic indexing in progress…')).toBeHidden();await dialog.getByText('Embedding history',{exact:true}).click();await expect(dialog.getByText(/Version 2 · Completed/)).toBeVisible();await expect(dialog.getByRole('button',{name:'Approve',exact:true})).toBeEnabled();
 });
 
 test('generated similarity warning keeps accept decision available',async({page})=>{
@@ -521,19 +540,19 @@ test('generated similarity warning keeps accept decision available',async({page}
  let generationRequest:Record<string,unknown>={};
  await page.route('**/questions/generate',async route=>{generationRequest=route.request().postDataJSON();await route.fulfill({json:{id:'sim-job',status:'COMPLETED',revision:3,request:route.request().postDataJSON(),results:[{id:'sim-candidate',decision:'PENDING',duplicate:false,warnings:[],question:{question_text:'Explain reliable TCP delivery.',answer:'TCP acknowledges packets.',options:[],question_type:'SHORT_ANSWER',marks:2,rationale:'Related source concept.'},provenance:[],similarity:{semantic_available:true,message:'Similarity is advisory.',matches:[{classification:'HIGHLY_SIMILAR',similarity:.92,question:{id:'q2',version:3,question_text:'Describe TCP acknowledgments.'}}]}}],failure_reason:'',created_at:new Date().toISOString()}});});
  await page.route('**/generation-jobs/sim-job/results/sim-candidate/accept',async route=>{await route.fulfill({json:{id:'sim-job',status:'COMPLETED',revision:4,request:generationRequest,results:[{id:'sim-candidate',decision:'ACCEPTED',duplicate:false,warnings:[],question:{question_text:'Explain reliable TCP delivery.',answer:'TCP acknowledges packets.',options:[],question_type:'SHORT_ANSWER',marks:2,rationale:'Related source concept.'},provenance:[]}],failure_reason:'',created_at:new Date().toISOString()}});});
- await page.getByRole('button',{name:'Generate questions',exact:true}).click();await expect(page.getByRole('heading',{name:'Potentially similar question',exact:true})).toBeVisible();await expect(page.getByText(/Version 3: Describe TCP acknowledgments/)).toBeVisible();await expect(page.getByRole('button',{name:'Accept for review'})).toBeEnabled();await page.getByRole('button',{name:'Accept for review'}).click();await expect(page.getByText('Saved to Question Bank · Needs Review')).toBeVisible();
+ await page.getByRole('button',{name:/^Generate \d+ questions?$/}).click();await expect(page.getByRole('heading',{name:'Potentially similar question',exact:true})).toBeVisible();await expect(page.getByText(/Version 3: Describe TCP acknowledgments/)).toBeVisible();await expect(page.getByRole('button',{name:'Accept for review'})).toBeEnabled();await page.getByRole('button',{name:'Accept for review'}).click();await expect(page.getByText('Saved to Question Bank')).toBeVisible();
 });
 
 test('paper repetition warns after selection without blocking faculty actions',async({page})=>{
  await assemblySetup(page);
  await page.route(/\/papers\/p1\/(similarity|previous-paper-similarity)/,async route=>{const previous=route.request().url().includes('previous-paper');await route.fulfill({json:{paper_id:'p1',revision:2,semantic_available:true,truncated:false,matches:[{position:1,matched_position:2,classification:'HIGHLY_SIMILAR',similarity:.92,question_version:3,matched_question_version:2,matched_question_text:'Describe TCP acknowledgment and retransmission.',...(previous?{previous_paper_title:'Mid-Sem 2025',previous_paper_version:1,previous_paper_revision:4}:{})}],topic_warnings:previous?[]:[{topic:'TCP',count:3,message:'Topic repetition among offered selections.'}],repeated_topics:[]}});});
  await page.getByRole('button',{name:'Select Alternative',exact:true}).first().click();const picker=page.getByRole('dialog');await picker.getByRole('button',{name:'Use Question',exact:true}).first().click();await expect(picker).toBeHidden();
- const warnings=page.getByRole('region',{name:'Advisory paper repetition'});await expect(warnings.getByText(/Q1 · Highly Similar/).first()).toBeVisible();await expect(warnings.getByText(/Mid-Sem 2025/)).toBeVisible();await expect(page.getByRole('button',{name:'Validate Paper',exact:true})).toBeEnabled();await expect(page.getByRole('button',{name:'Save Draft',exact:true})).toBeEnabled();
+ await page.getByText('Advanced: similarity with other papers',{exact:true}).click();const warnings=page.getByRole('region',{name:'Advisory paper repetition'});await expect(warnings.getByText(/Q1 · Highly Similar/).first()).toBeVisible();await expect(warnings.getByText(/Mid-Sem 2025/)).toBeVisible();await expect(page.getByRole('button',{name:'Check Paper',exact:true})).toBeEnabled();await expect(page.getByRole('button',{name:'Save Draft',exact:true})).toBeEnabled();
 });
 
 test('Question Bank repetition shows unused topics and distribution',async({page})=>{
  await setup(page,false,true);await page.route('**/questions/repetition-analysis?**',route=>route.fulfill({json:{question_count:3,counts:{bloom:{K1:1,K2:2},difficulty:{EASY:2,MEDIUM:1},units:{u1:3},topics:{t1:3},cos:{co1:3}},topics:[{id:'t1',code:'T1',title:'TCP',question_count:3,times_used:4,category:'HEAVILY_USED'},{id:'t2',code:'T2',title:'UDP',question_count:0,times_used:0,category:'UNUSED'}],usage:[],truncated:false,basis:'Immutable finalized paper snapshots.'}}));
- await page.getByRole('button',{name:'Intelligence',exact:true}).click();await page.getByRole('button',{name:'View Repetition Analysis'}).click();await expect(page.getByRole('table').getByText('Unused',{exact:true})).toBeVisible();await expect(page.getByRole('table').getByText('Heavily Used',{exact:true})).toBeVisible();
+ await page.getByRole('button',{name:'Question Papers',exact:true}).click();await page.getByRole('button',{name:'Question Bank',exact:true}).click();await page.getByRole('navigation',{name:'Question bank views'}).getByText('More options',{exact:true}).click();await page.getByRole('button',{name:'Usage and repetition',exact:true}).click();await page.getByRole('button',{name:'View Repetition Analysis'}).click();await expect(page.getByRole('table').getByText('Unused',{exact:true})).toBeVisible();await expect(page.getByRole('table').getByText('Heavily Used',{exact:true})).toBeVisible();
 });
 
 async function blueprintAssistMocks(page:Page,mode='covered'){
@@ -586,7 +605,7 @@ test('blueprint missing slot generation reuses source grounded needs review with
   await route.fulfill({json});
  });
  const panel=page.getByRole('region',{name:'AI Blueprint Analysis'});await panel.getByRole('button',{name:'Analyze Blueprint'}).click();await panel.getByRole('button',{name:'Generate Question',exact:true}).first().click();await page.getByRole('dialog',{name:'Generate for Q1'}).getByRole('button',{name:'Open Generation'}).click();
- await expect(page.getByLabel('Generation marks',{exact:true})).toBeDisabled();await expect(page.getByLabel('Generation type',{exact:true})).toBeDisabled();await page.getByRole('button',{name:'Generate questions',exact:true}).click();await page.getByRole('button',{name:'Accept for review'}).click();await expect(page.getByText('Saved to Question Bank · Needs Review')).toBeVisible();expect(assignments).toBe(0);await expect(page.getByText('No question selected.',{exact:true})).toHaveCount(2);
+ await expect(page.getByLabel('Marks per question',{exact:true})).toBeDisabled();await expect(page.getByLabel('Question type',{exact:true})).toBeDisabled();await page.getByRole('button',{name:/^Generate \d+ questions?$/}).click();await page.getByRole('button',{name:'Accept for review'}).click();await expect(page.getByText('Saved to Question Bank')).toBeVisible();expect(assignments).toBe(0);await expect(page.getByText('No question selected.',{exact:true})).toHaveCount(2);
 });
 
 const templateConfiguration={header_alignment:'CENTER',institution_alignment:'CENTER',logo_placement:'CENTER',show_logo:true,show_address:true,show_page_numbers:true,show_fields:['course_code','course_name','duration','maximum_marks'],address_text:'',contact_text:'',header_text:'',footer_text:'',section_style:'NORMAL',numbering:'CONTINUOUS'};
@@ -610,7 +629,7 @@ test('institution template create edit activate preview and new version',async({
 });
 
 async function officialExportSetup(page:Page,allowAnswers=true,failure=false){
- await assemblySetup(page,false,true);await page.getByRole('button',{name:'Approve Paper'}).click();await page.getByRole('button',{name:'Lock Paper'}).click();
+ await assemblySetup(page,false,true);await page.getByRole('button',{name:'Approve Paper'}).click();await page.getByRole('button',{name:'Finalize and Lock'}).click();
  const records:{id:string;revision:number;format:string;document_type:string;template_name:string;template_version:number;created_at:string;sha256:string;byte_size:number;warnings:string[]}[]=[];const requests:URLSearchParams[]=[];
  await page.route(/\/question-papers\/(templates|papers\/p1\/(export|exports))/,async route=>{
   const url=new URL(route.request().url()),path=url.pathname;
@@ -625,11 +644,11 @@ async function officialExportSetup(page:Page,allowAnswers=true,failure=false){
   if(path.endsWith('/download')){await route.fulfill({contentType:'application/pdf',body:'canonical saved document'});return;}
   await route.fallback();
  });
- await page.getByRole('button',{name:'Export Documents'}).click();return {records,requests};
+ await expect(page.getByRole('region',{name:'Official Paper Export'})).toHaveCount(1);await page.getByRole('button',{name:'Choose format and download'}).click();return {records,requests};
 }
 
 test('locked student and answer documents PDF DOCX preview and export history',async({page})=>{
- const {records,requests}=await officialExportSetup(page);const dialog=page.getByRole('dialog',{name:'Export Locked Paper'});await dialog.getByLabel('Export template').selectOption('tpl1');await dialog.getByRole('button',{name:'Preview Document'}).click();await expect(dialog.getByRole('article',{name:'Document Preview'})).toBeVisible();await expect(dialog.getByText('Answer / solution:',{exact:false})).toHaveCount(0);
+ const {records,requests}=await officialExportSetup(page);const dialog=page.getByRole('dialog',{name:'Download Final Paper'});await dialog.getByLabel('Export template').selectOption('tpl1');await dialog.getByRole('button',{name:'Preview Document'}).click();await expect(dialog.getByRole('article',{name:'Document Preview'})).toBeVisible();await expect(dialog.getByText('Answer / solution:',{exact:false})).toHaveCount(0);
  for(const [kind,format] of [['STUDENT','PDF'],['STUDENT','DOCX'],['ANSWER','PDF'],['ANSWER','DOCX']]){
   await dialog.getByRole('radio',{name:`${kind==='ANSWER'?'Answer Key':'Student Paper'} ${format}`,exact:true}).check();
   if(kind==='ANSWER'){await dialog.getByRole('button',{name:'Preview Document'}).click();await expect(dialog.getByText('Answer / solution: Stored faculty solution.',{exact:true})).toBeVisible();}
@@ -639,7 +658,7 @@ test('locked student and answer documents PDF DOCX preview and export history',a
 });
 
 test('readonly answer export options are hidden while student preview is available',async({page})=>{
- await officialExportSetup(page,false);const dialog=page.getByRole('dialog',{name:'Export Locked Paper'});await expect(dialog.getByRole('radio')).toHaveCount(2);await expect(dialog.getByRole('radio',{name:/Answer Key/})).toHaveCount(0);await expect(dialog.getByText('Answer Key / Solution',{exact:true})).toHaveCount(0);await dialog.getByRole('button',{name:'Preview Document'}).click();await expect(dialog.getByRole('article',{name:'Document Preview'})).toBeVisible();
+ await officialExportSetup(page,false);const dialog=page.getByRole('dialog',{name:'Download Final Paper'});await expect(dialog.getByRole('radio')).toHaveCount(2);await expect(dialog.getByRole('radio',{name:/Answer Key/})).toHaveCount(0);await expect(dialog.getByText('Answer Key / Solution',{exact:true})).toHaveCount(0);await dialog.getByRole('button',{name:'Preview Document'}).click();await expect(dialog.getByRole('article',{name:'Document Preview'})).toBeVisible();
 });
 
 test('export storage failure shows a clear error without successful export history',async({page})=>{
@@ -649,19 +668,19 @@ test('export storage failure shows a clear error without successful export histo
 test('grouped QPG navigation preserves subject context and accessible actions',async({page})=>{
  await setup(page);
  const primary=page.getByRole('navigation',{name:'Question paper sections'});
- await expect(primary.getByRole('button')).toHaveText(['Overview','Academic Setup','Question Bank','Question Papers','Templates','Reports']);
+ await expect(primary.getByRole('button')).toHaveText(['Subject Master','Syllabus Master','Question Papers','Templates','Reports']);
  for(const old of ['Syllabus','Blueprint','Paper Assembly','AI Questions','Review Queue','Bank Intelligence','Drafts'])await expect(primary.getByRole('button',{name:old,exact:true})).toHaveCount(0);
  await expect(page.getByRole('region',{name:'Selected academic context'})).toContainText('Year 2 › Semester 4');
- await expect(page.getByLabel('Program',{exact:true})).toHaveCount(0);
- await primary.getByRole('button',{name:'Academic Setup'}).click();
+ await primary.getByRole('button',{name:'Question Papers'}).click();await expect(page.getByLabel('Program',{exact:true})).toHaveCount(0);
+ await primary.getByRole('button',{name:'Subject Master'}).click();
  await expect(page.getByLabel('Program',{exact:true})).toHaveValue('BTECH');
- await page.getByRole('navigation',{name:'Academic setup views'}).getByRole('button',{name:'Syllabus'}).click();
- await expect(page.getByRole('region',{name:'Subject syllabus'})).toBeVisible();
- await primary.getByRole('button',{name:'Question Bank'}).click();
+ await primary.getByRole('button',{name:'Syllabus Master'}).click();
+ await expect(page.getByRole('region',{name:'Syllabus Master'})).toBeVisible();
+ await primary.getByRole('button',{name:'Question Papers'}).click();await page.getByRole('navigation',{name:'Question Papers workspace'}).getByRole('button',{name:'Question Bank'}).click();
  const bank=page.getByRole('navigation',{name:'Question bank views'});
- await expect(bank.getByRole('button')).toHaveText(['Questions','Import PYQ','AI Generate','Review','Intelligence','Question Drafts']);
- await bank.getByRole('button',{name:'Import PYQ'}).click();await page.getByRole('navigation',{name:'Question bank views'}).getByRole('button',{name:'Import PYQ'}).click();await page.getByRole('button',{name:'Import Questions',exact:true}).click();await expect(page.getByRole('dialog',{name:'Import Questions'})).toBeVisible();await page.keyboard.press('Escape');
- await bank.getByRole('button',{name:'Question Drafts'}).click();await expect(page.getByRole('heading',{name:'Draft Questions'})).toBeVisible();
+ await expect(bank.getByRole('button')).toHaveText(['Questions','Import Questions','Generate with AI','Review']);
+ await bank.getByRole('button',{name:'Import Questions'}).click();await page.getByRole('navigation',{name:'Question bank views'}).getByRole('button',{name:'Import Questions'}).click();await page.getByRole('button',{name:'Choose a file to import',exact:true}).click();await expect(page.getByRole('dialog',{name:'Import Questions'})).toBeVisible();await page.keyboard.press('Escape');
+ await bank.getByText('More options',{exact:true}).click();await bank.getByRole('button',{name:'Question Drafts'}).click();await expect(page.getByRole('heading',{name:'Draft Questions',exact:true})).toBeVisible();
  await primary.getByRole('button',{name:'Reports'}).click();await expect(page.getByRole('heading',{name:'Reports & Analytics',exact:true})).toBeVisible();
  await expect(page.getByRole('navigation',{name:'Question bank views'})).toHaveCount(0);
  await primary.getByRole('button',{name:'Question Papers'}).click();await expect(page.getByRole('navigation',{name:'Question paper views'}).getByRole('button')).toHaveText(['Paper Patterns','Create Paper','Drafts','Review','Final Papers']);
@@ -681,15 +700,15 @@ test('paper stage lists filter existing records without changing APIs',async({pa
 
 test('export permission refresh clears the prior answer preview and selects student output',async({page})=>{
  await officialExportSetup(page);
- let dialog=page.getByRole('dialog',{name:'Export Locked Paper'});
+ let dialog=page.getByRole('dialog',{name:'Download Final Paper'});
  await expect(dialog.getByRole('radio')).toHaveCount(4);
  await dialog.getByRole('radio',{name:'Answer Key PDF',exact:true}).check();
  await dialog.getByRole('button',{name:'Preview Document'}).click();
  await expect(dialog.getByText('Answer / solution: Stored faculty solution.',{exact:true})).toBeVisible();
  await dialog.getByRole('button',{name:'Close',exact:true}).click();
  await page.route('**/question-papers/papers/p1/exports',route=>route.fulfill({json:{items:[],can_export_answers:false}}));
- await page.getByRole('button',{name:'Export Documents',exact:true}).click();
- dialog=page.getByRole('dialog',{name:'Export Locked Paper'});
+ await page.getByRole('button',{name:'Choose format and download',exact:true}).click();
+ dialog=page.getByRole('dialog',{name:'Download Final Paper'});
  await expect(dialog.getByRole('radio',{name:/Answer Key/})).toHaveCount(0);
  await expect(dialog.getByRole('radio',{name:'Student Paper PDF',exact:true})).toBeChecked();
  await expect(dialog.getByText('Answer / solution: Stored faculty solution.',{exact:true})).toHaveCount(0);
@@ -706,8 +725,8 @@ test('Reports academic filters cards coverage distributions usage papers and CSV
  await expect(page.getByLabel('Program',{exact:true})).toHaveValue('BTECH');
  await page.getByLabel('Report syllabus',{exact:true}).selectOption('sv1');
  await page.getByLabel('Event date range',{exact:true}).selectOption('LAST_7_DAYS');
- await page.getByRole('button',{name:'View Reports',exact:true}).click();
- await expect(page.getByRole('region',{name:'Question Bank',exact:true})).toContainText('4');
+ await page.getByRole('button',{name:'View Reports',exact:true}).click();await expect(page.getByRole('region',{name:'At a glance'})).toBeVisible();for(const title of ['Question and paper status details','Syllabus coverage and question distribution','Question usage and unused questions','Finalized papers and pattern usage (1)','Finalized papers and pattern usage (0)','Advanced: similarity, validation and AI activity'])await openDetails(page.getByRole('region',{name:'Reports and Analytics'}),title);
+ await expect(page.getByRole('region',{name:'At a glance',exact:true})).toContainText('4');
  await expect(page.getByRole('heading',{name:'Question Bank coverage',exact:true})).toBeVisible();
  await expect(page.getByRole('region',{name:'CO coverage',exact:true})).toContainText('CO1');
  await expect(page.getByRole('heading',{name:'Bank Bloom distribution',exact:true})).toBeVisible();
@@ -722,8 +741,8 @@ test('Reports academic filters cards coverage distributions usage papers and CSV
 test('Reports empty state and permission error',async({page})=>{
  await setup(page);let denied=false;
  await page.route('**/question-papers/reports?*',r=>r.fulfill(denied?{status:403,json:{detail:'An academic faculty assignment is required.'}}:{json:reportFixture(true)}));
- await page.getByRole('button',{name:'Reports',exact:true}).click();await page.getByRole('button',{name:'View Reports',exact:true}).click();
- await expect(page.getByText('No questions are recorded for this subject and publication filter.')).toBeVisible();
+ await page.getByRole('button',{name:'Reports',exact:true}).click();await page.getByRole('button',{name:'View Reports',exact:true}).click();await expect(page.getByRole('region',{name:'At a glance'})).toBeVisible();for(const title of ['Question and paper status details','Syllabus coverage and question distribution','Question usage and unused questions','Finalized papers and pattern usage (1)','Finalized papers and pattern usage (0)','Advanced: similarity, validation and AI activity'])await openDetails(page.getByRole('region',{name:'Reports and Analytics'}),title);
+ await expect(page.getByRole('region',{name:'At a glance'}).getByText('0',{exact:true})).toHaveCount(4);
  await expect(page.getByText('No finalized papers in this event window.')).toBeVisible();
  denied=true;await page.getByRole('button',{name:'View Reports',exact:true}).click();
  await expect(page.getByRole('alert')).toContainText('An academic faculty assignment');
@@ -734,13 +753,14 @@ test('readonly bank details conceal answer and version payload even when an old 
  await reviewSetup(page,'NEEDS_REVIEW');
  await page.route('**/question-papers/academic-options',route=>route.fulfill({json:{programs:[{code:'BTECH',display_name:'B.Tech',duration_years:4,departments:[{code:'CSE',display_name:'Computer Science'}]}],erp_subjects:[],can_setup:false,can_write:false}}));
  await page.reload();
- await page.getByRole('navigation',{name:'Question paper sections'}).getByRole('button',{name:'Academic Setup',exact:true}).click();
+ await page.getByRole('navigation',{name:'Question paper sections'}).getByRole('button',{name:'Subject Master',exact:true}).click();
  await page.getByLabel('Program',{exact:true}).selectOption('BTECH');
  await page.getByLabel('Branch',{exact:true}).selectOption('CSE');
  await page.getByLabel('Year',{exact:true}).selectOption('2');
  await page.getByLabel('Semester',{exact:true}).selectOption('4');
  await page.getByLabel('Subject',{exact:true}).selectOption('s1');
- await page.getByRole('navigation',{name:'Question paper sections'}).getByRole('button',{name:'Question Bank',exact:true}).click();
+ await page.getByRole('navigation',{name:'Question paper sections'}).getByRole('button',{name:'Question Papers',exact:true}).click();
+ await page.getByRole('navigation',{name:'Question Papers workspace'}).getByRole('button',{name:'Question Bank',exact:true}).click();
  await page.getByRole('button',{name:'Explain the TCP protocol.',exact:true}).click();
  const dialog=page.getByRole('dialog',{name:'Question Details'});
  await expect(dialog.getByText('Answer access requires academic write permission.',{exact:true})).toBeVisible();
@@ -755,16 +775,16 @@ test('hierarchical blueprint editor saves typed OR children and constraints',asy
  await page.getByRole('button',{name:'Question Papers',exact:true}).click();await page.getByRole('button',{name:'Paper Patterns',exact:true}).click();
  const panel=page.getByRole('region',{name:'Subject blueprint'});
  await panel.getByLabel('Published syllabus',{exact:true}).selectOption('sv1');await panel.getByLabel('Blueprint name',{exact:true}).fill('Nested reference');
- await panel.getByLabel('Final attempted marks',{exact:true}).fill('11');await panel.getByLabel('Marks each',{exact:true}).fill('11');
- await panel.getByRole('button',{name:'Add compulsory main question',exact:true}).click();
- const hierarchy=panel.getByRole('group',{name:'Main questions, OR branches and sub-questions'});
+ await panel.getByLabel('Marks students must answer',{exact:true}).fill('11');await panel.getByLabel('Marks each',{exact:true}).fill('11');
+ await panel.getByText('Advanced: add OR alternatives or sub-questions',{exact:true}).click();await panel.getByRole('button',{name:'Add compulsory main question',exact:true}).click();
+ const hierarchy=panel.getByRole('group',{name:'Main questions, OR branches and sub-questions'});await hierarchy.locator('summary').filter({hasText:'Main question 1'}).click();
  for(let i=0;i<2;i++){
   await hierarchy.getByRole('button',{name:'Add sub-question',exact:true}).nth(i).click();await hierarchy.getByRole('button',{name:'Add sub-question',exact:true}).nth(i).click();
  }
  const children=hierarchy.getByLabel(/Child (i|ii) marks/);await expect(children).toHaveCount(4);
  for(let i=0;i<4;i++)await children.nth(i).fill(i%2?'5':'6');
  for(let i=0;i<4;i++){
-  await hierarchy.getByLabel('CO',{exact:true}).nth(i).selectOption('co1');await hierarchy.getByLabel('Unit',{exact:true}).nth(i).selectOption('u1');await hierarchy.getByLabel('Topic',{exact:true}).nth(i).selectOption('t1');await hierarchy.getByLabel('K-Level',{exact:true}).nth(i).selectOption('K3');
+  await hierarchy.getByLabel('CO',{exact:true}).nth(i).selectOption('co1');await hierarchy.getByLabel('Unit',{exact:true}).nth(i).selectOption('u1');await hierarchy.getByLabel('Topic',{exact:true}).nth(i).selectOption('t1');await hierarchy.getByLabel('Bloom level',{exact:true}).nth(i).selectOption('K3');
  }
  const requestPromise=page.waitForRequest(r=>r.method()==='POST'&&new URL(r.url()).pathname.endsWith('/blueprints'));
  await panel.getByRole('button',{name:'Save Draft',exact:true}).click();const body=(await requestPromise).postDataJSON();
@@ -785,5 +805,5 @@ test('bound hierarchy generation preserves node and revision identity',async({pa
  await page.route('**/questions/generation-jobs?*',route=>route.fulfill({json:{items:[]}}));
  await page.route('**/questions/generate',async route=>{expect(route.request().postDataJSON().binding).toEqual(binding);expect(route.request().postDataJSON().marks).toBe(6);await route.fulfill({status:409,json:{detail:'Paper binding changed. Refresh the exact node.'}});});
  const panel=page.getByRole('region',{name:'AI Blueprint Analysis'});await panel.getByRole('button',{name:'Analyze Blueprint'}).click();await panel.getByRole('button',{name:'Generate Question',exact:true}).first().click();await page.getByRole('button',{name:'Open Generation',exact:true}).click();
- await expect(page.getByLabel('Generation marks',{exact:true})).toHaveValue('6');await page.getByRole('button',{name:'Generate questions',exact:true}).click();await expect(page.getByText('Paper binding changed. Refresh the exact node.',{exact:true})).toBeVisible();
+ await expect(page.getByLabel('Marks per question',{exact:true})).toHaveValue('6');await page.getByRole('button',{name:/^Generate \d+ questions?$/}).click();await expect(page.getByText('Paper binding changed. Refresh the exact node.',{exact:true})).toBeVisible();
 });

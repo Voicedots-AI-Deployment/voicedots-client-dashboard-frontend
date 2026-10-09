@@ -78,7 +78,7 @@ function QuestionWorkspace({institution}:{institution:string}){
     const next={...context,[key]:value};for(const dependent of order.slice(order.indexOf(key)+1))next[dependent]='';
     if(key!=='subject')setSubjects([]);setCos([]);setUnits([]);setTopics([]);setQuestions([]);setTotal(0);setContext(next);setFilters(emptyFilters);setOffset(0);setSelected(null);setNotice('');setError('');
   }
-  useEffect(()=>{const controller=new AbortController();qpgApi.get<{items:{id:string;filename:string;course_count:number}[]}>('curricula',controller.signal).then(r=>setSavedCurricula(r.items)).catch(e=>{if(!controller.signal.aborted)setError(collegeError(e));});return()=>controller.abort();},[]);
+  useEffect(()=>{const controller=new AbortController();qpgApi.get<{items:{id:string;filename:string;course_count:number}[]}>('curricula',controller.signal).then(r=>{if(!Array.isArray(r.items)){setError("Saved curricula could not be loaded. Please retry.");return;}setSavedCurricula(r.items);}).catch(e=>{if(!controller.signal.aborted)setError(collegeError(e));});return()=>controller.abort();},[]);
   useEffect(()=>{
     const controller=new AbortController();
     qpgApi.get<Options>('academic-options',controller.signal).then(setOptions).catch(e=>{if(!controller.signal.aborted)setError(collegeError(e));}).finally(()=>{if(!controller.signal.aborted)setLoading(false);});
