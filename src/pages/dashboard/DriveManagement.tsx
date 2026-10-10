@@ -22,6 +22,7 @@ import { displayName, formatPlacementDateTime, wallTimeFromInstant, wallTimeToIn
 import CandidateReport from "./CandidateReport";
 import ResultCohortBuilder, {type ResultFilterOptions,type ResultRule} from "./ResultCohortBuilder";
 import DriveQuestionBank from "./DriveQuestionBank";
+import InterviewFeedback from "./InterviewFeedback";
 import CreateDriveWizard from "./CreateDriveWizard";
 
 type Data = Record<string, unknown>;
@@ -195,6 +196,7 @@ const sections = {
   overview: "Overview",
   ats: "ATS fit",
   results: "Interview results",
+  feedback: "Student feedback",
   skills: "Skill intelligence",
   departments: "Departments",
   questions: "Previous interview questions",
@@ -205,6 +207,7 @@ const paths: Record<Tab, string> = {
   overview: "dashboard/overview",
   ats: "dashboard/ats-fit",
   results: "dashboard/ranking",
+  feedback: "feedback-report",
   skills: "dashboard/skill-gap",
   departments: "dashboard/departments",
   questions: "previous-interview-questions",
@@ -1771,7 +1774,7 @@ export default function DriveManagement({
       if(excludeReviewRequired) query.set("exclude_review_required","true");
     }
     if (tab === "results") rankingQueryRef.current = query.toString();
-    (tab === "questions" ? Promise.resolve({} as Data) : collegeApi.get<Data>(
+    (["questions","feedback"].includes(tab) ? Promise.resolve({} as Data) : collegeApi.get<Data>(
       `drives/${driveId}/${paths[tab]}?${query.toString()}`, c.signal,
     ))
       .then(result => {
@@ -2569,6 +2572,7 @@ export default function DriveManagement({
       )}
       {tab === "questions" && <DriveQuestionBank driveId={driveId} />}
       {tab === "skills" && data && <SkillView data={data} />}{" "}
+      {tab === "feedback" && <InterviewFeedback driveId={driveId}/> }
       {tab === "departments" && data && <DepartmentView data={data} onViewReport={(student) => setParams(current => { current.set("section", "results"); current.set("candidate", String(student.student_id)); return current; })} />}{" "}
       {tab === "settings" && drive && (
         <div className="space-y-5">

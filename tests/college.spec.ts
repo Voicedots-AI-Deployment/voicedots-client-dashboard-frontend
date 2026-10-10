@@ -18,6 +18,7 @@ async function setup(page: Page, enabled = true, options: { notFound?: string[];
       '/v3/college/agents': {agents:[],tracks:['hr','domain','industry','manager'].map((track,i)=>({track,default_profile:{track,name:['Priya','Arjun','Neha','Vikram'][i],role:['Talent Acquisition Specialist','Senior Domain Specialist','Practical Interviewer','Hiring Manager'][i],intro_message:'Hello {name}',personality_prompt:'Interview for {role}',tone:'professional',voice_id:'flux-priya-en'}}))},
       '/v3/college/drives': options.driveRows ?? [{ id: 'drive-1', company_name: 'Example Company', role_title: 'Software Engineer', status: 'draft', location: 'Chennai' }],
       '/v3/college/drives/drive-1': options.driveDetails ?? {},
+      '/v3/college/drives/drive-1/feedback-report': {questions:[],summary:[],by_year:[],by_department:[],by_student:[],items:[]},
       '/v3/college/students': { items: [], total: 0 },
       '/v3/college/attendance/setup': { classes: [], students: [], staff: [] },
       '/v3/college/academic-catalog': options.academicCatalog ?? { programs: [{ code: 'B.Tech', display_name: 'Bachelor of Technology', duration_years: 4, departments: [{ code: 'CSE', display_name: 'Computer Science' },{ code: 'IT', display_name: 'Information Technology' }] }], graduation_years:[2027,2028] },
@@ -2028,4 +2029,21 @@ test('Interview results merges candidate details and attempt controls in cards a
   await page.getByRole('group',{name:'Results layout'}).getByRole('button',{name:'Cards',exact:true}).click();
   await expect(page.getByRole('button',{name:'Candidate details',exact:true})).toBeVisible();
   await page.screenshot({path:'/root/voicedots/artifacts/merged-candidates-results-mobile.png',fullPage:true});
+});
+
+test('drive student feedback shows grouped ratings and applies batch department and student filters',async({page})=>{
+ const row={session_id:'s1',student_id:'student-1',full_name:'Anita Rao',roll_number:'CSE-01',graduation_year:2027,department_code:'CSE',feedback_state:'submitted',overall:4,comments:'Clear questions',ended_at:'2026-10-10T04:00:00Z'};
+ const summary={label:'drive-1',interviews:3,responses:1,skipped:1,ratings:{overall:4,clarity:5}};
+ const query:string[]=[];
+ await setup(page,true,{initialPath:'/dashboard/placement-management?drive=drive-1&section=feedback',driveDetails:{id:'drive-1',company_name:'Example Company',role_title:'Software Engineer',status:'active'}});
+ await page.route('**/v3/college/drives/drive-1/feedback-report*',route=>{query.push(route.request().url());return route.fulfill({json:{questions:[{key:'clarity',label:'Question clarity'}],summary:[summary],by_department:[{...summary,label:'CSE'}],by_year:[{...summary,label:'2027'}],by_student:[{...summary,label:'student-1'}],items:[row]}});});
+ await page.getByRole('button',{name:'Refresh feedback',exact:true}).click();
+ await expect(page.getByRole('heading',{name:'Individual responses'})).toBeVisible();await expect(page.getByText('Clear questions', {exact:true})).toBeVisible();
+ await page.getByLabel('Batch year', {exact:true}).selectOption('2027');await expect.poll(()=>query.at(-1)).toContain('graduation_year=2027');
+ await page.getByLabel('Department', {exact:true}).selectOption('CSE');await expect.poll(()=>query.at(-1)).toContain('department=CSE');
+ await page.getByLabel('Student', {exact:true}).selectOption('student-1');await expect.poll(()=>query.at(-1)).toContain('student=student-1');
+ await page.getByLabel('Group feedback by').selectOption('by_student');await expect(page.getByRole('cell',{name:'Anita Rao',exact:true})).toBeVisible();
+ await page.screenshot({path:'/root/voicedots/artifacts/interview-feedback-20261010/client-feedback-desktop.png',fullPage:true});
+ const download=page.waitForEvent('download');await page.getByRole('button',{name:'Export feedback'}).click();expect((await download).suggestedFilename()).toBe('interview-feedback.csv');
+ await page.getByRole('button',{name:'Clear filters',exact:true}).click();await expect.poll(()=>query.at(-1)).not.toContain('graduation_year=');
 });
