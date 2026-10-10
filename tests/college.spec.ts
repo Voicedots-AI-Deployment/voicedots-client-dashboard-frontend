@@ -1999,7 +1999,12 @@ test('Interview results merges candidate details and attempt controls in cards a
   await page.route('**/v3/college/drives/drive-1/candidates/merged-student/attempts',route=>route.fulfill({json:{attempts:[{attempt_number:1,status:'assigned'}]}}));
   let savedAttempts=0;
   await page.route('**/v3/college/drives/drive-1/candidates/merged-student/attempt-limit',route=>{savedAttempts=route.request().postDataJSON().max_attempts;return route.fulfill({json:{status:'updated'}})});
+  const photoRequests:string[]=[];
+  await page.route('**/v3/college/attendance/photos/students/merged-student**',route=>{photoRequests.push(route.request().url());return route.fulfill({json:{photo:null}})});
   await page.reload();
+  await expect.poll(()=>photoRequests.length).toBeGreaterThan(0);
+  expect(photoRequests.every(url=>new URL(url).searchParams.get('optional')==='true')).toBe(true);
+  await expect(page.getByLabel('Merged Candidate initials')).toBeVisible();
   await expect(page).toHaveURL(/section=results/);
   await expect(page.getByRole('button',{name:'Candidates',exact:true})).toHaveCount(0);
   await expect(page.getByRole('heading',{name:'Interview results',exact:true})).toBeVisible();
