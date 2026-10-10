@@ -2047,3 +2047,49 @@ test('drive student feedback shows grouped ratings and applies batch department 
  const download=page.waitForEvent('download');await page.getByRole('button',{name:'Export feedback'}).click();expect((await download).suggestedFilename()).toBe('interview-feedback.csv');
  await page.getByRole('button',{name:'Clear filters',exact:true}).click();await expect.poll(()=>query.at(-1)).not.toContain('graduation_year=');
 });
+
+const generalBbaCatalog = { programs: [
+  {code:'BBA',display_name:'Bachelor of Business Administration',duration_years:3,departments:[{code:'BBA',display_name:'Business Administration'}]},
+  {code:'B.Tech',display_name:'Bachelor of Technology',duration_years:4,departments:[{code:'CSE',display_name:'Computer Science'}]},
+],graduation_years:[2027,2028]};
+
+test('BBA program does not repeat as an eligible department when creating a drive', async ({page})=>{
+  await setup(page,true,{initialPath:'/dashboard/placement-management',academicCatalog:generalBbaCatalog});
+  let preview:Record<string,unknown>|undefined;
+  await page.route('**/v3/college/drives/eligibility/preview',route=>{preview=route.request().postDataJSON();return route.fulfill({json:{total_students:1,eligible_count:1,not_eligible_count:0,missing_photo_count:0,candidates:[]}})});
+  await page.getByRole('button',{name:'Create drive',exact:true}).click();
+  await page.getByLabel('Company name').fill('Campus Employer');
+  await page.locator('#role_title').fill('Business Analyst');
+  await page.getByLabel('Location').fill('Chennai');
+  await page.getByLabel('Job description').fill('Analyze business requirements and document solutions.');
+  await page.getByRole('button',{name:'Continue'}).click();
+  await page.getByRole('button',{name:'2. Interview setup'}).click();
+  await page.getByLabel('Interview starts date').fill('2027-01-10');
+  await page.getByLabel('Interview ends date').fill('2027-01-11');
+  await page.getByRole('button',{name:'4. Questions'}).click();
+  await page.getByRole('button',{name:'5. Eligibility'}).click();
+  await page.locator('fieldset[aria-label="Eligible programs"]').getByRole('checkbox',{name:/BBA/}).check();
+  const departments=page.locator('fieldset[aria-label="Eligible departments"]');
+  await expect(departments.getByRole('checkbox')).toHaveCount(0);
+  await expect(departments).toContainText('Optional');
+  await page.locator('#graduation_from').selectOption('2027');
+  await page.locator('#graduation_to').selectOption('2027');
+  await expect.poll(()=>preview?.eligible_programs).toEqual(['BBA']);
+  await expect.poll(()=>preview?.eligible_departments).toEqual([]);
+  await page.locator('fieldset[aria-label="Eligible programs"]').getByRole('checkbox',{name:/B.Tech/}).check();
+  await departments.getByRole('checkbox',{name:/CSE/}).check();
+  await expect(departments.getByRole('checkbox')).toHaveCount(1);
+  await expect.poll(()=>preview?.eligible_departments).toEqual(['CSE']);
+});
+
+test('editing legacy BBA drive removes redundant department criterion without changing program', async ({page})=>{
+  await setup(page,true,{initialPath:'/dashboard/placement-management?drive=drive-1&section=settings',academicCatalog:generalBbaCatalog,driveDetails:{id:'drive-1',company_name:'Example Company',role_title:'Analyst',status:'draft',criteria_programs:['BBA'],criteria_department_codes:['BBA'],criteria_graduation_years:[2027]}});
+  let saved:Record<string,unknown>|undefined;
+  await page.route('**/v3/college/drives/drive-1',route=>{if(route.request().method()==='PUT'){saved=route.request().postDataJSON();return route.fulfill({json:{status:'updated',warnings:[]}})}return route.fallback()});
+  const eligibility=page.locator('article').filter({has:page.getByRole('heading',{name:'Eligibility',exact:true})});
+  await eligibility.getByRole('button',{name:'Modify section'}).click();
+  await expect(page.getByRole('group',{name:'Departments options'}).getByRole('checkbox')).toHaveCount(0);
+  await page.getByRole('button',{name:'Save this section'}).click();
+  await expect.poll(()=>saved?.eligible_programs).toEqual(['BBA']);
+  expect(saved?.eligible_departments).toEqual([]);
+});

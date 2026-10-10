@@ -3,6 +3,7 @@ import { useSearchParams } from "react-router-dom";
 import { ExternalLink, Download, Users, CheckCircle2, CircleDashed, Clock, UserCheck, Send } from "lucide-react";
 import {
   collegeApi,
+  eligibilityDepartments,
   collegeError,
   collegeFieldErrors,
   type Drive,
@@ -928,13 +929,14 @@ function DriveSettings({
     .split(",").map((value) => value.trim()).filter(Boolean);
   const departments = catalogPrograms
     .filter((program) => selectedPrograms.includes(program.code))
-    .flatMap((program) => program.departments)
+    .flatMap(eligibilityDepartments)
     .filter((department, index, all) => all.findIndex((item) => item.code === department.code) === index);
+  const selectedDepartmentCodes = String(form.eligible_departments || "").split(",").map(code=>code.trim()).filter(code=>code && !catalogPrograms.some(program=>selectedPrograms.includes(program.code)&&!eligibilityDepartments(program).length&&program.code.trim().toLowerCase()===code.toLowerCase()));
   const updateEligibilityCodes = (key: "eligible_programs" | "eligible_departments", values: string[]) =>
     setForm((value) => ({ ...value, [key]: values.join(", ") }));
   const updateEligiblePrograms = (values: string[]) => setForm((value) => {
     const selectedDepartments = String(value.eligible_departments || "").split(",").map((code) => code.trim()).filter(Boolean);
-    const availableDepartments = new Set(catalogPrograms.filter((program) => values.includes(program.code)).flatMap((program) => program.departments.map((department) => department.code)));
+    const availableDepartments = new Set(catalogPrograms.filter((program) => values.includes(program.code)).flatMap((program) => eligibilityDepartments(program).map((department) => department.code)));
     return {
       ...value,
       eligible_programs: values.join(", "),
@@ -1089,10 +1091,7 @@ function DriveSettings({
           .split(",")
           .map((v) => v.trim())
           .filter(Boolean),
-        eligible_departments: String(form.eligible_departments || "")
-          .split(",")
-          .map((v) => v.trim())
-          .filter(Boolean),
+        eligible_departments: selectedDepartmentCodes,
         eligible_graduation_years: String(form.eligible_graduation_years || "")
           .split(",")
           .map((v) => Number(v.trim()))
@@ -1315,9 +1314,9 @@ function DriveSettings({
         <EligibilityCheckboxPicker
           label="Departments"
           options={departments}
-          selected={String(form.eligible_departments || "").split(",").map((value) => value.trim()).filter(Boolean)}
+          selected={selectedDepartmentCodes}
           onChange={(values) => updateEligibilityCodes("eligible_departments", values)}
-          emptyMessage={selectedPrograms.length ? "No departments are configured for the selected programs." : "Select a program first."}
+          emptyMessage={selectedPrograms.length ? "No separate department selection is needed for these programs." : "Select a program first."}
         />
         {input(
           "eligible_graduation_years",

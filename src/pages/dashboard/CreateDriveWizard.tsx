@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import axios from 'axios';
 import { ArrowDown, ArrowLeft, ArrowRight, ArrowUp, Check, ChevronDown, CircleAlert, Plus, Save, Trash2, X } from 'lucide-react';
-import { collegeApi, collegeError, collegeFieldErrors, type Drive, type Program, type RoundConfiguration } from '@/api/collegeApi';
+import { collegeApi, eligibilityDepartments, collegeError, collegeFieldErrors, type Drive, type Program, type RoundConfiguration } from '@/api/collegeApi';
 import type { AgentLibrary, Selection } from './interviewAgentTypes';
 import { defaultSelection, roleLabels } from './interviewAgentTypes';
 import { displayName, formatDateOnly, formatWallTime, wallTimeFromInstant, wallTimeToInstant } from './placementDisplay';
@@ -73,8 +73,13 @@ export default function CreateDriveWizard({programs,drive,draftId,initialStep=0,
   const advancingRef=useRef(false),submittingRef=useRef(false),submittedRef=useRef(false);
   const draftIdRef=useRef<string|null>(draftId||null),draftSavingRef=useRef(false),draftResaveRef=useRef(false),draftSaveWaitersRef=useRef<Array<()=>void>>([]),companyPickerRef=useRef<HTMLDivElement|null>(null);
 
-  const availableDepartments=useMemo(()=>programs.filter(program=>programIds.includes(program.code)).flatMap(program=>program.departments),[programs,programIds]);
+  const availableDepartments=useMemo(()=>programs.filter(program=>programIds.includes(program.code)).flatMap(eligibilityDepartments),[programs,programIds]);
   const availableDepartmentCodes=useMemo(()=>availableDepartments.map(department=>department.code).join(','),[availableDepartments]);
+  useEffect(()=>{
+    if(!programs.length||!draftLoaded)return;
+    const allowed=new Set(availableDepartments.map(department=>department.code));
+    setDepartments(current=>current.every(code=>allowed.has(code))?current:current.filter(code=>allowed.has(code)));
+  },[programs,draftLoaded,availableDepartmentCodes]);
   const selectedYears=useMemo(()=>years.map(Number).filter(Number.isFinite).sort((a,b)=>a-b),[years]);
   const yearMin=selectedYears.length?selectedYears[0]:(availableYears[0]||new Date().getFullYear());
   const yearMax=selectedYears.length?selectedYears[selectedYears.length-1]:(availableYears.at(-1)||yearMin);
@@ -436,8 +441,8 @@ export default function CreateDriveWizard({programs,drive,draftId,initialStep=0,
 
       {step===4&&<div className="dw-content space-y-5">
         <Section title="Academic programmes" description="Options come from this institution’s Academic Setup.">
-          <SearchChecks title="Eligible programs" options={programs.map(program=>({code:program.code,name:displayName(program.display_name)}))} selected={programIds} onChange={codes=>{setProgramIds(codes);const allowed=new Set(programs.filter(p=>codes.includes(p.code)).flatMap(p=>p.departments.map(d=>d.code)));setDepartments(current=>current.filter(code=>allowed.has(code)));setDifficultyConfirmed(false);}} error={fieldErrors.eligible_programs}/>
-          <SearchChecks title="Eligible departments" options={availableDepartments.map(department=>({code:department.code,name:`${displayName(department.display_name)} · ${department.code}`}))} selected={departments} onChange={setDepartments} error={fieldErrors.eligible_departments} required={availableDepartments.length>0} emptyMessage="Selected programs have no departments configured; all departments within these programs will be eligible."/>
+          <SearchChecks title="Eligible programs" options={programs.map(program=>({code:program.code,name:displayName(program.display_name)}))} selected={programIds} onChange={codes=>{setProgramIds(codes);const allowed=new Set(programs.filter(p=>codes.includes(p.code)).flatMap(p=>eligibilityDepartments(p).map(d=>d.code)));setDepartments(current=>current.filter(code=>allowed.has(code)));setDifficultyConfirmed(false);}} error={fieldErrors.eligible_programs}/>
+          <SearchChecks title="Eligible departments" options={availableDepartments.map(department=>({code:department.code,name:`${displayName(department.display_name)} · ${department.code}`}))} selected={departments} onChange={setDepartments} error={fieldErrors.eligible_departments} required={availableDepartments.length>0} emptyMessage={programs.some(program=>programIds.includes(program.code)&&program.departments.length>0&&!eligibilityDepartments(program).length)?"General departments are included with their program selection; no separate department choice is needed.":"Selected programs have no departments configured; all departments within these programs will be eligible."}/>
         </Section>
         <Section title="Graduation year range" description="Select one graduation year or include students graduating across multiple years.">
           <div className="dw-year-range"><div className="flex flex-wrap items-end gap-4"><label>From <select id="graduation_from" className={input} value={selectedYears.length?yearMin:''} onChange={event=>updateYearEndpoint('from',event.target.value)}><option value="">Choose a year</option>{availableYears.map(year=><option key={year} value={year}>{year}</option>)}</select></label><span className="dw-range-line" aria-hidden="true"/><label>To <select id="graduation_to" className={input} value={selectedYears.length?yearMax:''} onChange={event=>updateYearEndpoint('to',event.target.value)}><option value="">Choose a year</option>{availableYears.map(year=><option key={year} value={year}>{year}</option>)}</select></label></div><p className="text-sm text-slate-600">Selected graduation years: {selectedYears.join(', ')||'Choose a year or range'}</p>{fieldError('eligible_graduation_years')}</div>
