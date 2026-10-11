@@ -1,6 +1,6 @@
 import axios from "axios";
 import { useEffect, useState } from "react";
-import { Eye, EyeOff, AlertCircle, ArrowRight, ArrowUpRight, BarChart3, BookOpen, GraduationCap, LockKeyhole, ShieldCheck } from "lucide-react";
+import { Eye, EyeOff, AlertCircle, ArrowRight, ArrowUpRight, BadgeCheck, BarChart3, BookOpen, Briefcase, Building2, Mic, ShieldCheck, Users } from "lucide-react";
 import "./login-page.css";
 import { useNavigate } from "react-router-dom";
 import authApi from "@/api/authApi";
@@ -80,7 +80,7 @@ const LoginPage = () => {
 
 
 
-  const statusText = setupToken ? setupLinkStatus === "checking" ? "Checking your secure invitation…" : setupLinkStatus === "completed" ? "Password already created. Sign in to continue." : setupLinkStatus === "expired" ? "This invitation has expired. Ask your Client administrator to send a new one." : setupLinkStatus === "invalid" ? "This invitation link is invalid. Ask your Client administrator to send a new one." : "Create a secure password for your placement account." : "Sign in to manage placements and your institution.";
+  const statusText = setupToken ? setupLinkStatus === "checking" ? "Checking your secure invitation…" : setupLinkStatus === "completed" ? "Password already created. Sign in to continue." : setupLinkStatus === "expired" ? "This invitation has expired. Ask your Client administrator to send a new one." : setupLinkStatus === "invalid" ? "This invitation link is invalid. Ask your Client administrator to send a new one." : "Create a secure password for your placement account." : "Sign in to manage your campus ERP and placements.";
 
   return (
     <div className="cl-page">
@@ -92,21 +92,27 @@ const LoginPage = () => {
       </header>
 
       <section className="cl-story" aria-label="VoiceDots client portal">
-        <span className="cl-pill"><GraduationCap size={14} /> PLACEMENT &amp; INSTITUTION MANAGEMENT</span>
-        <h1><span>Every placement.</span><span>One clear</span><em>view.</em></h1>
-        <p>Run drives, review AI interview evidence and release results to your students with confidence.</p>
+        <h1><span>Your campus ERP.</span><span>Placements,</span><em>simplified.</em></h1>
+        <p>Manage students, departments and placement drives, and review AI interview results, all in one place.</p>
         <div className="cl-preview" aria-hidden="true">
-          <div className="cl-preview-top"><span className="cl-preview-icon"><BarChart3 size={21} /></span><div><strong>Placement readiness at a glance.</strong><span>Your drives, interviews and results in one place</span></div></div>
-          <div className="cl-bars">{[34, 52, 44, 68, 58, 82, 72, 90, 64, 78].map((height, index) => <i key={index} style={{ height: `${height}%`, animationDelay: `${index * 60}ms` }} />)}</div>
+          <div className="cl-preview-top"><span className="cl-preview-icon"><Building2 size={21} /></span><div><strong>From campus records to offers.</strong><span>One connected placement workflow</span></div></div>
+          <ol className="cl-flow">
+            {[
+              { icon: Users, label: "Students" },
+              { icon: Briefcase, label: "Drives" },
+              { icon: Mic, label: "AI interviews" },
+              { icon: BadgeCheck, label: "Results" },
+            ].map(({ icon: Icon, label }, index) => <li key={label} style={{ ["--step" as string]: index }}><span><Icon size={18} /></span>{label}</li>)}
+          </ol>
           <div className="cl-preview-bottom"><span>Built for placement teams</span><span><ShieldCheck size={12} /> Secure and role-based</span></div>
         </div>
         <div className="cl-features">
-          {["Placement drives and results", "AI interview evidence", "Institution management"].map(text => <div key={text}><ShieldCheck size={15} />{text}</div>)}
+          {[{ icon: Users, text: "Student and department records" }, { icon: Briefcase, text: "Placement drive management" }, { icon: BarChart3, text: "AI interview reports" }].map(({ icon: Icon, text }) => <div key={text}><Icon size={15} />{text}</div>)}
         </div>
       </section>
 
       <main className="cl-card">
-        <div className="cl-icon"><LockKeyhole size={23} /></div>
+        <div className="cl-icon"><img src="/voicedotslogo.svg" alt="" /></div>
         <span className="cl-eyebrow">YOUR CLIENT PORTAL</span>
         <h2>{setupToken ? "Set up your password." : "Welcome back."}</h2>
         <p>{statusText}</p>
