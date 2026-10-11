@@ -1,6 +1,6 @@
 import axios from "axios";
 import { useEffect, useState } from "react";
-import { Eye, EyeOff, AlertCircle, ArrowRight, ArrowUpRight, BadgeCheck, BarChart3, BookOpen, Briefcase, GraduationCap, Mic, ShieldCheck, Users } from "lucide-react";
+import { Eye, EyeOff, AlertCircle, ArrowRight, ArrowUpRight, BadgeCheck, BookOpen, FileText, Briefcase, GraduationCap, Mic, ShieldCheck, Users } from "lucide-react";
 import "./login-page.css";
 import { useNavigate } from "react-router-dom";
 import authApi from "@/api/authApi";
@@ -80,7 +80,7 @@ const LoginPage = () => {
 
 
 
-  const statusText = setupToken ? setupLinkStatus === "checking" ? "Checking your secure invitation…" : setupLinkStatus === "completed" ? "Password already created. Sign in to continue." : setupLinkStatus === "expired" ? "This invitation has expired. Ask your Client administrator to send a new one." : setupLinkStatus === "invalid" ? "This invitation link is invalid. Ask your Client administrator to send a new one." : "Create a secure password for your placement account." : "Sign in to manage your campus ERP and placements.";
+  const statusText = setupToken ? setupLinkStatus === "checking" ? "Checking your secure invitation…" : setupLinkStatus === "completed" ? "Password already created. Sign in to continue." : setupLinkStatus === "expired" ? "This invitation has expired. Ask your Client administrator to send a new one." : setupLinkStatus === "invalid" ? "This invitation link is invalid. Ask your Client administrator to send a new one." : "Create a secure password for your placement account." : "Sign in to manage placements and your institution.";
 
   return (
     <div className="cl-page">
@@ -92,10 +92,10 @@ const LoginPage = () => {
       </header>
 
       <section className="cl-story" aria-label="VoiceDots client portal">
-        <h1><span>Your campus ERP.</span><span>Placements,</span><em>simplified.</em></h1>
-        <p>Manage students, departments and placement drives, and review AI interview results, all in one place.</p>
+        <h1><span>Run placements.</span><span>Manage your</span><em>institution.</em></h1>
+        <p>Create placement drives, manage students and departments, generate question papers and review AI interview results, all in one place.</p>
         <div className="cl-preview" aria-hidden="true">
-          <div className="cl-preview-top"><span className="cl-preview-icon"><GraduationCap size={22} strokeWidth={2} /></span><div><strong>From campus records to offers.</strong><span>One connected placement workflow</span></div></div>
+          <div className="cl-preview-top"><span className="cl-preview-icon"><GraduationCap size={22} strokeWidth={2} /></span><div><strong>From students to offers.</strong><span>Your placement workflow, end to end</span></div></div>
           <ol className="cl-flow">
             {[
               { icon: Users, label: "Students" },
@@ -107,7 +107,7 @@ const LoginPage = () => {
           <div className="cl-preview-bottom"><span>Built for placement teams</span><span><ShieldCheck size={12} /> Secure and role-based</span></div>
         </div>
         <div className="cl-features">
-          {[{ icon: Users, text: "Student and department records" }, { icon: Briefcase, text: "Placement drive management" }, { icon: BarChart3, text: "AI interview reports" }].map(({ icon: Icon, text }) => <div key={text}><Icon size={15} />{text}</div>)}
+          {[{ icon: Users, text: "Students and departments" }, { icon: Briefcase, text: "Placement drives and results" }, { icon: FileText, text: "Question paper generation" }].map(({ icon: Icon, text }) => <div key={text}><Icon size={15} />{text}</div>)}
         </div>
       </section>
 
