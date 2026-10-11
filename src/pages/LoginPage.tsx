@@ -1,6 +1,6 @@
 import axios from "axios";
 import { useEffect, useState } from "react";
-import { Eye, EyeOff, AlertCircle, ArrowRight, ArrowUpRight, BadgeCheck, BarChart3, BookOpen, Briefcase, Building2, Mic, ShieldCheck, Users } from "lucide-react";
+import { Eye, EyeOff, AlertCircle, ArrowRight, ArrowUpRight, BadgeCheck, BarChart3, BookOpen, Briefcase, GraduationCap, Mic, ShieldCheck, Users } from "lucide-react";
 import "./login-page.css";
 import { useNavigate } from "react-router-dom";
 import authApi from "@/api/authApi";
@@ -86,7 +86,7 @@ const LoginPage = () => {
     <div className="cl-page">
       <header className="cl-header">
         <a className="cl-brand" href={import.meta.env.VITE_WEBSITE_URL || "https://voicedots.ai"} aria-label="VoiceDots website">
-          <img src="/voicedotslogo.svg" alt="" /><span>oiceDots</span><span className="cl-badge">CLIENT</span>
+          <img src="/voicedotslogo.svg" alt="" /><span>oiceDots</span>
         </a>
         <a className="cl-back" href={import.meta.env.VITE_WEBSITE_URL || "https://voicedots.ai"}>Back to website <ArrowUpRight size={16} /></a>
       </header>
@@ -95,7 +95,7 @@ const LoginPage = () => {
         <h1><span>Your campus ERP.</span><span>Placements,</span><em>simplified.</em></h1>
         <p>Manage students, departments and placement drives, and review AI interview results, all in one place.</p>
         <div className="cl-preview" aria-hidden="true">
-          <div className="cl-preview-top"><span className="cl-preview-icon"><Building2 size={21} /></span><div><strong>From campus records to offers.</strong><span>One connected placement workflow</span></div></div>
+          <div className="cl-preview-top"><span className="cl-preview-icon"><GraduationCap size={22} strokeWidth={2} /></span><div><strong>From campus records to offers.</strong><span>One connected placement workflow</span></div></div>
           <ol className="cl-flow">
             {[
               { icon: Users, label: "Students" },
@@ -112,7 +112,7 @@ const LoginPage = () => {
       </section>
 
       <main className="cl-card">
-        <div className="cl-icon"><img src="/voicedotslogo.svg" alt="" /></div>
+
         <span className="cl-eyebrow">YOUR CLIENT PORTAL</span>
         <h2>{setupToken ? "Set up your password." : "Welcome back."}</h2>
         <p>{statusText}</p>
