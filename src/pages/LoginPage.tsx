@@ -1,6 +1,6 @@
 import axios from "axios";
 import { useEffect, useState } from "react";
-import { Eye, EyeOff, AlertCircle, ArrowRight, ArrowUpRight, BadgeCheck, BookOpen, FileText, Briefcase, GraduationCap, Mic, ShieldCheck, Users } from "lucide-react";
+import { Eye, EyeOff, AlertCircle, ArrowRight, ArrowUpRight, BadgeCheck, BookOpen, FileText, Briefcase, Mic, ShieldCheck, Users } from "lucide-react";
 import "./login-page.css";
 import { useNavigate } from "react-router-dom";
 import authApi from "@/api/authApi";
@@ -95,14 +95,20 @@ const LoginPage = () => {
         <h1><span>Run placements.</span><span>Manage your</span><em>institution.</em></h1>
         <p>Create placement drives, manage students and departments, generate question papers and review AI interview results, all in one place.</p>
         <div className="cl-preview" aria-hidden="true">
-          <div className="cl-preview-top"><span className="cl-preview-icon"><GraduationCap size={22} strokeWidth={2} /></span><div><strong>From students to offers.</strong><span>Your placement workflow, end to end</span></div></div>
-          <ol className="cl-flow">
+          <div className="cl-preview-top">
+            <span className="cl-live">Placement workflow</span>
+            <strong>From students to offers.</strong>
+          </div>
+          <ol className="cl-timeline">
             {[
-              { icon: Users, label: "Students" },
-              { icon: Briefcase, label: "Drives" },
-              { icon: Mic, label: "AI interviews" },
-              { icon: BadgeCheck, label: "Results" },
-            ].map(({ icon: Icon, label }, index) => <li key={label} style={{ ["--step" as string]: index }}><span><Icon size={18} /></span>{label}</li>)}
+              { icon: Users, label: "Students", detail: "Roster and eligibility" },
+              { icon: Briefcase, label: "Drives", detail: "Roles and dates" },
+              { icon: Mic, label: "AI interviews", detail: "Scored and proctored" },
+              { icon: BadgeCheck, label: "Results", detail: "Released to students" },
+            ].map(({ icon: Icon, label, detail }, index) => <li key={label} style={{ ["--step" as string]: index }}>
+              <span className="cl-node"><Icon size={16} /></span>
+              <div><strong>{label}</strong><small>{detail}</small></div>
+            </li>)}
           </ol>
           <div className="cl-preview-bottom"><span>Built for placement teams</span><span><ShieldCheck size={12} /> Secure and role-based</span></div>
         </div>
