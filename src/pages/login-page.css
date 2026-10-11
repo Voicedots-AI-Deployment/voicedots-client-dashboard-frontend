@@ -79,6 +79,9 @@
 .dark .cl-input { background: #120f19; }
 .dark .cl-help { border-color: #2c253a; background: #1d1828; color: #a59db6; }
 .dark .cl-back, .dark .cl-features > div { color: #a59db6; }
+.dark .cl-note, .dark .cl-eyebrow { color: #c4a8f5; }
+.dark .cl-success { color: #4ade80; }
+.dark .cl-toggle:hover { background: #2a2142; }
 
 @media (max-width: 1000px) {
   .cl-page { gap: 0 32px; padding-inline: 32px; grid-template-columns: minmax(0, 1fr) minmax(320px, 410px); }

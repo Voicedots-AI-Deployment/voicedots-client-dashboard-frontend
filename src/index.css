@@ -157,8 +157,10 @@ body {
 .dark .client-dashboard select:not([multiple]):not([size]) { background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='16' height='16' viewBox='0 0 24 24' fill='none' stroke='%23a8a3b3' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='m6 9 6 6 6-6'/%3E%3C/svg%3E"); }
 .dark .client-dashboard select option { background: #0f172a; color: #e2e8f0; }
 .client-dashboard :is(input:not([type=checkbox]):not([type=radio]):not([type=range]):not([type=file]):not([type=color]), select, textarea) { transition: border-color .15s ease, box-shadow .15s ease; }
-.client-dashboard :is(input:not([type=checkbox]):not([type=radio]):not([type=range]):not([type=file]):not([type=color]), select, textarea):hover:not(:disabled):not(:focus) { border-color: #c4b5fd; }
+.client-dashboard :is(input:not([type=checkbox]):not([type=radio]):not([type=range]):not([type=file]):not([type=color]), select, textarea):hover:not(:disabled):not(:focus):not([aria-invalid=true]) { border-color: #c4b5fd; }
 .client-dashboard :is(input:not([type=checkbox]):not([type=radio]):not([type=range]):not([type=file]):not([type=color]), select, textarea):focus-visible { outline: none; border-color: #8b5cf6; box-shadow: 0 0 0 3px rgb(139 92 246 / .18); }
 .client-dashboard :is(input, select, textarea):disabled { opacity: .6; cursor: not-allowed; }
 .client-dashboard :is(input[type=checkbox], input[type=radio], input[type=range]) { accent-color: #7c3aed; }
 @media (prefers-reduced-motion: reduce) { .client-dashboard :is(input, select, textarea) { transition: none; } }
+/* Narrow date/time pickers in the drive wizard keep room for their text. */
+.client-dashboard .drive-wizard .dw-datetime select:not([multiple]):not([size]) { padding-left: .5rem; padding-right: 1.6rem; background-position: right .4rem center; }
