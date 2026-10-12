@@ -1010,6 +1010,34 @@ test('agents follow academic setup and defaults cannot be edited', async ({ page
   expect(saved.role).toBe('Product interviewer'); expect(saved.intro_message).toContain('{company}');
 });
 
+test('a new interview role can generate a system prompt for its role and round type', async ({ page }) => {
+  await setup(page);
+  await page.getByRole('button', { name: 'Interview Agents', exact: true }).click();
+  await page.getByRole('button', { name: 'Create interview role', exact: true }).click();
+  await page.getByRole('button', { name: 'Generate system prompt' }).click();
+  await expect(page.getByRole('alert')).toContainText('Enter the role');
+  let request: Record<string, unknown> = {}, saved: Record<string, unknown> = {};
+  await page.route('**/v3/college/agents/generate-prompt', route => {
+    request = route.request().postDataJSON();
+    return route.fulfill({ json: { personality_prompt: 'You are the practical interviewer for {role}. Ask one question at a time.', intro_message: 'Hello {name}, welcome to the {role} round.', source: 'ai' } });
+  });
+  await page.route('**/v3/college/agents', route => {
+    if (route.request().method() !== 'POST') return route.fallback();
+    saved = route.request().postDataJSON(); return route.fulfill({ json: { id: 'custom-2', ...saved } });
+  });
+  await page.getByLabel('Role', { exact: true }).fill('Credit Analyst');
+  await page.getByLabel('Round type').selectOption('industry');
+  await page.getByLabel(/What should this interviewer focus on/).fill('Retail lending');
+  await page.getByRole('button', { name: 'Generate system prompt' }).click();
+  await expect(page.getByLabel('Interview instructions')).toHaveValue(/practical interviewer for \{role\}/);
+  await expect(page.getByLabel('Opening message')).toHaveValue('Hello {name}, welcome to the {role} round.');
+  await expect(page.getByText('Review and edit it before saving.')).toBeVisible();
+  expect(request).toEqual({ track: 'industry', role: 'Credit Analyst', notes: 'Retail lending' });
+  await page.getByRole('button', { name: 'Save interview role' }).click();
+  await expect.poll(() => saved.track).toBe('industry');
+  expect(saved.personality_prompt).toContain('one question at a time');
+});
+
 test('single selected round saves manual questions in the drive', async ({ page }) => {
   await setup(page);
   let payload: Record<string, unknown> = {};

@@ -1,38 +1,55 @@
 import { useEffect, useRef, useState, type FormEvent } from 'react';
 import { collegeApi, collegeError } from '@/api/collegeApi';
 
-import { tracks, agentOptions, selectionName, field, btn, panel, type Agent, type AgentLibrary, type Selection } from './interviewAgentTypes';
+import { tracks, roundTypes, agentOptions, selectionName, field, btn, panel, type Agent, type AgentLibrary, type Selection } from './interviewAgentTypes';
 
 export default function InterviewAgents() {
   const [library, setLibrary] = useState<AgentLibrary | null>(null), [editing, setEditing] = useState<Agent | null>(null);
   const [error, setError] = useState(''), [busy, setBusy] = useState(false);
-  const messageRef = useRef<HTMLTextAreaElement | null>(null);
+  const messageRef = useRef<HTMLTextAreaElement | null>(null), formRef = useRef<HTMLFormElement | null>(null);
+  const [drafting, setDrafting] = useState(false), [draftNote, setDraftNote] = useState('');
   const insertVariable = (value: string) => { const area = messageRef.current; if (!area) return; const start = area.selectionStart, end = area.selectionEnd; area.value = `${area.value.slice(0, start)}${value}${area.value.slice(end)}`; area.focus(); area.selectionStart = area.selectionEnd = start + value.length; };
   async function refresh() { setError(''); try { setLibrary(await collegeApi.get<AgentLibrary>('agents')); } catch (e) { setError(collegeError(e)); } }
   useEffect(() => { void refresh(); }, []);
   async function save(e: FormEvent<HTMLFormElement>) {
     e.preventDefault(); if (!editing) return; setBusy(true); setError('');
     const data = new FormData(e.currentTarget);
-    try { await collegeApi.save(editing.id ? `agents/${editing.id}` : 'agents', { track: editing.track, role: data.get('role'), intro_message: data.get('intro_message'), personality_prompt: data.get('personality_prompt'), tone: editing.tone || 'professional', make_active: false }, !!editing.id); setEditing(null); await refresh(); }
+    try { await collegeApi.save(editing.id ? `agents/${editing.id}` : 'agents', { track: editing.id ? editing.track : data.get('track') || editing.track, role: data.get('role'), intro_message: data.get('intro_message'), personality_prompt: data.get('personality_prompt'), tone: editing.tone || 'professional', make_active: false }, !!editing.id); setEditing(null); await refresh(); }
     catch (e) { setError(collegeError(e)); } finally { setBusy(false); }
+  }
+  async function draftPrompt() {
+    const form = formRef.current; if (!form || !editing) return;
+    const data = new FormData(form), role = String(data.get('role') || '').trim();
+    if (!role) { setError('Enter the role before generating a system prompt.'); return; }
+    const prompt = form.elements.namedItem('personality_prompt') as HTMLTextAreaElement, intro = form.elements.namedItem('intro_message') as HTMLTextAreaElement;
+    if (prompt.value.trim() && !window.confirm('Replace the current interview instructions and opening message with a generated draft?')) return;
+    setDrafting(true); setError(''); setDraftNote('');
+    try {
+      const draft = await collegeApi.save<{ personality_prompt: string; intro_message: string; source: string }>('agents/generate-prompt', { track: editing.id ? editing.track : data.get('track') || editing.track, role, notes: String(data.get('notes') || '').trim() || undefined });
+      prompt.value = draft.personality_prompt; intro.value = draft.intro_message;
+      setDraftNote(draft.source === 'ai' ? 'Draft generated for this role. Review and edit it before saving.' : 'AI drafting is unavailable, so a standard draft for this role was added. Review and edit it before saving.');
+    } catch (e) { setError(collegeError(e)); } finally { setDrafting(false); }
   }
   async function remove(agent: Agent) {
     if (!agent.id || !window.confirm(`Delete the interview role ${agent.role}? Existing drive snapshots are kept.`)) return; setBusy(true); setError('');
     try { await collegeApi.remove(`agents/${agent.id}`); await refresh(); } catch (e) { setError(collegeError(e)); } finally { setBusy(false); }
   }
   return <section className="space-y-5">
-    <div className="flex items-center justify-between gap-3"><p className="text-sm text-slate-500">Default identities, voices, and avatars are locked. Create reusable role templates for your drives.</p><button className={btn} disabled={busy} onClick={() => setEditing({ track: 'domain', role: '', intro_message: 'Hello {name}, welcome to your interview for {role} at {company}.', personality_prompt: '', tone: 'professional' })}>Create interview role</button></div>
+    <div className="flex items-center justify-between gap-3"><p className="text-sm text-slate-500">Default identities, voices, and avatars are locked. Create reusable role templates for your drives.</p><button className={btn} disabled={busy} onClick={() => { setDraftNote(''); setEditing({ track: 'domain', role: '', intro_message: 'Hello {name}, welcome to your interview for {role} at {company}.', personality_prompt: '', tone: 'professional' }); }}>Create interview role</button></div>
     {error && <div role="alert" className="flex items-center gap-3 text-rose-600"><p>{error}</p>{!library && <button className={btn} onClick={() => void refresh()}>Retry loading roles</button>}</div>}
     {!library && !error && <p role="status">Loading interview roles…</p>}
-    {editing && <form key={editing.id || "new"} className={`${panel} space-y-4`} onSubmit={save}>
+    {editing && <form ref={formRef} key={editing.id || "new"} className={`${panel} space-y-4`} onSubmit={save}>
       <h3 className="font-bold">{editing.id ? 'Edit interview role' : 'Create interview role'}</h3>
       <label className="block text-sm">Role<input name="role" className={field} required maxLength={120} pattern=".*\S.*" title="Enter a role name" defaultValue={editing.role} /></label>
+      {!editing.id && <label className="block text-sm">Round type<select name="track" className={field} defaultValue={editing.track}>{tracks.map(track => <option key={track} value={track}>{roundTypes[track]}</option>)}</select></label>}
+      <label className="block text-sm">What should this interviewer focus on? <span className="text-slate-500">(optional, used only for generating)</span><input name="notes" className={field} maxLength={1000} placeholder="For example: retail banking, customer handling, Excel reporting" /></label>
+      <div className="flex flex-wrap items-center gap-3"><button type="button" className={btn} disabled={busy || drafting} onClick={() => void draftPrompt()}>{drafting ? 'Generating system prompt…' : 'Generate system prompt'}</button>{draftNote && <p role="status" className="text-xs text-slate-500">{draftNote}</p>}</div>
       <label className="block text-sm">Opening message<textarea ref={messageRef} name="intro_message" className={field} required maxLength={500} defaultValue={editing.intro_message} /><span className="mt-2 block text-xs text-slate-500">Insert dynamic values:</span><span className="mt-1 flex flex-wrap gap-2">{['{name}','{role}','{company}'].map(variable=><button type="button" className="rounded-full border border-indigo-200 px-3 py-1 text-xs text-indigo-700" key={variable} onClick={()=>insertVariable(variable)}>{variable}</button>)}</span></label>
       <label className="block text-sm">Interview instructions<textarea name="personality_prompt" className={field} required rows={5} maxLength={4000} defaultValue={editing.personality_prompt} /></label>
       <p className="text-xs text-slate-500">Variables are inserted from the chips above. Name refers to the student; role and company come from the drive.</p>
-      <div className="flex gap-3"><button className={btn} disabled={busy}>Save interview role</button><button type="button" className={btn} disabled={busy} onClick={() => setEditing(null)}>Cancel</button></div>
+      <div className="flex gap-3"><button className={btn} disabled={busy || drafting}>Save interview role</button><button type="button" className={btn} disabled={busy} onClick={() => { setEditing(null); setDraftNote(''); }}>Cancel</button></div>
     </form>}
-    <div className="grid gap-4 md:grid-cols-2">{agentOptions(library).map(a => <article key={a.id || a.track} className={panel}><div className="flex justify-between"><h3 className="font-bold">{a.id ? a.role : a.name}</h3><span className="text-xs text-slate-500">{a.id ? 'Custom role template' : 'Locked default'}</span></div><p className="mt-2 text-sm">{a.id ? 'Identity, voice, and avatar are assigned automatically when selected in a round.' : a.role}</p><p className="mt-3 text-sm text-slate-500">{a.intro_message}</p>{a.id && <div className="mt-4 flex gap-3"><button className={btn} disabled={busy} onClick={() => setEditing(a)}>Edit</button><button className={btn} disabled={busy} onClick={() => void remove(a)}>Delete</button></div>}</article>)}</div>
+    <div className="grid gap-4 md:grid-cols-2">{agentOptions(library).map(a => <article key={a.id || a.track} className={panel}><div className="flex justify-between"><h3 className="font-bold">{a.id ? a.role : a.name}</h3><span className="text-xs text-slate-500">{a.id ? 'Custom role template' : 'Locked default'}</span></div><p className="mt-2 text-sm">{a.id ? 'Identity, voice, and avatar are assigned automatically when selected in a round.' : a.role}</p><p className="mt-3 text-sm text-slate-500">{a.intro_message}</p>{a.id && <div className="mt-4 flex gap-3"><button className={btn} disabled={busy} onClick={() => { setDraftNote(''); setEditing(a); }}>Edit</button><button className={btn} disabled={busy} onClick={() => void remove(a)}>Delete</button></div>}</article>)}</div>
   </section>;
 }
 
