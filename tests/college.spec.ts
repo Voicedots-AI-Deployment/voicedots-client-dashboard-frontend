@@ -2199,8 +2199,9 @@ async function feedbackSetup(page:Page,path='/dashboard/placement-management?vie
  });
  await expect(page.locator('.feedback-kpis')).toContainText('75%');
  await expect(page.locator('.feedback-dashboard').getByRole('button',{name:'Refresh',exact:true})).toBeEnabled();
+ const refreshed=page.waitForResponse(response=>response.url().includes('/v3/college/feedback/dashboard?')&&response.status()===200);
  await page.locator('.feedback-dashboard').getByRole('button',{name:'Refresh',exact:true}).click();
- await expect.poll(()=>queries.length).toBeGreaterThan(0);
+ await refreshed;
  await expect(page.locator('.feedback-dashboard').getByRole('button',{name:'Refresh',exact:true})).toBeEnabled();
  return queries;
 }

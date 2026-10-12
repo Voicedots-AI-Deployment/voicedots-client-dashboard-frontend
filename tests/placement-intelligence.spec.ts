@@ -45,3 +45,13 @@ test('dashboard and Candidate 360 remain contained across tablet and narrow mobi
   await expect.poll(()=>page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth)).toBe(true);
  }
 });
+
+test('malformed analytics response displays a retryable error without crashing',async({page})=>{
+ const errors:string[]=[];page.on('pageerror',error=>errors.push(error.message));
+ await setup(page);
+ await page.route('**/v3/college/intelligence/dashboard?**',route=>route.fulfill({json:{}}));
+ await page.getByRole('button',{name:'Refresh analytics'}).click();
+ await expect(page.getByRole('alert')).toContainText('Unable to complete the request. Please try again.');
+ await expect(page.getByRole('region',{name:'Placement dashboard',exact:true})).toBeVisible();
+ expect(errors).toEqual([]);
+});
