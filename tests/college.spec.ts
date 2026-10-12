@@ -1,4 +1,4 @@
-import { readFileSync } from 'node:fs';
+import { readFileSync, mkdirSync } from 'node:fs';
 import { test, expect, type Page } from '@playwright/test';
 async function setup(page: Page, enabled = true, options: { notFound?: string[]; driveRows?: unknown[]; driveDetails?: unknown; companyProfiles?: unknown[]; academicCatalog?: unknown; initialPath?: string; portalRole?: string } = {}) {
   await page.addInitScript(() => localStorage.setItem('access_token', 'test-session'));
@@ -549,7 +549,7 @@ test('candidate interview report separates statuses, loads proctor evidence inde
   await expect(page.getByRole('rowheader',{name:'Tab Hidden',exact:true})).toBeVisible();
   await expect(page.locator('#integrity img')).toHaveCount(0);
   await page.getByRole('tablist',{name:'Candidate report sections'}).getByRole('tab',{name:/Answers/}).click();
-  await expect(page.getByText('Explain your project.')).toBeVisible();
+  await expect(page.locator('#evidence').getByText('Explain your project.')).toBeVisible();
 });
 
 test('saved company picker opens from its arrow, scrolls large lists, and filters as you type', async ({page})=>{
@@ -1213,7 +1213,7 @@ test('expired interview video leaves the rest of the report available without a 
   await page.route('**/v3/college/interview-results-settings',route=>route.fulfill({json:{}}));
   await page.goto('/dashboard/placement-management?drive=drive-1&section=results&candidate=s1');
   await expect(page.getByText(/Recording retention period ended/)).toBeVisible();
-  await expect(page.getByText('Clear reasoning')).toBeVisible();
+  await expect(page.locator('#glance').getByText('Clear reasoning')).toBeVisible();
   await expect(page.getByRole('button',{name:'Load secure recording'})).toHaveCount(0);
   await expect(page.getByLabel('Interview recording',{exact:true})).toHaveCount(0);
 });
@@ -1635,7 +1635,7 @@ test('report design uses compact evidence, accurate labels and working question 
   await expect(report.getByText('0 recorded events · Clean')).toBeVisible();
   await expect(report.getByRole('button',{name:'Refresh transcript'})).toBeVisible();
   const refresh=await report.getByRole('button',{name:'Refresh transcript'}).boundingBox();expect(refresh!.height).toBeLessThan(48);
-  await page.getByRole('button',{name:'Read all 6 strengths'}).click();await expect(report.getByText(/Evidence 6:/)).toBeVisible();
+  await page.getByRole('button',{name:'Read all 6 strengths'}).click();await expect(report.locator('#glance').getByText(/Evidence 6:/)).toBeVisible();
   await page.getByRole('button',{name:'Collapse evidence'}).click();
   await page.evaluate(()=>{window.scrollTo(0,0); document.querySelectorAll('*').forEach(element=>{ if(element.scrollTop>0) element.scrollTop=0; });});
   await page.waitForTimeout(200);
@@ -2028,4 +2028,32 @@ test('Interview results merges candidate details and attempt controls in cards a
   await page.getByRole('group',{name:'Results layout'}).getByRole('button',{name:'Cards',exact:true}).click();
   await expect(page.getByRole('button',{name:'Candidate details',exact:true})).toBeVisible();
   await page.screenshot({path:'/root/voicedots/artifacts/merged-candidates-results-mobile.png',fullPage:true});
+});
+
+for (const withFeedback of [true,false]) test(`client full report CEO scorecard uses saved data and feedback ${withFeedback}`,async({page})=>{
+  await setup(page);await page.setViewportSize({width:1440,height:1000});
+  const detail={status:'released',executive_summary:'Sound technical foundations and structured debugging.',core_dimensions:[{dimension:'technical_knowledge',percentage:82,reason:'Project architecture explanation.'},{dimension:'communication',percentage:74,reason:'Teamwork example.'}],domain_dimensions:[{dimension:'problem_solving',percentage:76,reason:'API diagnosis.'}],strengths:[{text:'Structured debugging approach.'}],priority_improvement_areas:[{focus:'SQL optimisation',problem:'Explore SQL optimisation.',actions:['Review a SQL query plan.']}],question_reviews:[{question:'Walk through your project architecture.',answer:'I separated the API and database layers.'}],placement_readiness:{score:75,comparable:true},hiring_recommendation:{label:'Review Required'},...(withFeedback?{candidate_satisfaction:{score:88,label:'Very good'}}:{})};
+  await page.route('**/v3/college/drives/drive-1',route=>route.fulfill({json:{id:'drive-1',company_name:'Example Technologies',role_title:'Graduate Software Engineer',status:'active'}}));
+  await page.route('**/v3/college/students/s1/reports',route=>route.fulfill({json:{student:{full_name:'Asha Kumar',roll_number:'CS01',program:'B.Tech',department_code:'CSE',graduation_year:2026},reports:[{drive_id:'drive-1',session_id:'session-1',overall_score:78,readiness:'Developing',completed_at:'2026-10-11T12:00:00Z',detail}]}}));
+  await page.route('**/v3/college/students/s1/reports/session-1/recording',route=>route.fulfill({json:{status:'ready',playback_url:'https://media.example/scorecard.webm',duration_seconds:2,segment_count:1,started_at:'2026-10-11T11:42:00Z'}}));
+  await page.route('https://media.example/scorecard.webm',route=>route.fulfill({contentType:'video/webm',body:readFileSync('tests/fixtures/interview-test.webm')}));
+  await page.goto('/dashboard/placement-management?drive=drive-1&section=results&candidate=s1');
+  const card=page.locator('.client-assessment-scorecard');
+  await expect(card.getByRole('heading',{name:'Candidate Assessment Scorecard'})).toBeVisible();
+  await expect(card.getByLabel('Candidate competency score')).toHaveAttribute('value','78');
+  await expect(card.locator('.scorecard-competencies tbody tr')).toHaveCount(3);
+  await expect(card.locator('.scorecard-satisfaction')).toContainText(withFeedback?'88/100':'Not collected');
+  await expect(card.locator('form')).toHaveCount(0);
+  expect(await page.locator('#recording').evaluate(el=>!!(el.compareDocumentPosition(document.querySelector('.client-assessment-scorecard')!)&Node.DOCUMENT_POSITION_FOLLOWING))).toBe(true);
+  await card.getByRole('button',{name:'Review answers',exact:true}).click();
+  await expect(page.getByRole('tabpanel',{name:'Answers',exact:true})).toBeVisible();
+  await card.getByRole('button',{name:'Build knowledge',exact:true}).click();
+  await expect(page.getByRole('tabpanel',{name:'Rounds & competencies'})).toBeVisible();
+  await card.getByRole('button',{name:'Preparation plan',exact:true}).click();
+  await expect(page.getByRole('tabpanel',{name:'Student feedback'})).toBeVisible();
+  await expect(page.getByRole('heading',{name:'Decision & publication'})).toBeVisible();
+  const video=page.getByLabel('Interview recording',{exact:true});await video.evaluate(el=>(el as HTMLVideoElement).play());
+  await expect.poll(()=>video.evaluate(el=>(el as HTMLVideoElement).currentTime)).toBeGreaterThan(0);
+  await video.evaluate(el=>(el as HTMLVideoElement).pause());
+  if(withFeedback){const out='/root/voicedots/releases/client-interview-scorecard-20261012';mkdirSync(out,{recursive:true});await page.evaluate(()=>window.scrollTo(0,0));await page.screenshot({path:out+'/full-report-desktop.png',fullPage:true});await card.screenshot({path:out+'/scorecard.png',style:'header.sticky{visibility:hidden}'});await page.setViewportSize({width:390,height:844});await expect.poll(()=>page.evaluate(()=>document.documentElement.scrollWidth)).toBe(390);await page.evaluate(()=>window.scrollTo(0,0));await page.screenshot({path:out+'/full-report-mobile.png',fullPage:true});}
 });

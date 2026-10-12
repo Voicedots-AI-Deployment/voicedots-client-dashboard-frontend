@@ -16,6 +16,8 @@ import { btn } from "./interviewAgentTypes";
 import { displayName } from "./placementDisplay";
 import { roleLabels } from "./interviewAgentTypes";
 
+import { CandidateScorecard } from "./CandidateScorecard";
+
 type Data = Record<string, unknown>;
 type Report = Data & {
   drive_id?: string;
@@ -749,6 +751,19 @@ export default function CandidateReport({
             </div>
             </>}
           </section>
+
+          <CandidateScorecard view={{
+            overall_score: typeof report.overall_score === 'number' ? report.overall_score : typeof detail.overall_score === 'number' ? detail.overall_score : null,
+            readiness: report.readiness || (typeof detail.readiness_status_label === 'string' ? detail.readiness_status_label : undefined),
+            candidate_info: {full_name:String(student.full_name || 'Candidate'),program:typeof student.program==='string'?student.program:undefined,department:typeof student.department_code==='string'?student.department_code:undefined,year_of_study:student.graduation_year==null?undefined:String(student.graduation_year)},
+            score_breakdown:Object.fromEntries(dimensions.map((item,index)=>[String(item.dimension || item.label || `Competency ${index+1}`),typeof item.percentage==='number'?item.percentage:null])),
+            core_dimensions:dimensions.map((item,index)=>({dimension:String(item.dimension || item.label || `Competency ${index+1}`),reason:typeof item.reason==='string'?item.reason:typeof item.interpretation==='string'?item.interpretation:undefined})),domain_dimensions:[],
+            executive_summary:typeof executiveSummary==='string'?executiveSummary:undefined,
+            strengths:strengthBriefs.map(text=>({text})),
+            priority_improvement_areas:growthAreas.map(item=>typeof item==='string'?{problem:item}:{focus:typeof (item as Data).focus==='string'?String((item as Data).focus):undefined,problem:typeof (item as Data).problem==='string'?String((item as Data).problem):undefined,actions:Array.isArray((item as Data).actions)?((item as Data).actions as unknown[]).map(String):[]}),
+            question_reviews:reviews.map((review,index)=>({answer_id:index,question:String(review.question || review.question_text || 'Interview question'),answer:String(turns.find(turn=>turn.turn_id!=null && String(turn.turn_id)===String(review.turn_id))?.transcript ?? review.answer ?? review.transcript ?? '')})),
+            candidate_satisfaction:detail.candidate_satisfaction && typeof detail.candidate_satisfaction==='object' && typeof (detail.candidate_satisfaction as Data).score==='number'?{score:Number((detail.candidate_satisfaction as Data).score),label:show((detail.candidate_satisfaction as Data).label,'')}:undefined,
+          }} report={{drive_id:driveId,target_role:drive?.role_title}} onQuestions={()=>{setActiveTab('answers');document.getElementById('deep-dive')?.scrollIntoView({behavior:'smooth'});}} onRounds={()=>{setActiveTab('rounds');document.getElementById('deep-dive')?.scrollIntoView({behavior:'smooth'});}} onFeedback={()=>{setActiveTab('feedback');document.getElementById('deep-dive')?.scrollIntoView({behavior:'smooth'});}}/>
 
           <section id="deep-dive" className={`${reportPanel} scroll-mt-4 p-0`}>
             <div className="border-b border-slate-200 px-4 pt-4 sm:px-5"><p className="text-xs font-semibold uppercase tracking-wide text-indigo-700">Assessment details</p><h2 className="mt-1 text-lg font-bold">Interview deep dive</h2><nav className="report-nav mt-3 flex flex-wrap gap-1" role="tablist" aria-label="Candidate report sections">{nav.map(([item, label]) => <button key={item} type="button" role="tab" aria-selected={activeTab === item} className={`whitespace-nowrap border-b-2 px-3 py-2.5 text-sm font-semibold ${activeTab === item ? "border-indigo-600 text-indigo-700" : "border-transparent text-slate-500 hover:text-slate-800"}`} onClick={() => setActiveTab(item)}>{label}{item === "answers" && <span className="ml-1.5 text-xs text-slate-400">{reviews.length}</span>}{item === "skills" && <span className="ml-1.5 text-xs text-slate-400">{claimGaps.length} gaps</span>}{item === "rounds" && rounds.length > 0 && <span className="ml-1.5 text-xs text-slate-400">{rounds.length}</span>}{item === "proctor" && events.length > 0 && <span className="ml-1.5 text-xs text-slate-400">{events.length}</span>}</button>)}</nav></div>
