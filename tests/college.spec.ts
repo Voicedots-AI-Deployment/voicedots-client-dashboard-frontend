@@ -2047,6 +2047,8 @@ for (const withFeedback of [true,false]) test(`client full report CEO scorecard 
   await expect(card.locator('.scorecard-competencies tbody tr')).toHaveCount(3);
   await expect(card.locator('.scorecard-satisfaction')).toContainText(withFeedback?'88/100':'Not collected');
   await expect(card.locator('form')).toHaveCount(0);
+  expect(await card.evaluate(el=>getComputedStyle(el).backgroundColor)).toBe('rgb(255, 255, 255)');
+  expect(await card.evaluate(el=>getComputedStyle(el).borderTopWidth)).toBe('1px');
   const charts=page.getByLabel('Interview score charts',{exact:true});
   await expect(charts.getByRole('heading',{name:'AI interview score',exact:true})).toBeVisible();
   await expect(charts.getByRole('heading',{name:'AI score breakdown',exact:true})).toBeVisible();
