@@ -1736,11 +1736,16 @@ test('row based interview results show concise evidence and persist candidate de
 
 test('draft continue locks navigation until cloud save finishes and preserves edits made during saving', async ({page}) => {
   await setup(page);
-  let release:(()=>void)|undefined;
+  const saveTime=new Date('2030-01-01T00:00:01Z');
+  await page.clock.install({time:new Date(saveTime.getTime()-1000)});await page.clock.pauseAt(saveTime);
+  let release:(()=>void)|undefined,releaseLatest:(()=>void)|undefined;
+  const cloudSaves:Array<{step:number;payload:{form:{company_name:string}}}>=[];
   await page.route('**/v3/college/drive-drafts**',async route=>{
     if(route.request().method()==='GET')return route.fulfill({json:[]});
     const body=route.request().postDataJSON();
-    await new Promise<void>(resolve=>{release=resolve;});
+    cloudSaves.push(body);
+    if(cloudSaves.length===1)await new Promise<void>(resolve=>{release=resolve;});
+    if(cloudSaves.length===2)await new Promise<void>(resolve=>{releaseLatest=resolve;});
     return route.fulfill({json:{id:'audit-draft',payload:body.payload,step:body.step}});
   });
   await page.getByRole('button',{name:'Create drive',exact:true}).click();
@@ -1750,9 +1755,63 @@ test('draft continue locks navigation until cloud save finishes and preserves ed
   await expect(saving).toBeDisabled();await expect(page.getByRole('button',{name:'Back',exact:true})).toBeDisabled();
   await page.getByLabel('Company name').fill('Updated Audit Employer');
   await expect.poll(()=>!!release).toBe(true);release!();
+  await expect.poll(()=>!!releaseLatest).toBe(true);
+  await expect(page.getByText('STEP 1 OF 6')).toBeVisible();await expect(saving).toBeDisabled();
+  releaseLatest!();
   await expect(page.getByText('STEP 2 OF 6')).toBeVisible();
+  expect(cloudSaves.at(-1)?.payload.form.company_name).toBe('Updated Audit Employer');
+  expect(cloudSaves.at(-1)?.step).toBe(1);
   const local=await page.evaluate(()=>JSON.parse(localStorage.getItem('voicedots:placement-drive-draft:v2')||'{}'));
   expect(local.payload.form.company_name).toBe('Updated Audit Employer');expect(local.payload.step).toBe(1);
+});
+
+test('draft continue revalidates required fields edited while cloud saving before advancing', async ({page}) => {
+  await setup(page);
+  const saveTime=new Date('2030-01-01T00:00:01Z');
+  await page.clock.install({time:new Date(saveTime.getTime()-1000)});await page.clock.pauseAt(saveTime);
+  let release:(()=>void)|undefined;
+  const cloudSaves:Array<{step:number;payload:{form:{company_name:string}}}>=[];
+  await page.route('**/v3/college/drive-drafts**',async route=>{
+    if(route.request().method()==='GET')return route.fulfill({json:[]});
+    const body=route.request().postDataJSON();cloudSaves.push(body);
+    if(cloudSaves.length===1)await new Promise<void>(resolve=>{release=resolve;});
+    return route.fulfill({json:{id:'revalidated-draft',payload:body.payload,step:body.step}});
+  });
+  await page.getByRole('button',{name:'Create drive',exact:true}).click();
+  await page.getByLabel('Company name').fill('Initial Employer');await page.locator('#role_title').fill('Engineer');await page.getByLabel('Location').fill('Remote');await page.getByLabel('Job description').fill('Build backend services.');
+  await page.getByRole('button',{name:'Save draft & continue'}).click();
+  await expect.poll(()=>!!release).toBe(true);await page.getByLabel('Company name').fill('');release!();
+  await expect(page.getByText('Company name is required.',{exact:true})).toBeVisible();
+  await expect(page.getByText('STEP 1 OF 6')).toBeVisible();await expect(page.getByLabel('Company name')).toHaveValue('');
+  await expect(page.getByRole('button',{name:'Save draft & continue'})).toBeEnabled();
+  expect(cloudSaves.at(-1)?.payload.form.company_name).toBe('');expect(cloudSaves.at(-1)?.step).toBe(0);
+  const local=await page.evaluate(()=>JSON.parse(localStorage.getItem('voicedots:placement-drive-draft:v2')||'{}'));
+  expect(local.payload.step).toBe(0);expect(local.payload.form.company_name).toBe('');
+  await page.getByLabel('Company name').fill('Corrected Employer');await page.getByRole('button',{name:'Save draft & continue'}).click();await expect(page.getByText('STEP 2 OF 6')).toBeVisible();
+  expect(cloudSaves.at(-1)?.payload.form.company_name).toBe('Corrected Employer');expect(cloudSaves.at(-1)?.step).toBe(1);
+});
+
+test('failed save of edits made during draft continue stays on the same step and retries the latest payload', async ({page}) => {
+  await setup(page);
+  const saveTime=new Date('2030-01-01T00:00:01Z');
+  await page.clock.install({time:new Date(saveTime.getTime()-1000)});await page.clock.pauseAt(saveTime);
+  let release:(()=>void)|undefined;
+  const cloudSaves:Array<{step:number;payload:{form:{company_name:string}}}>=[];
+  await page.route('**/v3/college/drive-drafts**',async route=>{
+    if(route.request().method()==='GET')return route.fulfill({json:[]});
+    const body=route.request().postDataJSON();cloudSaves.push(body);
+    if(cloudSaves.length===1)await new Promise<void>(resolve=>{release=resolve;});
+    if(cloudSaves.length===2)return route.fulfill({status:503,json:{detail:'Latest draft save unavailable'}});
+    return route.fulfill({json:{id:'retry-edited-draft',payload:body.payload,step:body.step}});
+  });
+  await page.getByRole('button',{name:'Create drive',exact:true}).click();
+  await page.getByLabel('Company name').fill('First Employer');await page.locator('#role_title').fill('Engineer');await page.getByLabel('Location').fill('Remote');await page.getByLabel('Job description').fill('Build backend services.');
+  await page.getByRole('button',{name:'Save draft & continue'}).click();
+  await expect.poll(()=>!!release).toBe(true);await page.getByLabel('Company name').fill('Latest Employer');release!();
+  await expect(page.getByText(/cloud save failed/)).toBeVisible();await expect(page.getByText('STEP 1 OF 6')).toBeVisible();await expect(page.getByLabel('Company name')).toHaveValue('Latest Employer');
+  expect(cloudSaves.at(-1)?.payload.form.company_name).toBe('Latest Employer');
+  await page.getByRole('button',{name:'Save draft & continue'}).click();await expect(page.getByText('STEP 2 OF 6')).toBeVisible();
+  expect(cloudSaves).toHaveLength(3);expect(cloudSaves.at(-1)?.payload.form.company_name).toBe('Latest Employer');expect(cloudSaves.at(-1)?.step).toBe(1);
 });
 
 test('failed draft continue stays on the same step and supports retry without losing input', async ({page}) => {
