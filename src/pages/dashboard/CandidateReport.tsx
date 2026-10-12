@@ -646,7 +646,7 @@ export default function CandidateReport({
   ].filter(([, value]) => value !== null && value !== undefined && value !== "");
 
   return (
-    <section className="candidate-review mx-auto max-w-[1440px] space-y-5 pb-12 text-slate-900">
+    <section className="candidate-review mx-auto w-full max-w-none space-y-5 pb-12 text-slate-900">
       <ReportKeyboardShortcuts videoRef={videoRef} onNextFlag={() => jumpToAdjacentFlag(1)} />
       <style>{"@media print{.report-nav,.report-back,.report-actions,.candidate-pager,.no-print{display:none!important}.candidate-report-content .hidden{display:block!important}details:not([open])>*:not(summary){display:block!important}article,details{break-inside:avoid}body{color:#111!important;background:#fff!important}}"}</style>
       <div className="candidate-pager no-print flex flex-wrap items-center justify-between gap-3 border-b border-slate-200 bg-white px-4 py-3">

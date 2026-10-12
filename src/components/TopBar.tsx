@@ -62,6 +62,7 @@ export function TopBar({
           </button>
 
           <button
+            aria-label={isSidebarCollapsed ? "Expand sidebar" : "Collapse sidebar"}
             onClick={onToggleSidebar}
             className="hidden md:flex p-2 rounded-lg border border-gray-200 text-gray-600 hover:bg-gray-50 dark:border-slate-700 dark:text-gray-400 dark:hover:bg-slate-800"
           >

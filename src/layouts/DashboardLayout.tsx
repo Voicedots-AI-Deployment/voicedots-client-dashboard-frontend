@@ -15,7 +15,7 @@ const DashboardLayout = () => {
   }
 
   return (
-    <div className="client-dashboard flex min-h-screen bg-gray-50 dark:bg-slate-950">
+    <div className={`client-dashboard ${isCollapsed ? "sidebar-collapsed" : ""} flex min-h-screen bg-gray-50 dark:bg-slate-950`}>
       {/* SIDEBAR */}
       <Sidebar
         isOpen={isSidebarOpen}

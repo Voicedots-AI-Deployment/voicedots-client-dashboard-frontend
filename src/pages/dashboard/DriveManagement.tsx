@@ -19,6 +19,7 @@ import {
   type Selection,
 } from "./interviewAgentTypes";
 import { displayName, formatPlacementDateTime, wallTimeFromInstant, wallTimeToInstant } from "./placementDisplay";
+import FeedbackDashboard from "./FeedbackDashboard";
 import CandidateReport from "./CandidateReport";
 import ResultCohortBuilder, {type ResultFilterOptions,type ResultRule} from "./ResultCohortBuilder";
 import DriveQuestionBank from "./DriveQuestionBank";
@@ -195,6 +196,7 @@ const sections = {
   overview: "Overview",
   ats: "ATS fit",
   results: "Interview results",
+  feedback: "Feedback",
   skills: "Skill intelligence",
   departments: "Departments",
   questions: "Previous interview questions",
@@ -205,6 +207,7 @@ const paths: Record<Tab, string> = {
   overview: "dashboard/overview",
   ats: "dashboard/ats-fit",
   results: "dashboard/ranking",
+  feedback: "dashboard/overview",
   skills: "dashboard/skill-gap",
   departments: "dashboard/departments",
   questions: "previous-interview-questions",
@@ -2046,6 +2049,7 @@ export default function DriveManagement({
         </p>
       )}
       {loading && <p role="status" className="rounded-xl border border-slate-200 bg-white px-4 py-3 text-sm text-slate-500">{tab === "results" ? "Loading candidate results…" : "Loading drive details…"}</p>}
+      {tab === "feedback" && <FeedbackDashboard key={driveId} driveId={driveId}/>}
       {tab === "overview" &&
         data &&
         (() => {

@@ -21,6 +21,7 @@ import {
   type Program,
 } from "@/api/collegeApi";
 import { useCollegeAccess } from "@/hooks/useCollegeAccess";
+import FeedbackDashboard from "./FeedbackDashboard";
 import CreateDriveWizard from "./CreateDriveWizard";
 import DriveManagement, { InterviewResultsSettings, ReadinessPolicy } from "./DriveManagement";
 import InterviewAgents from "./InterviewAgents";
@@ -143,6 +144,8 @@ export default function CollegeManagementPage() {
   } = useCollegeAccess();
   const [params, setParams] = useSearchParams();
   const requestedTab = (params.get("view") || "placements") as
+      | "dashboard"
+      | "feedback"
       | "placements"
       | "analytics"
       | "agents"
@@ -315,6 +318,8 @@ export default function CollegeManagementPage() {
       p.delete("section");
       return p;
     });
+  if (tab === "dashboard") return <section aria-label="Placement dashboard" className="min-h-[60vh] w-full"/>;
+  if (tab === "feedback") return <FeedbackDashboard/>;
   if (creating)
     return (
       <CreateDriveWizard

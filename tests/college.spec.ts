@@ -7,6 +7,7 @@ async function setup(page: Page, enabled = true, options: { notFound?: string[];
     const values: Record<string, unknown> = {
       '/v1/users/me': { user_id: 'client-1', name: 'College Manager', email: 'manager@example.edu', ...(options.portalRole ? { portal_role: options.portalRole } : {}) },
       '/v3/college/staff': { staff: [] },
+      '/v3/college/feedback/dashboard': feedbackFixture,
       '/v3/email/capabilities': { email_enabled: false },
       '/v3/college/roster-options': {batches:['2023-2027'],graduation_years:[2027,2028],statuses:['active']},
       '/v3/college/analytics': {summary:{total_students:0,placed_students:0,students_attended:0,total_attempts:0,completed_attempts:0,repeat_students:0,not_attended:0,participation_rate:0,completion_rate:0,average_duration_minutes:null},by_drive:[],by_program:[],trend:[],scope:'Placement interviews only.'},
@@ -1411,7 +1412,7 @@ test('deleting a cloud draft also removes its matching device copy', async ({pag
   await page.reload();
   await page.getByRole('button',{name:'Delete draft',exact:true}).click();
   await expect.poll(()=>page.evaluate(()=>localStorage.getItem('voicedots:placement-drive-draft:v2'))).toBeNull();
-  await page.getByRole('button',{name:'Refresh',exact:true}).click();
+  await page.locator('.feedback-dashboard').getByRole('button',{name:'Refresh',exact:true}).click();
   await expect(page.getByRole('heading',{name:'Cloud and device draft'})).toHaveCount(0);
 });
 
@@ -2040,6 +2041,11 @@ for (const withFeedback of [true,false]) test(`client full report CEO scorecard 
   await page.goto('/dashboard/placement-management?drive=drive-1&section=results&candidate=s1');
   const card=page.getByRole('region',{name:'Candidate assessment scorecard',exact:true});
   await expect(card.getByRole('heading',{name:'Competency Results'})).toBeVisible();
+  const reportWidth=(await page.locator('.candidate-review').boundingBox())!.width;
+  await page.getByRole('button',{name:'Collapse sidebar',exact:true}).click();
+  await expect.poll(async()=> (await page.locator('.candidate-review').boundingBox())!.width).toBeGreaterThan(reportWidth);
+  if(withFeedback){mkdirSync('/root/voicedots/releases/placement-feedback-dashboard-20261012',{recursive:true});await page.screenshot({path:'/root/voicedots/releases/placement-feedback-dashboard-20261012/client-report-expanded.png',fullPage:true});}
+  await page.getByRole('button',{name:'Expand sidebar',exact:true}).click();
   await expect(page.locator('.report-candidate-header')).toHaveCount(1);
   await expect(card.locator('.scorecard-heading,.scorecard-profile,.scorecard-practice-tiles,.scorecard-insights')).toHaveCount(0);
   await expect(page.getByRole('heading',{name:'Practice recommendation',exact:true})).toHaveCount(0);
@@ -2065,4 +2071,88 @@ for (const withFeedback of [true,false]) test(`client full report CEO scorecard 
   await expect.poll(()=>video.evaluate(el=>(el as HTMLVideoElement).currentTime)).toBeGreaterThan(0);
   await video.evaluate(el=>(el as HTMLVideoElement).pause());
   if(withFeedback){const out='/root/voicedots/releases/client-interview-scorecard-20261012';mkdirSync(out,{recursive:true});await page.evaluate(()=>window.scrollTo(0,0));await page.screenshot({path:out+'/full-report-desktop.png',fullPage:true});await charts.screenshot({path:out+'/donut-charts.png',style:'header.sticky{visibility:hidden}'});await card.screenshot({path:out+'/scorecard.png',style:'header.sticky{visibility:hidden}'});await page.setViewportSize({width:390,height:844});await expect.poll(()=>page.evaluate(()=>document.documentElement.scrollWidth)).toBe(390);await page.evaluate(()=>window.scrollTo(0,0));await page.screenshot({path:out+'/full-report-mobile.png',fullPage:true});}
+});
+
+const feedbackQuestions=['question_relevance','conversation_quality','assessment_fairness','feedback_usefulness','audio_experience','overall_experience'];
+const feedbackFixture={summary:{total_interviews:12,feedback_received:9,submission_percent:75,average_overall_rating:4.4,recommendation_score:8.1},questions:feedbackQuestions.map(key=>({key,average:4.4,responses:9})),by_drive:[{id:'drive-1',name:'Example Company',interviews:12,feedback:9,average_rating:4.4}],by_batch:[{id:'2026',name:'2026',interviews:12,feedback:9,average_rating:4.4}],by_department:[{id:'CSE',name:'CSE',interviews:12,feedback:9,average_rating:4.4}],submissions:[{session_id:'session-1',student_id:'s1',full_name:'Sreekanth',roll_number:'CS001',department:'CSE',batch:'2026',drive_id:'drive-1',drive_name:'Example Company',interview_date:'2026-10-12T10:00:00Z',submitted_at:'2026-10-12T11:00:00Z',average_rating:4.4,recommendation_score:8,comments:'The questions were relevant and helpful.',ratings:Object.fromEntries(feedbackQuestions.map(k=>[k,4]))}],pagination:{total:1,offset:0,limit:25},highlights:[] as unknown[]};
+feedbackFixture.highlights=[feedbackFixture.submissions[0]];
+async function feedbackSetup(page:Page,path='/dashboard/placement-management?view=feedback'){
+ const queries:string[]=[];
+ await page.route('**/v3/college/feedback/dashboard?**',route=>{
+   queries.push(route.request().url());
+   const search=new URL(route.request().url()).searchParams.get('search');
+   return route.fulfill({json:{...feedbackFixture,submissions:search==='missing'?[]:feedbackFixture.submissions,pagination:{total:search==='missing'?0:1,offset:0,limit:25}}});
+ });
+ await setup(page,true,{initialPath:path});
+ // setup installs a broad fallback last: put the analytics route above it.
+ await page.route('**/v3/college/feedback/dashboard?**',route=>{
+   queries.push(route.request().url());
+   const search=new URL(route.request().url()).searchParams.get('search');
+   return route.fulfill({json:{...feedbackFixture,submissions:search==='missing'?[]:feedbackFixture.submissions,pagination:{total:search==='missing'?0:1,offset:0,limit:25}}});
+ });
+ await expect(page.locator('.feedback-kpis')).toContainText('75%');
+ await expect(page.locator('.feedback-dashboard').getByRole('button',{name:'Refresh',exact:true})).toBeEnabled();
+ await page.locator('.feedback-dashboard').getByRole('button',{name:'Refresh',exact:true}).click();
+ await expect.poll(()=>queries.length).toBeGreaterThan(0);
+ await expect(page.locator('.feedback-dashboard').getByRole('button',{name:'Refresh',exact:true})).toBeEnabled();
+ return queries;
+}
+test('feedback dashboard uses saved data, filters, details and exports',async({page})=>{
+ const queries=await feedbackSetup(page);
+ await expect(page.locator('.feedback-kpis')).toContainText('12');
+ await expect(page.locator('.feedback-recommendation')).toContainText('8.1 / 10');
+ await expect(page.locator('.feedback-question-grid>div')).toHaveCount(6);
+ await expect(page.locator('.feedback-chart .recharts-wrapper')).toHaveCount(3);
+ const out='/root/voicedots/releases/placement-feedback-dashboard-20261012';mkdirSync(out,{recursive:true});
+ await page.setViewportSize({width:1600,height:1100});await page.screenshot({path:out+'/feedback-desktop.png',fullPage:true});
+ await page.getByRole('button',{name:'View',exact:true}).click();
+ await expect(page.getByRole('dialog')).toContainText('The questions were relevant and helpful.');
+ await expect(page.getByRole('link',{name:'Open interview report'})).toHaveAttribute('href',/candidate=s1/);
+ await page.getByRole('button',{name:'Close feedback details'}).click();
+ await page.getByLabel('Search feedback').fill('missing');
+ await expect(page.getByText('No feedback submissions match these filters.')).toBeVisible();
+ await expect(page.locator('.feedback-kpis')).toContainText('75%');
+ await page.getByRole('button',{name:'Clear filters'}).click();
+ await expect(page.getByRole('button',{name:'View',exact:true})).toBeVisible();
+ await page.locator('.feedback-filters').getByLabel('Department',{exact:true}).selectOption('CSE');
+ await expect.poll(()=>queries.some(q=>new URL(q).searchParams.get('department')==='CSE')).toBe(true);
+ await page.locator('.feedback-filters').getByLabel('From',{exact:true}).fill('2026-10-01');
+ await expect.poll(()=>queries.some(q=>new URL(q).searchParams.get('date_from')==='2026-10-01')).toBe(true);
+ await expect(page.getByRole('button',{name:'Export report'})).toBeEnabled();
+ const downloaded=page.waitForEvent('download');await page.getByRole('button',{name:'Export report'}).click();
+ expect((await downloaded).suggestedFilename()).toBe('voicedots-feedback.csv');
+});
+test('feedback sidebar collapses and dashboard is intentionally empty',async({page})=>{
+ await feedbackSetup(page);
+ const before=(await page.locator('.feedback-dashboard').boundingBox())!.width;
+ await page.getByRole('button',{name:'Collapse sidebar',exact:true}).click();
+ await expect.poll(async()=> (await page.locator('.feedback-dashboard').boundingBox())!.width).toBeGreaterThan(before);
+ await page.getByRole('button',{name:'Expand sidebar',exact:true}).click();
+ const group=page.locator('aside').getByRole('button',{name:'Placement management',exact:true});
+ await group.click();await expect(group).toHaveAttribute('aria-expanded','false');
+ await group.click();await expect(group).toHaveAttribute('aria-expanded','true');
+ await page.locator('aside').getByRole('button',{name:'Dashboard',exact:true}).click();
+ await expect(page.getByRole('region',{name:'Placement dashboard',exact:true})).toBeVisible();
+ await expect(page.locator('.feedback-dashboard')).toHaveCount(0);
+});
+test('drive feedback is scoped and mobile dashboard does not overflow',async({page})=>{
+ const queries=await feedbackSetup(page,'/dashboard/placement-management?drive=drive-1&section=feedback');
+ await expect(page.locator('.feedback-filters').getByLabel('Drive',{exact:true})).toBeDisabled();
+ expect(queries.some(q=>new URL(q).searchParams.get('drive_id')==='drive-1')).toBe(true);
+ const out='/root/voicedots/releases/placement-feedback-dashboard-20261012';mkdirSync(out,{recursive:true});
+ await page.setViewportSize({width:1440,height:1100});await page.screenshot({path:out+'/drive-feedback.png',fullPage:true});
+ await page.setViewportSize({width:390,height:844});
+ await expect.poll(()=>page.evaluate(()=>document.documentElement.scrollWidth)).toBe(390);
+ await page.screenshot({path:out+'/feedback-mobile.png',fullPage:true});
+});
+test('feedback empty and failure states never show invented scores',async({page})=>{
+ await feedbackSetup(page);
+ await page.route('**/v3/college/feedback/dashboard?**',route=>route.fulfill({status:503,json:{detail:'Feedback is temporarily unavailable'}}));
+ await page.locator('.feedback-dashboard').getByRole('button',{name:'Refresh',exact:true}).click();
+ await expect(page.getByRole('alert')).toContainText('Feedback is temporarily unavailable');
+ await expect(page.locator('.feedback-kpis')).toHaveCount(0);
+ await page.route('**/v3/college/feedback/dashboard?**',route=>route.fulfill({json:{summary:{total_interviews:0,feedback_received:0,submission_percent:0,average_overall_rating:null,recommendation_score:null},questions:feedbackQuestions.map(key=>({key,average:null,responses:0})),by_drive:[],by_batch:[],by_department:[],submissions:[],highlights:[],pagination:{total:0,offset:0,limit:25}}}));
+ await page.getByRole('button',{name:'Retry',exact:true}).click();
+ await expect(page.getByText('No completed interviews match these filters.')).toBeVisible();
+ await expect(page.locator('.feedback-recommendation')).toContainText('Not collected');
 });
