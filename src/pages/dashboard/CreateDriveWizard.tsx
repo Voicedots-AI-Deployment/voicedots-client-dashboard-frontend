@@ -173,21 +173,31 @@ export default function CreateDriveWizard({programs,drive,draftId,initialStep=0,
   async function saveDraft(manual=false,nextStep=step){
     if(drive||submittingRef.current||submittedRef.current)return false;
     if(draftSavingRef.current){draftResaveRef.current=true;if(manual)setNotice('A draft save is already finishing. Wait for its status before continuing.');return false;}
-    const payload={...latestDraftRef.current,step:nextStep};
+    let payload={...latestDraftRef.current,step:manual?nextStep:latestDraftRef.current.step};
     localStorage.setItem(DRAFT_KEY,JSON.stringify({id:draftIdRef.current,payload,saved_at:new Date().toISOString()}));
     draftSavingRef.current=true;setDraftStatus('saving');
     try{
       let row:DriveDraft;
-      if(draftIdRef.current){
-        try{row=await collegeApi.save<DriveDraft>(`drive-drafts/${draftIdRef.current}`,{payload,step:nextStep},true);}
-        catch(error){
-          if(!axios.isAxiosError(error)||error.response?.status!==404)throw error;
-          row=await collegeApi.save<DriveDraft>('drive-drafts',{payload,step:nextStep,client_draft_key:creationKey});
-        }
-      }else row=await collegeApi.save<DriveDraft>('drive-drafts',{payload,step:nextStep,client_draft_key:creationKey});
-      if(submittedRef.current)return false;
-      draftIdRef.current=row.id;setDraftStatus('saved');setNotice(manual?'Draft saved.':'');
-      localStorage.setItem(DRAFT_KEY,JSON.stringify({id:row.id,payload:{...latestDraftRef.current,step:manual?nextStep:latestDraftRef.current.step},saved_at:new Date().toISOString()}));
+      // Inputs remain editable during saving. Keep the lock until the latest
+      // edits are acknowledged, rather than marking only the local copy saved.
+      for(;;){
+        draftResaveRef.current=false;
+        if(draftIdRef.current){
+          try{row=await collegeApi.save<DriveDraft>(`drive-drafts/${draftIdRef.current}`,{payload,step:payload.step},true);}
+          catch(error){
+            if(!axios.isAxiosError(error)||error.response?.status!==404)throw error;
+            row=await collegeApi.save<DriveDraft>('drive-drafts',{payload,step:payload.step,client_draft_key:creationKey});
+          }
+        }else row=await collegeApi.save<DriveDraft>('drive-drafts',{payload,step:payload.step,client_draft_key:creationKey});
+        if(submittedRef.current)return false;
+        draftIdRef.current=row.id;
+        const latest={...latestDraftRef.current,step:manual?nextStep:latestDraftRef.current.step};
+        if(JSON.stringify(latest)===JSON.stringify(payload))break;
+        payload=latest;
+        localStorage.setItem(DRAFT_KEY,JSON.stringify({id:row.id,payload,saved_at:new Date().toISOString()}));
+      }
+      setDraftStatus('saved');setNotice(manual?'Draft saved.':'');
+      localStorage.setItem(DRAFT_KEY,JSON.stringify({id:row.id,payload,saved_at:new Date().toISOString()}));
       return true;
     }catch(e){setDraftStatus('error');if(manual)setNotice(`Draft kept on this device; cloud save failed: ${collegeError(e)}`);return false;}
     finally{draftSavingRef.current=false;for(const resolve of draftSaveWaitersRef.current.splice(0))resolve();if(draftResaveRef.current){draftResaveRef.current=false;void saveDraft(false,latestDraftRef.current.step);}}
@@ -244,7 +254,10 @@ export default function CreateDriveWizard({programs,drive,draftId,initialStep=0,
     setPreview(null);setPreviewRefreshedAt(null);const timer=setTimeout(()=>void loadPreview(),350);return()=>clearTimeout(timer);
   },[step,form.min_cgpa,programIds.join(','),availableDepartmentCodes,departments.join(','),selectedYears.join(',')]);
 
-  function validate(index:number):Record<string,string>{
+  function validate(index:number,snapshot:DraftPayload=latestDraftRef.current):Record<string,string>{
+    const {form,selection,rounds,programIds,departments,years}=snapshot;
+    const selectedYears=years.map(Number).filter(Number.isFinite);
+    const availableDepartments=programs.filter(program=>programIds.includes(program.code)).flatMap(eligibilityDepartments);
     const errors:Record<string,string>={};
     if(index===0){
       if(!form.company_name.trim())errors.company_name='Company name is required.';
@@ -303,6 +316,17 @@ export default function CreateDriveWizard({programs,drive,draftId,initialStep=0,
     advancingRef.current=true;setAdvancing(true);
     try{
       if(!drive){while(draftSavingRef.current)await new Promise<void>(resolve=>draftSaveWaitersRef.current.push(resolve));if(!await saveDraft(true,target))return;}
+      // The save can include edits made after Continue was pressed. Validate
+      // that current snapshot before navigation, rather than its earlier closure.
+      const errors:Record<string,string>={};
+      for(let index=drive?step:0;index<target;index++)Object.assign(errors,validate(index,latestDraftRef.current));
+      if(Object.keys(errors).length){
+        const invalidStep=stepFor(Object.keys(errors)[0]);
+        setStep(invalidStep);setFieldErrors(errors);focusError(errors);
+        // A recovered draft must reopen at the field requiring correction.
+        if(!drive)await saveDraft(true,invalidStep);
+        return;
+      }
       setStep(target);
     }finally{advancingRef.current=false;setAdvancing(false);}
   }

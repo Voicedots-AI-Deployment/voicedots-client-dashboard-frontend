@@ -1,6 +1,7 @@
 import axios from "axios";
 import { useEffect, useState } from "react";
-import { Eye, EyeOff, AlertCircle } from "lucide-react";
+import { Eye, EyeOff, AlertCircle, ArrowRight, ArrowUpRight, BadgeCheck, BookOpen, FileText, Briefcase, Mic, ShieldCheck, Users } from "lucide-react";
+import "./login-page.css";
 import { useNavigate } from "react-router-dom";
 import authApi from "@/api/authApi";
 import { useAuth } from "@/context/AuthContext";
@@ -78,159 +79,76 @@ const LoginPage = () => {
   };
 
 
+
+  const statusText = setupToken ? setupLinkStatus === "checking" ? "Checking your secure invitation…" : setupLinkStatus === "completed" ? "Password already created. Sign in to continue." : setupLinkStatus === "expired" ? "This invitation has expired. Ask your Client administrator to send a new one." : setupLinkStatus === "invalid" ? "This invitation link is invalid. Ask your Client administrator to send a new one." : "Create a secure password for your placement account." : "Sign in to manage placements and your institution.";
+
   return (
-    <div className="min-h-screen bg-gray-50 dark:bg-slate-900 flex items-center justify-center px-4">
-      <div className="w-full max-w-md">
-        {/* Header */}
-        <div className="text-center mb-6">
-          <h3
-            className="
-            text-xl md:text-2xl font-medium tracking-tighter mb-6
-            bg-clip-text
-            bg-gradient-to-b
-            from-foreground to-foreground/60
-          "
-          >
-            <img
-              src="/voicedotslogo.svg"
-              alt="V"
-              className="h-[1.1em] w-auto inline-block align-middle -translate-y-[0.1em] mr-[-0.3em]"
-            />oiceDots
-          </h3>
+    <div className="cl-page">
+      <header className="cl-header">
+        <a className="cl-brand" href={import.meta.env.VITE_WEBSITE_URL || "https://voicedots.ai"} aria-label="VoiceDots website">
+          <img src="/voicedotslogo.svg" alt="" /><span>oiceDots</span>
+        </a>
+        <a className="cl-back" href={import.meta.env.VITE_WEBSITE_URL || "https://voicedots.ai"}>Back to website <ArrowUpRight size={16} /></a>
+      </header>
 
-          <h1 className="text-3xl font-medium text-gray-900 dark:text-white">
-            {setupToken ? "Set up your password" : "Client Portal"}
-          </h1>
-
-          <p className="mt-1 text-sm text-gray-600 dark:text-gray-400">
-            {setupToken ? setupLinkStatus === "checking" ? "Checking your secure invitation…" : setupLinkStatus === "completed" ? "Password already created. Sign in to continue." : setupLinkStatus === "expired" ? "This invitation has expired. Ask your Client administrator to send a new one." : setupLinkStatus === "invalid" ? "This invitation link is invalid. Ask your Client administrator to send a new one." : "Create a secure password for your placement account." : "Secure access for authorized personnel only"}
-          </p>
+      <section className="cl-story" aria-label="VoiceDots client portal">
+        <h1><span>Run placements.</span><span>Manage your</span><em>institution.</em></h1>
+        <p>Create placement drives, manage students and departments, generate question papers and review AI interview results, all in one place.</p>
+        <div className="cl-preview" aria-hidden="true">
+          <div className="cl-preview-top">
+            <span className="cl-live">Placement workflow</span>
+            <strong>From students to offers.</strong>
+          </div>
+          <ol className="cl-timeline">
+            {[
+              { icon: Users, label: "Students", detail: "Roster and eligibility" },
+              { icon: Briefcase, label: "Drives", detail: "Roles and dates" },
+              { icon: Mic, label: "AI interviews", detail: "Scored and proctored" },
+              { icon: BadgeCheck, label: "Results", detail: "Released to students" },
+            ].map(({ icon: Icon, label, detail }, index) => <li key={label} style={{ ["--step" as string]: index }}>
+              <span className="cl-node"><Icon size={16} /></span>
+              <div><strong>{label}</strong><small>{detail}</small></div>
+            </li>)}
+          </ol>
+          <div className="cl-preview-bottom"><span>Built for placement teams</span><span><ShieldCheck size={12} /> Secure and role-based</span></div>
         </div>
-
-        {/* Card */}
-        <div className="bg-white dark:bg-slate-800 rounded-2xl shadow-lg border border-gray-200 dark:border-slate-700 px-6 py-8 sm:px-8">
-          {setupToken ? <>{setupLinkStatus === "valid" && <form className="space-y-6" onSubmit={handlePasswordSetup}>
-            {error && <div role="alert" className="rounded-lg border border-red-200 bg-red-50 p-4 text-sm text-red-800">{error}</div>}
-            {setupComplete ? <div role="status" className="space-y-4 text-center"><p className="text-sm text-emerald-700">Password created. You can now sign in.</p><button type="button" className="w-full rounded-lg bg-blue-600 px-4 py-3 text-sm font-normal text-white" onClick={() => window.location.assign("/login")}>Continue to sign in</button></div> : <>
-              <label className="block text-sm font-medium">New password<input type="password" required minLength={8} maxLength={128} value={password} onChange={e => setPassword(e.target.value)} className="mt-1 w-full rounded-lg border px-4 py-3 text-sm" autoComplete="new-password" /></label>
-              <label className="block text-sm font-medium">Confirm password<input type="password" required minLength={8} maxLength={128} value={confirmPassword} onChange={e => setConfirmPassword(e.target.value)} className="mt-1 w-full rounded-lg border px-4 py-3 text-sm" autoComplete="new-password" /></label>
-              <button type="submit" disabled={loading} className="w-full rounded-lg bg-blue-600 px-4 py-3 text-sm font-normal text-white disabled:opacity-50">{loading ? "Saving…" : "Set password"}</button>
-            </>}
-          </form>}{(setupLinkStatus === "completed" || setupLinkStatus === "expired" || setupLinkStatus === "invalid") && <div role="status" className="space-y-4 text-center"><p className="text-sm text-slate-600">{setupLinkStatus === "completed" ? "This link has already been used. Sign in to open placement management." : "Ask your Client administrator to send a fresh invitation."}</p><button type="button" className="w-full rounded-lg bg-blue-600 px-4 py-3 text-sm font-normal text-white" onClick={() => window.location.assign("/login")}>Continue to sign in</button></div>}</> : <form className="space-y-6" onSubmit={handleLogin}>
-            {/* Error */}
-            {error && (
-              <div
-                className="flex items-center gap-2 rounded-lg border border-red-200 bg-red-50 p-4 text-sm text-red-800 dark:border-red-900 dark:bg-red-900/10 dark:text-red-400"
-                role="alert"
-              >
-                <AlertCircle size={16} />
-                {error}
-              </div>
-            )}
-
-            {/* Email */}
-            <div>
-              <label
-                htmlFor="email"
-                className="block text-sm font-normal text-gray-700 dark:text-gray-200"
-              >
-                Email address
-              </label>
-              <input
-                id="email"
-                type="email"
-                name="email"
-                value={email}
-                onChange={(e) => setEmail(e.target.value)}
-                required
-                placeholder="admin@voicedots.com"
-                className="mt-1 w-full rounded-lg border border-gray-300 px-4 py-3 text-sm focus:border-blue-500 focus:ring-blue-500 dark:bg-slate-900 dark:border-slate-700 dark:text-gray-200"
-              />
-            </div>
-
-            {/* Password */}
-            <div>
-              <label
-                htmlFor="password"
-                className="block text-sm font-normal text-gray-700 dark:text-gray-200"
-              >
-                Password
-              </label>
-
-              <div className="relative mt-1">
-                <input
-                  id="password"
-                  name="password"
-                  type={showPassword ? "text" : "password"}
-                  value={password}
-                  onChange={(e) => setPassword(e.target.value)}
-                  required
-                  placeholder="••••••••"
-                  className="w-full rounded-lg border border-gray-300 px-4 py-3 pr-10 text-sm focus:border-blue-500 focus:ring-blue-500 dark:bg-slate-900 dark:border-slate-700 dark:text-gray-200"
-                />
-                <button
-                  type="button"
-                  onClick={() => setShowPassword(!showPassword)}
-                  className="absolute inset-y-0 right-0 flex items-center pr-3 text-gray-400 hover:text-blue-600"
-                >
-                  {showPassword ? <EyeOff size={18} /> : <Eye size={18} />}
-                </button>
-              </div>
-            </div>
-
-            {/* Remember + Forgot */}
-            <div className="flex items-center justify-between">
-              <label className="flex items-center gap-2 text-sm text-gray-700 dark:text-gray-300">
-                <input
-                  type="checkbox"
-                  className="rounded border-gray-300 text-blue-600 focus:ring-blue-500 dark:border-slate-700"
-                />
-                Trust this device
-              </label>
-
-              <a
-                href="#"
-                className="text-sm font-medium text-blue-600 hover:text-blue-500 dark:text-blue-400"
-              >
-                Forgot password?
-              </a>
-            </div>
-
-            {/* Submit */}
-            <button
-              type="submit"
-              disabled={loading}
-              className="w-full rounded-lg bg-blue-600 px-4 py-3 text-sm font-normal tracking-wide text-white hover:bg-blue-700 disabled:opacity-50 transition"
-            >
-              {loading ? (
-                <span
-                  className="inline-block h-4 w-4 animate-spin rounded-full border-2 border-white border-t-transparent"
-                  aria-label="loading"
-                />
-              ) : (
-                "Sign in to Dashboard"
-              )}
-            </button>
-
-            {/* Divider */}
-            <div className="relative pt-2">
-              <div className="absolute inset-0 flex items-center">
-                <div className="w-full border-t border-gray-200 dark:border-slate-700" />
-              </div>
-              <div className="relative flex justify-center">
-                <span className="bg-white dark:bg-slate-800 px-2 text-xs text-gray-500">
-                  Security Verified
-                </span>
-              </div>
-            </div>
-          </form>}
+        <div className="cl-features">
+          {[{ icon: Users, text: "Students and departments" }, { icon: Briefcase, text: "Placement drives and results" }, { icon: FileText, text: "Question paper generation" }].map(({ icon: Icon, text }) => <div key={text}><Icon size={15} />{text}</div>)}
         </div>
+      </section>
 
-        {/* Footer */}
-        <p className="mt-6 text-center text-xs text-gray-400 dark:text-gray-500">
-          © 2026 Voicedots. All rights reserved.
-        </p>
-      </div>
+      <main className="cl-card">
+
+        <span className="cl-eyebrow">YOUR CLIENT PORTAL</span>
+        <h2>{setupToken ? "Set up your password." : "Welcome back."}</h2>
+        <p>{statusText}</p>
+
+        {setupToken ? <>{setupLinkStatus === "valid" && <form onSubmit={handlePasswordSetup}>
+          {error && <div role="alert" className="cl-error"><AlertCircle size={16} />{error}</div>}
+          {setupComplete ? <div role="status"><p className="cl-success">Password created. You can now sign in.</p><button type="button" className="cl-submit" onClick={() => window.location.assign("/login")}>Continue to sign in <ArrowRight size={16} /></button></div> : <>
+            <label className="cl-label" htmlFor="new-password">New password</label>
+            <input id="new-password" className="cl-input" type="password" required minLength={8} maxLength={128} value={password} onChange={e => setPassword(e.target.value)} autoComplete="new-password" />
+            <label className="cl-label" htmlFor="confirm-password">Confirm password</label>
+            <input id="confirm-password" className="cl-input" type="password" required minLength={8} maxLength={128} value={confirmPassword} onChange={e => setConfirmPassword(e.target.value)} autoComplete="new-password" />
+            <button type="submit" disabled={loading} className="cl-submit">{loading ? "Saving…" : <>Set password <ArrowRight size={16} /></>}</button>
+          </>}
+        </form>}{(setupLinkStatus === "completed" || setupLinkStatus === "expired" || setupLinkStatus === "invalid") && <div role="status"><p className="cl-note">{setupLinkStatus === "completed" ? "This link has already been used. Sign in to open placement management." : "Ask your Client administrator to send a fresh invitation."}</p><button type="button" className="cl-submit" onClick={() => window.location.assign("/login")}>Continue to sign in <ArrowRight size={16} /></button></div>}</> : <form onSubmit={handleLogin}>
+          {error && <div className="cl-error" role="alert"><AlertCircle size={16} />{error}</div>}
+          <label className="cl-label" htmlFor="email">Email address</label>
+          <input id="email" type="email" name="email" autoComplete="email" value={email} onChange={(e) => setEmail(e.target.value)} required placeholder="you@institution.edu" className="cl-input" />
+          <label className="cl-label" htmlFor="password">Password</label>
+          <span className="cl-password">
+            <input id="password" name="password" type={showPassword ? "text" : "password"} autoComplete="current-password" value={password} onChange={(e) => setPassword(e.target.value)} required placeholder="Enter your password" className="cl-input" />
+            <button type="button" className="cl-toggle" onClick={() => setShowPassword(!showPassword)} aria-label={showPassword ? "Hide password" : "Show password"} aria-pressed={showPassword}>{showPassword ? <EyeOff size={18} /> : <Eye size={18} />}</button>
+          </span>
+          <button type="submit" disabled={loading} className="cl-submit">
+            {loading ? <span className="inline-block h-4 w-4 animate-spin rounded-full border-2 border-white border-t-transparent" aria-label="loading" /> : <>Sign in to Dashboard <ArrowRight size={16} /></>}
+          </button>
+          <p className="cl-note">Forgot your password? Ask your VoiceDots administrator to send you a new setup link.</p>
+        </form>}
+
+        <div className="cl-help"><BookOpen size={17} /><p>Your VoiceDots administrator manages access to this portal. Contact them if you need an account or help signing in.</p></div>
+      </main>
     </div>
   );
 };
