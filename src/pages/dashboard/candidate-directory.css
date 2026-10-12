@@ -1,1 +1,23 @@
 .candidate-card-grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:20px}.candidate-person-card{padding:25px;display:flex;flex-direction:column;align-items:start;min-height:220px}.candidate-person-top{display:flex;align-items:center;gap:13px;margin-bottom:17px}.candidate-person-top .pi-avatar{width:48px;height:48px;font-size:16px}.candidate-person-top h2{font-size:17px;margin:0 0 5px}.candidate-person-card p{font-size:12px;margin:0 0 10px}.candidate-class{font-size:11px;background:#edf6ff;padding:5px 9px;border-radius:6px;color:#4b6f96;margin-bottom:20px}.candidate-person-card button{margin-top:auto;width:100%}.candidate-pagination{display:flex;justify-content:end;align-items:center;gap:15px;margin:20px 0}.candidate-pagination span{font-size:12px;color:#6f8298}.candidate-profile-hero{display:grid;grid-template-columns:1.2fr 1fr;gap:25px;padding:30px 0;margin:0 0 24px;border-bottom:1px solid #dbe6f0}.candidate-identity{display:flex;align-items:start;gap:22px;min-width:0}.candidate-profile-avatar{width:108px;height:130px;border-radius:13px;background:linear-gradient(130deg,#daefff,#e7f7f2);color:#2685c4;display:grid;place-items:center;flex-shrink:0}.candidate-eyebrow{font-size:10px;letter-spacing:1.5px;font-weight:700;color:#2484d1;margin-bottom:8px}.candidate-identity h1{font-size:27px;font-weight:750;letter-spacing:-.7px;margin:0 0 7px}.candidate-identity p{font-size:12px;color:#647e98;margin-bottom:10px}.candidate-identity dl{display:grid;gap:6px;font-size:11px}.candidate-identity dl div{display:flex;gap:6px}.candidate-identity dt{font-weight:700;flex-shrink:0}.candidate-identity dd{overflow-wrap:anywhere}.candidate-metrics{display:grid;grid-template-columns:repeat(3,1fr);gap:12px}.candidate-metrics article{padding:19px;border-radius:12px;display:flex;flex-direction:column;align-items:start;gap:14px;background:#eaf5ff}.candidate-metrics article.gold{background:#fff6e2}.candidate-metrics article.green{background:#e9faf4}.candidate-metrics span{font-weight:650;font-size:11px}.candidate-metrics strong{font-size:35px;line-height:1.1}.candidate-metrics strong small{font-size:15px}.candidate-metrics small{font-size:10px}.candidate-metrics .candidate-readiness{font-size:18px;overflow-wrap:anywhere;color:#ba8106}.candidate-metrics progress{width:100%;height:8px;accent-color:#2488e6}.candidate-history-row{display:flex;align-items:end;gap:16px;margin-bottom:24px;flex-wrap:wrap}.candidate-history-row label{display:grid;gap:8px;flex:1;font-size:12px;font-weight:650;min-width:220px}.candidate-target{display:grid;grid-template-columns:1fr auto;gap:5px;padding:12px 0;border-bottom:1px solid #e6eef7;font-size:12px}.candidate-target small{grid-column:1/-1}.candidate-directory>.pi-card{margin-bottom:20px}.candidate-directory .client-assessment-scorecard{margin-bottom:20px}@media(max-width:1200px){.candidate-card-grid{grid-template-columns:repeat(2,1fr)}.candidate-profile-hero{grid-template-columns:1fr}}@media(max-width:650px){.candidate-card-grid{grid-template-columns:1fr}.candidate-identity{gap:13px}.candidate-profile-avatar{width:65px;height:85px}.candidate-identity h1{font-size:24px}.candidate-metrics article{padding:14px}.candidate-metrics strong{font-size:26px}.candidate-metrics .candidate-readiness{font-size:14px}.candidate-profile-hero{padding:15px 0}.candidate-identity dl div{display:block}}
+
+.candidate-directory>.pi-filter-panel{margin-top:20px}
+.candidate-card-grid{gap:var(--pi-section-gap,20px)}
+.candidate-person-top>div,.candidate-identity>div{min-width:0;overflow-wrap:anywhere}
+.candidate-profile-hero{padding-top:12px;gap:20px}
+.candidate-metrics{grid-template-columns:repeat(3,minmax(0,1fr))}
+.candidate-metrics article{min-width:0;overflow-wrap:anywhere}
+#candidate-evidence .candidate-target{display:block;line-height:1.6}
+#candidate-evidence summary{cursor:pointer;font-weight:600}
+#candidate-evidence details p{margin:12px 0 0;overflow-wrap:anywhere}
+@media(max-width:650px){
+ .candidate-history-row label{min-width:0;flex-basis:100%}
+ .candidate-history-row button{width:100%}
+ .candidate-pagination{justify-content:space-between;gap:8px;flex-wrap:wrap}
+ .candidate-card-grid{grid-template-columns:minmax(0,1fr)}
+}
+.candidate-directory>.candidate-assigned-groups{margin-top:20px;margin-bottom:0}
+.candidate-person-top small{display:block;overflow-wrap:anywhere}
+.candidate-attempt{margin-bottom:16px;max-width:100%}
+.candidate-card-actions{display:grid;gap:8px;width:100%;margin-top:auto}
+.candidate-card-actions button{margin-top:0}
+.candidate-ended{font-size:11px;font-weight:600;color:#b45309;background:#fff7ed;border-radius:6px;padding:7px 9px}

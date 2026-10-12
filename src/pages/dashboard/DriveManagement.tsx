@@ -1,3 +1,4 @@
+import { AttemptBadge, attemptValue } from "./CandidateAttemptBadge";
 import PlacementDashboard from "./PlacementDashboard";
 import CandidateDirectory from "./CandidateDirectory";
 import { useEffect, useRef, useState } from "react";
@@ -321,10 +322,6 @@ function ResumeMatchSummary({ driveId, candidate }: { driveId: string; candidate
   </span>;
 }
 
-function attemptValue(value: unknown, fallback: number): number {
-  const parsed = Number(value);
-  return Number.isFinite(parsed) && parsed >= 1 ? Math.floor(parsed) : fallback;
-}
 
 function windowStatus(drive: Drive): "scheduled" | "active" | "closed" | "draft" | "cancelled" {
   const status = String(drive?.status || "scheduled").toLowerCase();
@@ -346,14 +343,6 @@ function compensation(drive?: Drive) {
   return `${drive.package_min_lpa??"—"}${drive.package_max_lpa==null?"":` – ${drive.package_max_lpa}`} ${drive.package_currency||"INR"} LPA`;
 }
 
-function attemptCounts(candidate: Candidate, driveMaxAttempts?: unknown): [number, number] {
-  const current = attemptValue(candidate.attempt_number, 1);
-  const maximum = attemptValue(candidate.max_attempts ?? driveMaxAttempts, 1);
-  const status = String(candidate.assignment_status || "").toLowerCase();
-  const currentUsed = status === "in_progress" || status === "completed" || status === "expired" && Boolean(candidate.submission_id || candidate.started_at);
-  return [currentUsed ? current : Math.max(0, current - 1), maximum];
-}
-function AttemptBadge({ candidate, driveMaxAttempts }: { candidate: Candidate; driveMaxAttempts?: unknown }) { const [used, allowed] = attemptCounts(candidate, driveMaxAttempts); const current = attemptValue(candidate.attempt_number, 1); const status = String(candidate.assignment_status || "").toLowerCase(); const tone = used === 0 ? "bg-slate-100 text-slate-700" : used >= allowed ? "bg-rose-100 text-rose-800" : used === allowed - 1 ? "bg-amber-100 text-amber-800" : "bg-blue-100 text-blue-800"; const label = status === "in_progress" ? `Attempt ${current} of ${allowed} · in progress` : status === "completed" ? `${used}/${allowed} attempts used · completed` : status === "expired" ? `${used}/${allowed} attempts used · expired` : `${used}/${allowed} used · attempt ${current} available`; return <span className={`inline-flex rounded-full px-2.5 py-1 text-xs font-semibold ${tone}`}>{label}</span>; }
 
 function resumeEvidenceLabel(value?: string) {
   const normalized = String(value || "none").toLowerCase().replace(/[_-]+/g, " ");
@@ -501,7 +490,7 @@ function CandidateDetails({
             <div>
               <dt className="text-slate-500">Attempts</dt>
               <dd className="font-semibold">
-                <AttemptBadge candidate={candidate} />
+                <AttemptBadge candidate={candidate} driveMaxAttempts={drive?.max_attempts} />
               </dd>
             </div>
             <div>
@@ -2265,7 +2254,7 @@ export default function DriveManagement({
           );
         })()}
       {tab === "intelligence" && <PlacementDashboard driveId={driveId}/>}
-      {tab === "candidates" && <CandidateDirectory driveId={driveId}/>}
+      {tab === "candidates" && <CandidateDirectory driveId={driveId} driveMaxAttempts={drive?.max_attempts} onCandidateDetails={candidate=>openCandidateDetails({...candidate,student_id:candidate.student_id||candidate.id||""})}/>}
       {["ats", "results"].includes(tab) && (
         <>
           {tab !== "results" && <div className="grid gap-3 md:grid-cols-3 xl:grid-cols-6">
@@ -2645,7 +2634,7 @@ export default function DriveManagement({
                 driveId={driveId}
                 drive={drive}
               />
-              {tab === "results" && (
+              {["results", "candidates"].includes(tab) && (
                 <>
                   <div className="flex flex-wrap gap-3">
                     {["completed", "released", "held_for_review"].includes(

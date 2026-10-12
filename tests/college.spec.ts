@@ -53,7 +53,7 @@ test('placement staff Candidates section lists all students returned by assigned
     return route.fulfill({ json: { items: [{ id: 'student-1', full_name: 'Scoped Student', roll_number: 'ME-2027-01', email: 'student@example.edu', program: 'B.Tech', department_code: 'MECH', department_display_name: 'Mechanical Engineering', batch_label: '2023-2027', graduation_year: 2027, cgpa: 8.1, status: 'active' }], assigned_groups: [{ program: 'B.Tech', department_code: 'MECH', batch_label: '2023-2027', graduation_year: 2027 }], total: 1, limit: 25, offset: 0 } });
   });
   await page.locator('aside').getByRole('button', { name: 'Candidates', exact: true }).click();
-  await expect(page.getByRole('heading', { name: 'Candidates', exact: true })).toBeVisible();
+  await expect(page.getByRole('heading', { name: 'Candidate 360°', exact: true })).toBeVisible();
   await expect(page.getByRole('region', { name: 'Your assigned student groups' })).toContainText('B.Tech · MECH · 2023-2027 · Class of 2027');
   await expect(page.getByText('Scoped Student')).toBeVisible();
   await expect(page.getByText('ME-2027-01 · student@example.edu')).toBeVisible();
@@ -1150,7 +1150,7 @@ test('drive UI shows scan-friendly ATS and skills and saves readiness and procto
   await expect(page.getByRole('row',{name:/Python Mandatory 3/})).toBeVisible();
   await page.getByRole('button',{name:'Departments',exact:true}).click();
   await expect(page.getByText('Department comparison',{exact:true})).toBeVisible();
-  await page.getByRole('button',{name:/Placement drives/}).click();
+  await page.getByRole('button',{name:'← Placement drives',exact:true}).click();
   await page.getByRole('navigation',{name:'Placement sections'}).getByRole('button',{name:'Settings',exact:true}).click();
   await page.getByLabel('Interview performance (%)').fill('80');
   await expect(page.getByLabel('Resume quality (%)')).toHaveValue('20');
@@ -1455,7 +1455,7 @@ test('deleting a cloud draft also removes its matching device copy', async ({pag
   await page.reload();
   await page.getByRole('button',{name:'Delete draft',exact:true}).click();
   await expect.poll(()=>page.evaluate(()=>localStorage.getItem('voicedots:placement-drive-draft:v2'))).toBeNull();
-  await page.locator('.feedback-dashboard').getByRole('button',{name:'Refresh',exact:true}).click();
+  await page.getByRole('button',{name:'Refresh',exact:true}).click();
   await expect(page.getByRole('heading',{name:'Cloud and device draft'})).toHaveCount(0);
 });
 
@@ -2017,10 +2017,10 @@ test('candidate filters do not refetch unchanged drive configuration', async ({p
   await page.reload();
   await expect.poll(()=>driveReads).toBeGreaterThan(0);
   const reads=driveReads;
-  const search=page.getByPlaceholder('Name, email or roll number').first();
+  const search=page.getByLabel('Search candidates');
   await expect(search).toBeVisible();
   const response=page.waitForResponse(r=>new URL(r.url()).pathname.endsWith('/dashboard/ranking')&&new URL(r.url()).searchParams.get('q')==='Asha');
-  await search.fill('Asha');await response;
+  await search.fill('Asha');await page.getByRole('button',{name:'Search',exact:true}).click();await response;
   expect(driveReads).toBe(reads);
 });
 
@@ -2069,7 +2069,7 @@ test('PRI category follows the index rather than the interview score category', 
   await page.reload();
   await expect(page.getByRole('heading',{name:'Index Candidate',exact:true})).toBeVisible();
   await expect(page.getByText('Ready',{exact:true})).toHaveCount(2);
-  await expect(page.getByText('Not Ready',{exact:true})).toHaveCount(0);
+  await expect(page.getByText('Not Ready',{exact:true})).toHaveCount(1); // Interview readiness remains independent of PRI.
   await expect(page.getByText('Interview in progress',{exact:true})).toHaveCount(0);
   await page.screenshot({path:'/root/voicedots/artifacts/interview-complete-audit-20261008/client-pri-report.png',fullPage:true});
 });
@@ -2093,8 +2093,8 @@ test('switching candidates ignores a delayed main report refresh', async ({page}
 });
 
 
-test('Interview results merges candidate details and attempt controls in cards and table, including legacy links', async ({page}) => {
-  await setup(page,true,{initialPath:'/dashboard/placement-management?drive=drive-1&section=candidates',driveDetails:{id:'drive-1',company_name:'Example',role_title:'Engineer',status:'active',max_attempts:3}});
+test('Interview results preserves candidate details and attempt controls in cards and table', async ({page}) => {
+  await setup(page,true,{initialPath:'/dashboard/placement-management?drive=drive-1&section=results',driveDetails:{id:'drive-1',company_name:'Example',role_title:'Engineer',status:'active',max_attempts:3}});
   const candidate={student_id:'merged-student',full_name:'Merged Candidate',roll_number:'CS-001',email:'merged@example.edu',program:'B.Tech',department_code:'CSE',cgpa:8.2,graduation_year:2027,assignment_status:'assigned',attempt_number:1,max_attempts:3,report_ready:false};
   const queries:string[]=[];
   await page.route('**/v3/college/drives/drive-1/dashboard/ranking**',route=>{queries.push(route.request().url());return route.fulfill({json:{candidates:[candidate],pagination:{total:1}}})});
@@ -2108,7 +2108,7 @@ test('Interview results merges candidate details and attempt controls in cards a
   expect(photoRequests.every(url=>new URL(url).searchParams.get('optional')==='true')).toBe(true);
   await expect(page.getByLabel('Merged Candidate initials')).toBeVisible();
   await expect(page).toHaveURL(/section=results/);
-  await expect(page.getByRole('button',{name:'Candidates',exact:true})).toHaveCount(0);
+  await expect(page.getByRole('navigation',{name:'Drive management sections'}).getByRole('button',{name:'Candidates',exact:true})).toBeVisible();
   await expect(page.getByRole('heading',{name:'Interview results',exact:true})).toBeVisible();
   await expect(page.getByText('merged@example.edu',{exact:true})).toBeVisible();
   await page.getByRole('button',{name:'Candidate details',exact:true}).click();
