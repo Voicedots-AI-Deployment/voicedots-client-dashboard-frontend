@@ -692,11 +692,15 @@ test('save draft persists partial fields and remains resumable', async ({page})=
 test('save draft and continue waits for an active auto-save before advancing',async({page})=>{
   await setup(page);
   const savedSteps:number[]=[];
+  // Request lifecycle, so overlap between saves is detectable.
+  const log:string[]=[];
   await page.route('**/v3/college/drive-drafts**',async route=>{
     if(route.request().method()==='GET')return route.fulfill({json:[]});
     if(!['POST','PUT'].includes(route.request().method()))return route.fallback();
     const body=route.request().postDataJSON();savedSteps.push(body.step);
-    if(savedSteps.length===1)await new Promise(resolve=>setTimeout(resolve,1500));
+    const number=savedSteps.length;log.push(`start:${body.step}`);
+    if(number===1)await new Promise(resolve=>setTimeout(resolve,1500));
+    log.push(`end:${body.step}`);
     return route.fulfill({json:{id:'draft-wait',client_draft_key:body.client_draft_key||'drive-draft-key',step:body.step,payload:body.payload,updated_at:new Date().toISOString()}});
   });
   await page.getByRole('button',{name:'Create drive',exact:true}).click();
@@ -709,7 +713,15 @@ test('save draft and continue waits for an active auto-save before advancing',as
   await expect(continueButton).toBeEnabled();
   await continueButton.click();
   await expect(page.getByText('STEP 2 OF 6')).toBeVisible();
-  expect(savedSteps).toEqual([0,1]);
+  // A field typed while the slow first save was in flight may add one more
+  // step-0 save on a loaded machine; what must always hold is that the single
+  // step-1 save is last, and starts only after every earlier save finished.
+  expect(savedSteps.at(-1)).toBe(1);
+  expect(savedSteps.filter(step=>step===1)).toHaveLength(1);
+  expect(savedSteps.slice(0,-1).every(step=>step===0)).toBe(true);
+  expect(log.at(-2)).toBe('start:1');
+  expect(log.slice(0,-2).filter(entry=>entry.startsWith('start')).length).toBe(log.slice(0,-2).filter(entry=>entry.startsWith('end')).length);
+  expect(log.indexOf('start:1')).toBeGreaterThan(log.indexOf('end:0'));
 });
 
 test('stale cloud draft ID is recovered without a missing-resource request and appears in the draft list',async({page})=>{
