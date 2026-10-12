@@ -18,3 +18,5 @@
 .client-assessment-scorecard .scorecard-profile{grid-template-columns:repeat(3,minmax(0,1fr))}.client-assessment-scorecard .scorecard-identity{grid-column:1/-1}.client-assessment-scorecard .button{border:1px solid #dce4ee;border-radius:10px;padding:10px 14px;color:#245f91;cursor:pointer;font-weight:600}.client-assessment-scorecard .scorecard-dashboard{grid-template-columns:minmax(0,1fr)}.client-assessment-scorecard .scorecard-sidebar{grid-template-columns:repeat(2,minmax(0,1fr))}.client-assessment-scorecard .scorecard-satisfaction{grid-column:1/-1}@media(max-width:600px){.client-assessment-scorecard .scorecard-sidebar{grid-template-columns:1fr}}
 
 .client-assessment-scorecard .scorecard-candidate-name{display:block;font-size:23px;margin:0 0 6px}
+
+.recording-score-charts{margin:18px 0}.recording-score-charts .scorecard-chart-grid{grid-template-columns:repeat(2,minmax(0,1fr))}.recording-score-charts .scorecard-card{padding:18px}.recording-score-charts .scorecard-ring{max-width:180px}.recording-score-charts .scorecard-breakdown-chart{width:150px}@media(max-width:600px){.recording-score-charts .scorecard-chart-grid{grid-template-columns:1fr}}

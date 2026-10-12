@@ -16,7 +16,7 @@ import { btn } from "./interviewAgentTypes";
 import { displayName } from "./placementDisplay";
 import { roleLabels } from "./interviewAgentTypes";
 
-import { CandidateScorecard } from "./CandidateScorecard";
+import { CandidateScorecard, CandidateScoreCharts } from "./CandidateScorecard";
 
 type Data = Record<string, unknown>;
 type Report = Data & {
@@ -723,6 +723,7 @@ export default function CandidateReport({
                   {videoReady && <button type="button" disabled={!videoReady} title={videoReady ? (isPlaying ? "Pause interview video" : "Play interview video") : "Video unavailable for this candidate"} aria-label={videoReady ? (isPlaying ? "Pause interview video" : "Play interview video") : "Video unavailable for this candidate"} className={`absolute inset-0 m-auto grid h-14 w-14 place-items-center rounded-full bg-white/90 text-xl text-slate-900 shadow transition disabled:cursor-not-allowed disabled:opacity-60 ${isPlaying ? "pointer-events-none opacity-0" : "hover:bg-white"}`} onClick={() => { if (!videoRef.current) return; if (videoRef.current.paused) void videoRef.current.play(); else videoRef.current.pause(); }}>{isPlaying ? "Ⅱ" : "▶"}</button>}
                   {videoReady && <span className="absolute left-3 top-3 rounded-md bg-black/60 px-2 py-1 text-[10px] font-semibold">Interview recording</span>}
                 </div>
+                <CandidateScoreCharts points={typeof report.overall_score==='number'?report.overall_score:typeof detail.overall_score==='number'?detail.overall_score:null} readiness={report.readiness || (typeof detail.readiness_status_label==='string'?detail.readiness_status_label:undefined)} breakdown={Object.fromEntries(dimensions.map((item,index)=>[String(item.dimension || item.label || `Competency ${index+1}`),typeof item.percentage==='number'?item.percentage:null]))}/>
                 {recordingError && <p role="alert" className="mt-2 text-xs text-rose-700">Recording error: {recordingError}<button className="ml-2 underline" onClick={() => void loadRecording()}>Retry</button></p>}
                 {!videoReady && report.recording?.status === "ready" && <button type="button" className={`${btn} mt-2`} disabled={recordingLoading} onClick={() => { setRecordingError(""); void loadRecording(); }}>{recordingLoading ? "Loading recording…" : "Retry secure recording"}</button>}
                 <div className="no-print mt-3 flex flex-wrap items-center gap-2">
@@ -750,6 +751,7 @@ export default function CandidateReport({
               </div>
             </div>
             </>}
+            {!videoReady && <CandidateScoreCharts points={typeof report.overall_score==='number'?report.overall_score:typeof detail.overall_score==='number'?detail.overall_score:null} readiness={report.readiness || (typeof detail.readiness_status_label==='string'?detail.readiness_status_label:undefined)} breakdown={Object.fromEntries(dimensions.map((item,index)=>[String(item.dimension || item.label || `Competency ${index+1}`),typeof item.percentage==='number'?item.percentage:null]))}/>}
           </section>
 
           <CandidateScorecard view={{

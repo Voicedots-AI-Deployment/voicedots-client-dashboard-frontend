@@ -2038,12 +2038,18 @@ for (const withFeedback of [true,false]) test(`client full report CEO scorecard 
   await page.route('**/v3/college/students/s1/reports/session-1/recording',route=>route.fulfill({json:{status:'ready',playback_url:'https://media.example/scorecard.webm',duration_seconds:2,segment_count:1,started_at:'2026-10-11T11:42:00Z'}}));
   await page.route('https://media.example/scorecard.webm',route=>route.fulfill({contentType:'video/webm',body:readFileSync('tests/fixtures/interview-test.webm')}));
   await page.goto('/dashboard/placement-management?drive=drive-1&section=results&candidate=s1');
-  const card=page.locator('.client-assessment-scorecard');
+  const card=page.getByRole('region',{name:'Candidate assessment scorecard',exact:true});
   await expect(card.getByRole('heading',{name:'Candidate Assessment Scorecard'})).toBeVisible();
   await expect(card.getByLabel('Candidate competency score')).toHaveAttribute('value','78');
   await expect(card.locator('.scorecard-competencies tbody tr')).toHaveCount(3);
   await expect(card.locator('.scorecard-satisfaction')).toContainText(withFeedback?'88/100':'Not collected');
   await expect(card.locator('form')).toHaveCount(0);
+  const charts=page.getByLabel('Interview score charts',{exact:true});
+  await expect(charts.getByRole('heading',{name:'AI interview score',exact:true})).toBeVisible();
+  await expect(charts.getByRole('heading',{name:'AI score breakdown',exact:true})).toBeVisible();
+  await expect(page.locator('.recording-score-charts')).toHaveCount(1);
+  expect(await charts.evaluate(el=>!!el.previousElementSibling?.querySelector('video'))).toBe(true);
+  expect(await page.locator('#recording').evaluate(el=>el.contains(document.querySelector('.recording-score-charts')))).toBe(true);
   expect(await page.locator('#recording').evaluate(el=>!!(el.compareDocumentPosition(document.querySelector('.client-assessment-scorecard')!)&Node.DOCUMENT_POSITION_FOLLOWING))).toBe(true);
   await card.getByRole('button',{name:'Review answers',exact:true}).click();
   await expect(page.getByRole('tabpanel',{name:'Answers',exact:true})).toBeVisible();
@@ -2055,5 +2061,5 @@ for (const withFeedback of [true,false]) test(`client full report CEO scorecard 
   const video=page.getByLabel('Interview recording',{exact:true});await video.evaluate(el=>(el as HTMLVideoElement).play());
   await expect.poll(()=>video.evaluate(el=>(el as HTMLVideoElement).currentTime)).toBeGreaterThan(0);
   await video.evaluate(el=>(el as HTMLVideoElement).pause());
-  if(withFeedback){const out='/root/voicedots/releases/client-interview-scorecard-20261012';mkdirSync(out,{recursive:true});await page.evaluate(()=>window.scrollTo(0,0));await page.screenshot({path:out+'/full-report-desktop.png',fullPage:true});await card.screenshot({path:out+'/scorecard.png',style:'header.sticky{visibility:hidden}'});await page.setViewportSize({width:390,height:844});await expect.poll(()=>page.evaluate(()=>document.documentElement.scrollWidth)).toBe(390);await page.evaluate(()=>window.scrollTo(0,0));await page.screenshot({path:out+'/full-report-mobile.png',fullPage:true});}
+  if(withFeedback){const out='/root/voicedots/releases/client-interview-scorecard-20261012';mkdirSync(out,{recursive:true});await page.evaluate(()=>window.scrollTo(0,0));await page.screenshot({path:out+'/full-report-desktop.png',fullPage:true});await charts.screenshot({path:out+'/donut-charts.png',style:'header.sticky{visibility:hidden}'});await card.screenshot({path:out+'/scorecard.png',style:'header.sticky{visibility:hidden}'});await page.setViewportSize({width:390,height:844});await expect.poll(()=>page.evaluate(()=>document.documentElement.scrollWidth)).toBe(390);await page.evaluate(()=>window.scrollTo(0,0));await page.screenshot({path:out+'/full-report-mobile.png',fullPage:true});}
 });
