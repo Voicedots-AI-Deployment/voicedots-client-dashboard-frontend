@@ -19,6 +19,7 @@ async function setup(page: Page, enabled = true, options: { notFound?: string[];
       '/v3/college/agents': {agents:[],tracks:['hr','domain','industry','manager'].map((track,i)=>({track,default_profile:{track,name:['Priya','Arjun','Neha','Vikram'][i],role:['Talent Acquisition Specialist','Senior Domain Specialist','Practical Interviewer','Hiring Manager'][i],intro_message:'Hello {name}',personality_prompt:'Interview for {role}',tone:'professional',voice_id:'flux-priya-en'}}))},
       '/v3/college/drives': options.driveRows ?? [{ id: 'drive-1', company_name: 'Example Company', role_title: 'Software Engineer', status: 'draft', location: 'Chennai' }],
       '/v3/college/drives/drive-1': options.driveDetails ?? {},
+      '/v3/college/drives/drive-1/feedback-report': {questions:[],summary:[],by_year:[],by_department:[],by_student:[],items:[]},
       '/v3/college/students': { items: [], total: 0 },
       '/v3/college/attendance/setup': { classes: [], students: [], staff: [] },
       '/v3/college/academic-catalog': options.academicCatalog ?? { programs: [{ code: 'B.Tech', display_name: 'Bachelor of Technology', duration_years: 4, departments: [{ code: 'CSE', display_name: 'Computer Science' },{ code: 'IT', display_name: 'Information Technology' }] }], graduation_years:[2027,2028] },
@@ -691,12 +692,20 @@ test('save draft persists partial fields and remains resumable', async ({page})=
 
 test('save draft and continue waits for an active auto-save before advancing',async({page})=>{
   await setup(page);
-  const savedSteps:number[]=[];
+  // Request lifecycle: lets us prove saves never overlap and that the wizard
+  // had not advanced while the slow first save was still in flight.
+  const log:string[]=[];
+  let advancedBeforeFirstSaveEnded:boolean|null=null;
+  let requests=0;
   await page.route('**/v3/college/drive-drafts**',async route=>{
     if(route.request().method()==='GET')return route.fulfill({json:[]});
     if(!['POST','PUT'].includes(route.request().method()))return route.fallback();
-    const body=route.request().postDataJSON();savedSteps.push(body.step);
-    if(savedSteps.length===1)await new Promise(resolve=>setTimeout(resolve,1500));
+    const body=route.request().postDataJSON();const number=++requests;log.push(`start:${body.step}`);
+    if(number===1){
+      await new Promise(resolve=>setTimeout(resolve,1500));
+      advancedBeforeFirstSaveEnded=await page.getByText('STEP 2 OF 6').isVisible();
+    }
+    log.push(`end:${body.step}`);
     return route.fulfill({json:{id:'draft-wait',client_draft_key:body.client_draft_key||'drive-draft-key',step:body.step,payload:body.payload,updated_at:new Date().toISOString()}});
   });
   await page.getByRole('button',{name:'Create drive',exact:true}).click();
@@ -709,7 +718,13 @@ test('save draft and continue waits for an active auto-save before advancing',as
   await expect(continueButton).toBeEnabled();
   await continueButton.click();
   await expect(page.getByText('STEP 2 OF 6')).toBeVisible();
-  expect(savedSteps).toEqual([0,1]);
+  // The wizard must not have advanced while the first save was still in flight.
+  expect(advancedBeforeFirstSaveEnded).toBe(false);
+  // Saves never overlap: every request ends before the next one starts.
+  expect(log.filter((_,index)=>index%2===0).every(entry=>entry.startsWith('start'))).toBe(true);
+  expect(log.filter((_,index)=>index%2===1).every(entry=>entry.startsWith('end'))).toBe(true);
+  // The manual save for the next step (step index 1) reached the server.
+  expect(log).toContain('start:1');
 });
 
 test('stale cloud draft ID is recovered without a missing-resource request and appears in the draft list',async({page})=>{
@@ -1008,6 +1023,34 @@ test('agents follow academic setup and defaults cannot be edited', async ({ page
   await page.getByRole('button', {name:'Save interview role'}).click();
   await expect(page.getByRole('button', {name:'Save interview role'})).toHaveCount(0);
   expect(saved.role).toBe('Product interviewer'); expect(saved.intro_message).toContain('{company}');
+});
+
+test('a new interview role can generate a system prompt for its role and round type', async ({ page }) => {
+  await setup(page);
+  await page.getByRole('button', { name: 'Interview Agents', exact: true }).click();
+  await page.getByRole('button', { name: 'Create interview role', exact: true }).click();
+  await page.getByRole('button', { name: 'Generate system prompt' }).click();
+  await expect(page.getByRole('alert')).toContainText('Enter the role');
+  let request: Record<string, unknown> = {}, saved: Record<string, unknown> = {};
+  await page.route('**/v3/college/agents/generate-prompt', route => {
+    request = route.request().postDataJSON();
+    return route.fulfill({ json: { personality_prompt: 'You are the practical interviewer for {role}. Ask one question at a time.', intro_message: 'Hello {name}, welcome to the {role} round.', source: 'ai' } });
+  });
+  await page.route('**/v3/college/agents', route => {
+    if (route.request().method() !== 'POST') return route.fallback();
+    saved = route.request().postDataJSON(); return route.fulfill({ json: { id: 'custom-2', ...saved } });
+  });
+  await page.getByLabel('Role', { exact: true }).fill('Credit Analyst');
+  await page.getByLabel('Round type').selectOption('industry');
+  await page.getByLabel(/What should this interviewer focus on/).fill('Retail lending');
+  await page.getByRole('button', { name: 'Generate system prompt' }).click();
+  await expect(page.getByLabel('Interview instructions')).toHaveValue(/practical interviewer for \{role\}/);
+  await expect(page.getByLabel('Opening message')).toHaveValue('Hello {name}, welcome to the {role} round.');
+  await expect(page.getByText('Review and edit it before saving.')).toBeVisible();
+  expect(request).toEqual({ track: 'industry', role: 'Credit Analyst', notes: 'Retail lending' });
+  await page.getByRole('button', { name: 'Save interview role' }).click();
+  await expect.poll(() => saved.track).toBe('industry');
+  expect(saved.personality_prompt).toContain('one question at a time');
 });
 
 test('single selected round saves manual questions in the drive', async ({ page }) => {
@@ -1708,11 +1751,16 @@ test('row based interview results show concise evidence and persist candidate de
 
 test('draft continue locks navigation until cloud save finishes and preserves edits made during saving', async ({page}) => {
   await setup(page);
-  let release:(()=>void)|undefined;
+  const saveTime=new Date('2030-01-01T00:00:01Z');
+  await page.clock.install({time:new Date(saveTime.getTime()-1000)});await page.clock.pauseAt(saveTime);
+  let release:(()=>void)|undefined,releaseLatest:(()=>void)|undefined;
+  const cloudSaves:Array<{step:number;payload:{form:{company_name:string}}}>=[];
   await page.route('**/v3/college/drive-drafts**',async route=>{
     if(route.request().method()==='GET')return route.fulfill({json:[]});
     const body=route.request().postDataJSON();
-    await new Promise<void>(resolve=>{release=resolve;});
+    cloudSaves.push(body);
+    if(cloudSaves.length===1)await new Promise<void>(resolve=>{release=resolve;});
+    if(cloudSaves.length===2)await new Promise<void>(resolve=>{releaseLatest=resolve;});
     return route.fulfill({json:{id:'audit-draft',payload:body.payload,step:body.step}});
   });
   await page.getByRole('button',{name:'Create drive',exact:true}).click();
@@ -1722,9 +1770,63 @@ test('draft continue locks navigation until cloud save finishes and preserves ed
   await expect(saving).toBeDisabled();await expect(page.getByRole('button',{name:'Back',exact:true})).toBeDisabled();
   await page.getByLabel('Company name').fill('Updated Audit Employer');
   await expect.poll(()=>!!release).toBe(true);release!();
+  await expect.poll(()=>!!releaseLatest).toBe(true);
+  await expect(page.getByText('STEP 1 OF 6')).toBeVisible();await expect(saving).toBeDisabled();
+  releaseLatest!();
   await expect(page.getByText('STEP 2 OF 6')).toBeVisible();
+  expect(cloudSaves.at(-1)?.payload.form.company_name).toBe('Updated Audit Employer');
+  expect(cloudSaves.at(-1)?.step).toBe(1);
   const local=await page.evaluate(()=>JSON.parse(localStorage.getItem('voicedots:placement-drive-draft:v2')||'{}'));
   expect(local.payload.form.company_name).toBe('Updated Audit Employer');expect(local.payload.step).toBe(1);
+});
+
+test('draft continue revalidates required fields edited while cloud saving before advancing', async ({page}) => {
+  await setup(page);
+  const saveTime=new Date('2030-01-01T00:00:01Z');
+  await page.clock.install({time:new Date(saveTime.getTime()-1000)});await page.clock.pauseAt(saveTime);
+  let release:(()=>void)|undefined;
+  const cloudSaves:Array<{step:number;payload:{form:{company_name:string}}}>=[];
+  await page.route('**/v3/college/drive-drafts**',async route=>{
+    if(route.request().method()==='GET')return route.fulfill({json:[]});
+    const body=route.request().postDataJSON();cloudSaves.push(body);
+    if(cloudSaves.length===1)await new Promise<void>(resolve=>{release=resolve;});
+    return route.fulfill({json:{id:'revalidated-draft',payload:body.payload,step:body.step}});
+  });
+  await page.getByRole('button',{name:'Create drive',exact:true}).click();
+  await page.getByLabel('Company name').fill('Initial Employer');await page.locator('#role_title').fill('Engineer');await page.getByLabel('Location').fill('Remote');await page.getByLabel('Job description').fill('Build backend services.');
+  await page.getByRole('button',{name:'Save draft & continue'}).click();
+  await expect.poll(()=>!!release).toBe(true);await page.getByLabel('Company name').fill('');release!();
+  await expect(page.getByText('Company name is required.',{exact:true})).toBeVisible();
+  await expect(page.getByText('STEP 1 OF 6')).toBeVisible();await expect(page.getByLabel('Company name')).toHaveValue('');
+  await expect(page.getByRole('button',{name:'Save draft & continue'})).toBeEnabled();
+  expect(cloudSaves.at(-1)?.payload.form.company_name).toBe('');expect(cloudSaves.at(-1)?.step).toBe(0);
+  const local=await page.evaluate(()=>JSON.parse(localStorage.getItem('voicedots:placement-drive-draft:v2')||'{}'));
+  expect(local.payload.step).toBe(0);expect(local.payload.form.company_name).toBe('');
+  await page.getByLabel('Company name').fill('Corrected Employer');await page.getByRole('button',{name:'Save draft & continue'}).click();await expect(page.getByText('STEP 2 OF 6')).toBeVisible();
+  expect(cloudSaves.at(-1)?.payload.form.company_name).toBe('Corrected Employer');expect(cloudSaves.at(-1)?.step).toBe(1);
+});
+
+test('failed save of edits made during draft continue stays on the same step and retries the latest payload', async ({page}) => {
+  await setup(page);
+  const saveTime=new Date('2030-01-01T00:00:01Z');
+  await page.clock.install({time:new Date(saveTime.getTime()-1000)});await page.clock.pauseAt(saveTime);
+  let release:(()=>void)|undefined;
+  const cloudSaves:Array<{step:number;payload:{form:{company_name:string}}}>=[];
+  await page.route('**/v3/college/drive-drafts**',async route=>{
+    if(route.request().method()==='GET')return route.fulfill({json:[]});
+    const body=route.request().postDataJSON();cloudSaves.push(body);
+    if(cloudSaves.length===1)await new Promise<void>(resolve=>{release=resolve;});
+    if(cloudSaves.length===2)return route.fulfill({status:503,json:{detail:'Latest draft save unavailable'}});
+    return route.fulfill({json:{id:'retry-edited-draft',payload:body.payload,step:body.step}});
+  });
+  await page.getByRole('button',{name:'Create drive',exact:true}).click();
+  await page.getByLabel('Company name').fill('First Employer');await page.locator('#role_title').fill('Engineer');await page.getByLabel('Location').fill('Remote');await page.getByLabel('Job description').fill('Build backend services.');
+  await page.getByRole('button',{name:'Save draft & continue'}).click();
+  await expect.poll(()=>!!release).toBe(true);await page.getByLabel('Company name').fill('Latest Employer');release!();
+  await expect(page.getByText(/cloud save failed/)).toBeVisible();await expect(page.getByText('STEP 1 OF 6')).toBeVisible();await expect(page.getByLabel('Company name')).toHaveValue('Latest Employer');
+  expect(cloudSaves.at(-1)?.payload.form.company_name).toBe('Latest Employer');
+  await page.getByRole('button',{name:'Save draft & continue'}).click();await expect(page.getByText('STEP 2 OF 6')).toBeVisible();
+  expect(cloudSaves).toHaveLength(3);expect(cloudSaves.at(-1)?.payload.form.company_name).toBe('Latest Employer');expect(cloudSaves.at(-1)?.step).toBe(1);
 });
 
 test('failed draft continue stays on the same step and supports retry without losing input', async ({page}) => {
@@ -1999,7 +2101,12 @@ test('Interview results merges candidate details and attempt controls in cards a
   await page.route('**/v3/college/drives/drive-1/candidates/merged-student/attempts',route=>route.fulfill({json:{attempts:[{attempt_number:1,status:'assigned'}]}}));
   let savedAttempts=0;
   await page.route('**/v3/college/drives/drive-1/candidates/merged-student/attempt-limit',route=>{savedAttempts=route.request().postDataJSON().max_attempts;return route.fulfill({json:{status:'updated'}})});
+  const photoRequests:string[]=[];
+  await page.route('**/v3/college/attendance/photos/students/merged-student**',route=>{photoRequests.push(route.request().url());return route.fulfill({json:{photo:null}})});
   await page.reload();
+  await expect.poll(()=>photoRequests.length).toBeGreaterThan(0);
+  expect(photoRequests.every(url=>new URL(url).searchParams.get('optional')==='true')).toBe(true);
+  await expect(page.getByLabel('Merged Candidate initials')).toBeVisible();
   await expect(page).toHaveURL(/section=results/);
   await expect(page.getByRole('button',{name:'Candidates',exact:true})).toHaveCount(0);
   await expect(page.getByRole('heading',{name:'Interview results',exact:true})).toBeVisible();
@@ -2122,7 +2229,7 @@ test('feedback dashboard uses saved data, filters, details and exports',async({p
  const downloaded=page.waitForEvent('download');await page.getByRole('button',{name:'Export report'}).click();
  expect((await downloaded).suggestedFilename()).toBe('voicedots-feedback.csv');
 });
-test('feedback sidebar collapses and dashboard is intentionally empty',async({page})=>{
+test('feedback sidebar collapses and opens the placement command center',async({page})=>{
  await feedbackSetup(page);
  const before=(await page.locator('.feedback-dashboard').boundingBox())!.width;
  await page.getByRole('button',{name:'Collapse sidebar',exact:true}).click();
@@ -2155,4 +2262,58 @@ test('feedback empty and failure states never show invented scores',async({page}
  await page.getByRole('button',{name:'Retry',exact:true}).click();
  await expect(page.getByText('No completed interviews match these filters.')).toBeVisible();
  await expect(page.locator('.feedback-recommendation')).toContainText('Not collected');
+});
+
+test('drive feedback uses the unified six-question engine without duplicate legacy panels',async({page})=>{
+ const queries=await feedbackSetup(page,'/dashboard/placement-management?drive=drive-1&section=feedback');
+ await expect(page.getByRole('heading',{name:'Feedback Dashboard'})).toBeVisible();
+ expect(queries.some(q=>new URL(q).searchParams.get('drive_id')==='drive-1')).toBe(true);
+ await expect(page.getByRole('heading',{name:'Individual responses'})).toHaveCount(0);
+ await expect(page.locator('.feedback-dashboard')).toHaveCount(1);
+});
+
+const generalBbaCatalog = { programs: [
+  {code:'BBA',display_name:'Bachelor of Business Administration',duration_years:3,departments:[{code:'BBA',display_name:'Business Administration'}]},
+  {code:'B.Tech',display_name:'Bachelor of Technology',duration_years:4,departments:[{code:'CSE',display_name:'Computer Science'}]},
+],graduation_years:[2027,2028]};
+
+test('BBA program does not repeat as an eligible department when creating a drive', async ({page})=>{
+  await setup(page,true,{initialPath:'/dashboard/placement-management',academicCatalog:generalBbaCatalog});
+  let preview:Record<string,unknown>|undefined;
+  await page.route('**/v3/college/drives/eligibility/preview',route=>{preview=route.request().postDataJSON();return route.fulfill({json:{total_students:1,eligible_count:1,not_eligible_count:0,missing_photo_count:0,candidates:[]}})});
+  await page.getByRole('button',{name:'Create drive',exact:true}).click();
+  await page.getByLabel('Company name').fill('Campus Employer');
+  await page.locator('#role_title').fill('Business Analyst');
+  await page.getByLabel('Location').fill('Chennai');
+  await page.getByLabel('Job description').fill('Analyze business requirements and document solutions.');
+  await page.getByRole('button',{name:'Continue'}).click();
+  await page.getByRole('button',{name:'2. Interview setup'}).click();
+  await page.getByLabel('Interview starts date').fill('2027-01-10');
+  await page.getByLabel('Interview ends date').fill('2027-01-11');
+  await page.getByRole('button',{name:'4. Questions'}).click();
+  await page.getByRole('button',{name:'5. Eligibility'}).click();
+  await page.locator('fieldset[aria-label="Eligible programs"]').getByRole('checkbox',{name:/BBA/}).check();
+  const departments=page.locator('fieldset[aria-label="Eligible departments"]');
+  await expect(departments.getByRole('checkbox')).toHaveCount(0);
+  await expect(departments).toContainText('Optional');
+  await page.locator('#graduation_from').selectOption('2027');
+  await page.locator('#graduation_to').selectOption('2027');
+  await expect.poll(()=>preview?.eligible_programs).toEqual(['BBA']);
+  await expect.poll(()=>preview?.eligible_departments).toEqual([]);
+  await page.locator('fieldset[aria-label="Eligible programs"]').getByRole('checkbox',{name:/B.Tech/}).check();
+  await departments.getByRole('checkbox',{name:/CSE/}).check();
+  await expect(departments.getByRole('checkbox')).toHaveCount(1);
+  await expect.poll(()=>preview?.eligible_departments).toEqual(['CSE']);
+});
+
+test('editing legacy BBA drive removes redundant department criterion without changing program', async ({page})=>{
+  await setup(page,true,{initialPath:'/dashboard/placement-management?drive=drive-1&section=settings',academicCatalog:generalBbaCatalog,driveDetails:{id:'drive-1',company_name:'Example Company',role_title:'Analyst',status:'draft',criteria_programs:['BBA'],criteria_department_codes:['BBA'],criteria_graduation_years:[2027]}});
+  let saved:Record<string,unknown>|undefined;
+  await page.route('**/v3/college/drives/drive-1',route=>{if(route.request().method()==='PUT'){saved=route.request().postDataJSON();return route.fulfill({json:{status:'updated',warnings:[]}})}return route.fallback()});
+  const eligibility=page.locator('article').filter({has:page.getByRole('heading',{name:'Eligibility',exact:true})});
+  await eligibility.getByRole('button',{name:'Modify section'}).click();
+  await expect(page.getByRole('group',{name:'Departments options'}).getByRole('checkbox')).toHaveCount(0);
+  await page.getByRole('button',{name:'Save this section'}).click();
+  await expect.poll(()=>saved?.eligible_programs).toEqual(['BBA']);
+  expect(saved?.eligible_departments).toEqual([]);
 });

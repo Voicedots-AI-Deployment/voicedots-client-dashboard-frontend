@@ -1,8 +1,11 @@
+import PlacementDashboard from "./PlacementDashboard";
+import CandidateDirectory from "./CandidateDirectory";
 import { useEffect, useRef, useState } from "react";
 import { useSearchParams } from "react-router-dom";
 import { ExternalLink, Download, Users, CheckCircle2, CircleDashed, Clock, UserCheck, Send } from "lucide-react";
 import {
   collegeApi,
+  eligibilityDepartments,
   collegeError,
   collegeFieldErrors,
   type Drive,
@@ -23,6 +26,7 @@ import FeedbackDashboard from "./FeedbackDashboard";
 import CandidateReport from "./CandidateReport";
 import ResultCohortBuilder, {type ResultFilterOptions,type ResultRule} from "./ResultCohortBuilder";
 import DriveQuestionBank from "./DriveQuestionBank";
+
 import CreateDriveWizard from "./CreateDriveWizard";
 
 type Data = Record<string, unknown>;
@@ -194,6 +198,8 @@ function CandidateOfficerActions({ driveId, candidate, onSaved }: { driveId: str
 }
 const sections = {
   overview: "Overview",
+  candidates: "Candidates",
+  intelligence: "Analytics",
   ats: "ATS fit",
   results: "Interview results",
   feedback: "Feedback",
@@ -205,6 +211,8 @@ const sections = {
 type Tab = keyof typeof sections;
 const paths: Record<Tab, string> = {
   overview: "dashboard/overview",
+  candidates: "dashboard/ranking",
+  intelligence: "dashboard/overview",
   ats: "dashboard/ats-fit",
   results: "dashboard/ranking",
   feedback: "dashboard/overview",
@@ -260,7 +268,7 @@ function InterviewStatusBadge({ value }: { value?: string | null }) {
 function settingLabel(value: string) { return displayName(value.replace(/_/g, " ")); }
 function questionSourceLabel(value: string) { return value === "ai_generated" ? "AI Generated" : value === "manual" ? "Manual Questions" : "Personalized AI"; }
 function interviewerRole(drive: Drive | null | undefined, track: string) { return drive?.agent_selection?.find(item => item.track === track)?.profile?.role || roleLabels[track] || "Interviewer role not configured"; }
-function StudentAvatar({ student, size = "h-10 w-10" }: { student: Candidate; size?: string }) { const [photo, setPhoto] = useState(""); const initials=String(student.full_name||"?").trim().split(/\s+/).slice(0,2).map(part=>part[0]||"").join("").toUpperCase(); useEffect(()=>{let active=true;collegeApi.get<{photo?:string}>(`attendance/photos/students/${student.student_id}`).then(result=>{if(active)setPhoto(result.photo||"")}).catch(()=>{if(active)setPhoto("")});return()=>{active=false}},[student.student_id]);return photo?<img src={photo} alt={`${student.full_name} profile`} className={`${size} shrink-0 rounded-full object-cover`}/>:<span aria-label={`${student.full_name} initials`} className={`${size} inline-flex shrink-0 items-center justify-center rounded-full bg-violet-100 text-xs font-bold text-violet-800`}>{initials}</span>; }
+function StudentAvatar({ student, size = "h-10 w-10" }: { student: Candidate; size?: string }) { const [photo, setPhoto] = useState(""); const initials=String(student.full_name||"?").trim().split(/\s+/).slice(0,2).map(part=>part[0]||"").join("").toUpperCase(); useEffect(()=>{let active=true;collegeApi.get<{photo?:string}>(`attendance/photos/students/${student.student_id}?optional=true`).then(result=>{if(active)setPhoto(result.photo||"")}).catch(()=>{if(active)setPhoto("")});return()=>{active=false}},[student.student_id]);return photo?<img src={photo} alt={`${student.full_name} profile`} className={`${size} shrink-0 rounded-full object-cover`}/>:<span aria-label={`${student.full_name} initials`} className={`${size} inline-flex shrink-0 items-center justify-center rounded-full bg-violet-100 text-xs font-bold text-violet-800`}>{initials}</span>; }
 
 function candidateInterviewStatus(candidate: Candidate): string {
   if (candidate.live_session_status === 'candidate_ended') return candidate.live_session_termination_source === 'proctor' ? 'proctor_terminated' : 'ended_early';
@@ -928,13 +936,14 @@ function DriveSettings({
     .split(",").map((value) => value.trim()).filter(Boolean);
   const departments = catalogPrograms
     .filter((program) => selectedPrograms.includes(program.code))
-    .flatMap((program) => program.departments)
+    .flatMap(eligibilityDepartments)
     .filter((department, index, all) => all.findIndex((item) => item.code === department.code) === index);
+  const selectedDepartmentCodes = String(form.eligible_departments || "").split(",").map(code=>code.trim()).filter(code=>code && !catalogPrograms.some(program=>selectedPrograms.includes(program.code)&&!eligibilityDepartments(program).length&&program.code.trim().toLowerCase()===code.toLowerCase()));
   const updateEligibilityCodes = (key: "eligible_programs" | "eligible_departments", values: string[]) =>
     setForm((value) => ({ ...value, [key]: values.join(", ") }));
   const updateEligiblePrograms = (values: string[]) => setForm((value) => {
     const selectedDepartments = String(value.eligible_departments || "").split(",").map((code) => code.trim()).filter(Boolean);
-    const availableDepartments = new Set(catalogPrograms.filter((program) => values.includes(program.code)).flatMap((program) => program.departments.map((department) => department.code)));
+    const availableDepartments = new Set(catalogPrograms.filter((program) => values.includes(program.code)).flatMap((program) => eligibilityDepartments(program).map((department) => department.code)));
     return {
       ...value,
       eligible_programs: values.join(", "),
@@ -1089,10 +1098,7 @@ function DriveSettings({
           .split(",")
           .map((v) => v.trim())
           .filter(Boolean),
-        eligible_departments: String(form.eligible_departments || "")
-          .split(",")
-          .map((v) => v.trim())
-          .filter(Boolean),
+        eligible_departments: selectedDepartmentCodes,
         eligible_graduation_years: String(form.eligible_graduation_years || "")
           .split(",")
           .map((v) => Number(v.trim()))
@@ -1315,9 +1321,9 @@ function DriveSettings({
         <EligibilityCheckboxPicker
           label="Departments"
           options={departments}
-          selected={String(form.eligible_departments || "").split(",").map((value) => value.trim()).filter(Boolean)}
+          selected={selectedDepartmentCodes}
           onChange={(values) => updateEligibilityCodes("eligible_departments", values)}
-          emptyMessage={selectedPrograms.length ? "No departments are configured for the selected programs." : "Select a program first."}
+          emptyMessage={selectedPrograms.length ? "No separate department selection is needed for these programs." : "Select a program first."}
         />
         {input(
           "eligible_graduation_years",
@@ -1632,17 +1638,12 @@ export default function DriveManagement({
 }) {
   const [params, setParams] = useSearchParams();
   const reportStudentId = params.get("candidate");
-  const requestedSection = params.get("section") === "candidates" ? "results" : params.get("section");
+  const requestedSection = params.get("section");
   const tab = (
     (requestedSection || "") in sections
       ? requestedSection
       : "overview"
   ) as Tab;
-  useEffect(() => {
-    if (params.get("section") === "candidates") setParams(current => {
-      current.set("section", "results"); return current;
-    }, { replace: true });
-  }, [params, setParams]);
   const [drive, setDrive] = useState<Drive | null>(null),
     [data, setData] = useState<Data | null>(null),
     [detail, setDetail] = useState<unknown>(null);
@@ -1774,7 +1775,7 @@ export default function DriveManagement({
       if(excludeReviewRequired) query.set("exclude_review_required","true");
     }
     if (tab === "results") rankingQueryRef.current = query.toString();
-    (tab === "questions" ? Promise.resolve({} as Data) : collegeApi.get<Data>(
+    (["questions","feedback"].includes(tab) ? Promise.resolve({} as Data) : collegeApi.get<Data>(
       `drives/${driveId}/${paths[tab]}?${query.toString()}`, c.signal,
     ))
       .then(result => {
@@ -1975,7 +1976,7 @@ export default function DriveManagement({
   }
   const visibleResultIds = tab === "results" ? candidates.map(candidate => candidate.student_id) : [];
   const allVisibleResultsSelected = visibleResultIds.length > 0 && visibleResultIds.every(id => checked.includes(id));
-  if (reportStudentId)
+  if (reportStudentId && tab !== "candidates")
     return (
       <CandidateReport
         driveId={driveId}
@@ -2263,6 +2264,8 @@ export default function DriveManagement({
             </div>
           );
         })()}
+      {tab === "intelligence" && <PlacementDashboard driveId={driveId}/>}
+      {tab === "candidates" && <CandidateDirectory driveId={driveId}/>}
       {["ats", "results"].includes(tab) && (
         <>
           {tab !== "results" && <div className="grid gap-3 md:grid-cols-3 xl:grid-cols-6">
@@ -2573,6 +2576,7 @@ export default function DriveManagement({
       )}
       {tab === "questions" && <DriveQuestionBank driveId={driveId} />}
       {tab === "skills" && data && <SkillView data={data} />}{" "}
+      
       {tab === "departments" && data && <DepartmentView data={data} onViewReport={(student) => setParams(current => { current.set("section", "results"); current.set("candidate", String(student.student_id)); return current; })} />}{" "}
       {tab === "settings" && drive && (
         <div className="space-y-5">

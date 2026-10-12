@@ -36,7 +36,7 @@ export function Sidebar({ isOpen, onClose, isCollapsed }: SidebarProps) {
   const { access: collegeAccess } = useCollegeAccess();
   const { enabled: emailEnabled } = useEmailCapabilities();
 
-  const placementChildren:NavChild[]=[{id:'placement-dashboard',label:'Dashboard',path:'/dashboard/placement-management?view=dashboard'},{id:'placement-feedback',label:'Feedback Dashboard',path:'/dashboard/placement-management?view=feedback'},{id:'placement-drives',label:'Placement drives',path:'/dashboard/placement-management?view=placements'}];
+  const placementChildren:NavChild[]=[{id:'placement-dashboard',label:'Dashboard',path:'/dashboard/placement-management?view=dashboard'},{id:'placement-feedback',label:'Feedback Dashboard',path:'/dashboard/placement-management?view=feedback'},{id:'placement-candidates',label:'Candidate profiles',path:'/dashboard/placement-management?view=candidates'},{id:'placement-drives',label:'Placement drives',path:'/dashboard/placement-management?view=placements'}];
   const navItems: NavItem[] = user?.portal_role === "placement_staff" ? [
     { id: "drives", icon: BriefcaseBusiness, label: "Placement management", path: "/dashboard/placement-management",children:placementChildren },
     { id: "candidates", icon: Users, label: "Candidates", path: "/dashboard/placement-management?view=candidates" },
