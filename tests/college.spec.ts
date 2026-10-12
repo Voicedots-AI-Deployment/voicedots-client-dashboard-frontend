@@ -2039,8 +2039,11 @@ for (const withFeedback of [true,false]) test(`client full report CEO scorecard 
   await page.route('https://media.example/scorecard.webm',route=>route.fulfill({contentType:'video/webm',body:readFileSync('tests/fixtures/interview-test.webm')}));
   await page.goto('/dashboard/placement-management?drive=drive-1&section=results&candidate=s1');
   const card=page.getByRole('region',{name:'Candidate assessment scorecard',exact:true});
-  await expect(card.getByRole('heading',{name:'Candidate Assessment Scorecard'})).toBeVisible();
-  await expect(card.getByLabel('Candidate competency score')).toHaveAttribute('value','78');
+  await expect(card.getByRole('heading',{name:'Competency Results'})).toBeVisible();
+  await expect(page.locator('.report-candidate-header')).toHaveCount(1);
+  await expect(card.locator('.scorecard-heading,.scorecard-profile,.scorecard-practice-tiles,.scorecard-insights')).toHaveCount(0);
+  await expect(page.getByRole('heading',{name:'Practice recommendation',exact:true})).toHaveCount(0);
+  await expect(page.getByRole('heading',{name:'AI insights',exact:true})).toHaveCount(0);
   await expect(card.locator('.scorecard-competencies tbody tr')).toHaveCount(3);
   await expect(card.locator('.scorecard-satisfaction')).toContainText(withFeedback?'88/100':'Not collected');
   await expect(card.locator('form')).toHaveCount(0);
@@ -2051,11 +2054,9 @@ for (const withFeedback of [true,false]) test(`client full report CEO scorecard 
   expect(await charts.evaluate(el=>!!el.previousElementSibling?.querySelector('video'))).toBe(true);
   expect(await page.locator('#recording').evaluate(el=>el.contains(document.querySelector('.recording-score-charts')))).toBe(true);
   expect(await page.locator('#recording').evaluate(el=>!!(el.compareDocumentPosition(document.querySelector('.client-assessment-scorecard')!)&Node.DOCUMENT_POSITION_FOLLOWING))).toBe(true);
-  await card.getByRole('button',{name:'Review answers',exact:true}).click();
+  await card.getByRole('button',{name:'View all answer evidence',exact:true}).click();
   await expect(page.getByRole('tabpanel',{name:'Answers',exact:true})).toBeVisible();
-  await card.getByRole('button',{name:'Build knowledge',exact:true}).click();
-  await expect(page.getByRole('tabpanel',{name:'Rounds & competencies'})).toBeVisible();
-  await card.getByRole('button',{name:'Preparation plan',exact:true}).click();
+  await card.getByRole('button',{name:'Review preparation plan',exact:true}).click();
   await expect(page.getByRole('tabpanel',{name:'Student feedback'})).toBeVisible();
   await expect(page.getByRole('heading',{name:'Decision & publication'})).toBeVisible();
   const video=page.getByLabel('Interview recording',{exact:true});await video.evaluate(el=>(el as HTMLVideoElement).play());
