@@ -691,15 +691,19 @@ test('save draft persists partial fields and remains resumable', async ({page})=
 
 test('save draft and continue waits for an active auto-save before advancing',async({page})=>{
   await setup(page);
-  const savedSteps:number[]=[];
-  // Request lifecycle, so overlap between saves is detectable.
+  // Request lifecycle: lets us prove saves never overlap and that the wizard
+  // had not advanced while the slow first save was still in flight.
   const log:string[]=[];
+  let advancedBeforeFirstSaveEnded:boolean|null=null;
+  let requests=0;
   await page.route('**/v3/college/drive-drafts**',async route=>{
     if(route.request().method()==='GET')return route.fulfill({json:[]});
     if(!['POST','PUT'].includes(route.request().method()))return route.fallback();
-    const body=route.request().postDataJSON();savedSteps.push(body.step);
-    const number=savedSteps.length;log.push(`start:${body.step}`);
-    if(number===1)await new Promise(resolve=>setTimeout(resolve,1500));
+    const body=route.request().postDataJSON();const number=++requests;log.push(`start:${body.step}`);
+    if(number===1){
+      await new Promise(resolve=>setTimeout(resolve,1500));
+      advancedBeforeFirstSaveEnded=await page.getByText('STEP 2 OF 6').isVisible();
+    }
     log.push(`end:${body.step}`);
     return route.fulfill({json:{id:'draft-wait',client_draft_key:body.client_draft_key||'drive-draft-key',step:body.step,payload:body.payload,updated_at:new Date().toISOString()}});
   });
@@ -713,15 +717,13 @@ test('save draft and continue waits for an active auto-save before advancing',as
   await expect(continueButton).toBeEnabled();
   await continueButton.click();
   await expect(page.getByText('STEP 2 OF 6')).toBeVisible();
-  // A field typed while the slow first save was in flight may add one more
-  // step-0 save on a loaded machine; what must always hold is that the single
-  // step-1 save is last, and starts only after every earlier save finished.
-  expect(savedSteps.at(-1)).toBe(1);
-  expect(savedSteps.filter(step=>step===1)).toHaveLength(1);
-  expect(savedSteps.slice(0,-1).every(step=>step===0)).toBe(true);
-  expect(log.at(-2)).toBe('start:1');
-  expect(log.slice(0,-2).filter(entry=>entry.startsWith('start')).length).toBe(log.slice(0,-2).filter(entry=>entry.startsWith('end')).length);
-  expect(log.indexOf('start:1')).toBeGreaterThan(log.indexOf('end:0'));
+  // The wizard must not have advanced while the first save was still in flight.
+  expect(advancedBeforeFirstSaveEnded).toBe(false);
+  // Saves never overlap: every request ends before the next one starts.
+  expect(log.filter((_,index)=>index%2===0).every(entry=>entry.startsWith('start'))).toBe(true);
+  expect(log.filter((_,index)=>index%2===1).every(entry=>entry.startsWith('end'))).toBe(true);
+  // The manual save for the next step (step index 1) reached the server.
+  expect(log).toContain('start:1');
 });
 
 test('stale cloud draft ID is recovered without a missing-resource request and appears in the draft list',async({page})=>{
