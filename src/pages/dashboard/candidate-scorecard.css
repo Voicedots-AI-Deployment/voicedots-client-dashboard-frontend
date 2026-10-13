@@ -22,3 +22,12 @@
 .recording-score-charts{margin:18px 0}.recording-score-charts .scorecard-chart-grid{grid-template-columns:repeat(2,minmax(0,1fr))}.recording-score-charts .scorecard-card{padding:18px}.recording-score-charts .scorecard-ring{max-width:180px}.recording-score-charts .scorecard-breakdown-chart{width:150px}@media(max-width:600px){.recording-score-charts .scorecard-chart-grid{grid-template-columns:1fr}}
 
 .candidate-review .client-assessment-scorecard:not(.recording-score-charts){margin:0;padding:20px;border:1px solid #e2e8f0;border-radius:16px;background:#fff;box-shadow:0 1px 3px #0f172a10}.candidate-review .client-assessment-scorecard .scorecard-card{border-radius:16px;padding:20px;box-shadow:none}.candidate-review .client-assessment-scorecard .scorecard-executive{border-radius:16px;margin-bottom:20px}@media(max-width:600px){.candidate-review .client-assessment-scorecard:not(.recording-score-charts),.candidate-review .client-assessment-scorecard .scorecard-card{padding:16px}}
+.drive-candidate-scorecard .client-assessment-scorecard{--sc-navy:#0f172a;--sc-blue:#7c3aed;font-family:inherit}
+.drive-candidate-scorecard .scorecard-executive{background:#f5f3ff;border-color:#ede9fe}
+.drive-candidate-scorecard .scorecard-icon{background:#ede9fe;color:#7c3aed}
+.drive-candidate-scorecard .scorecard-card{border-radius:16px;box-shadow:none;border-color:#e2e8f0}
+.drive-candidate-scorecard .scorecard-card h3{font-weight:600}
+.drive-candidate-scorecard .scorecard-competencies thead{background:#f8fafc}
+.drive-candidate-scorecard .client-assessment-scorecard progress::-webkit-progress-value{background:#7c3aed}
+.drive-candidate-scorecard .client-assessment-scorecard .button{color:#7c3aed;border-color:#e2e8f0;font-weight:500;background:#fff}
+.drive-candidate-scorecard .scorecard-strengths,.drive-candidate-scorecard .scorecard-explore{background:#fff}

@@ -11,6 +11,35 @@ async function setup(page:Page,path='/dashboard/placement-management?view=dashbo
  await page.goto(path);
 }
 const screenshots='/root/voicedots/releases/placement-intelligence-20261012/screenshots';
+test('Candidates View details opens the company assessment scorecard for the current drive',async({page})=>{
+ await setup(page,'/dashboard/placement-management?drive=drive-1&section=candidates');
+ await page.getByRole('button',{name:'View details',exact:true}).click();
+ await expect(page.getByRole('heading',{name:'Candidate Assessment Scorecard',exact:true})).toBeVisible();
+ await expect(page.getByRole('heading',{name:'Ananya Sharma',exact:true})).toBeVisible();
+ await expect(page.getByRole('heading',{name:'Competency Results',exact:true})).toBeVisible();
+ await expect(page.getByText('78/100',{exact:true}).first()).toBeVisible();
+ await expect(page.getByRole('heading',{name:'Candidate 360° Profile',exact:true})).toHaveCount(0);
+ mkdirSync(screenshots,{recursive:true});
+ await page.screenshot({path:`${screenshots}/drive-candidate-scorecard-desktop.png`,fullPage:true});
+ await page.getByRole('button',{name:'Collapse sidebar',exact:true}).click();
+ await page.setViewportSize({width:390,height:844});
+ await expect(page.getByRole('heading',{name:'Candidate Assessment Scorecard',exact:true})).toBeVisible();
+ await page.screenshot({path:`${screenshots}/drive-candidate-scorecard-mobile.png`,fullPage:true});
+ await page.setViewportSize({width:1440,height:1000});
+ await page.getByRole('button',{name:'← Candidates',exact:true}).click();
+ await expect(page.getByRole('columnheader',{name:'Result Status',exact:true})).toBeVisible();
+ await page.getByRole('navigation',{name:'Drive management sections'}).getByRole('button',{name:'Interview results',exact:true}).click();
+ await expect(page.getByRole('button',{name:'Candidate details',exact:true})).toHaveCount(0);
+ await page.getByRole('group',{name:'Results layout'}).getByRole('button',{name:'Table',exact:true}).click();
+ await expect(page.getByRole('button',{name:'Candidate details',exact:true})).toHaveCount(0);
+});
+test('drive scorecard excludes assessments from other drives',async({page})=>{
+ await setup(page,'/dashboard/placement-management?drive=drive-1&section=candidates');
+ await page.route('**/v3/college/students/student-1/reports',route=>route.fulfill({json:{...bundle,reports:bundle.reports.map(report=>({...report,drive_id:'other-drive'}))}}));
+ await page.getByRole('button',{name:'View details',exact:true}).click();
+ await expect(page.getByRole('heading',{name:'No assessment available for this drive'})).toBeVisible();
+ await expect(page.getByRole('heading',{name:'Competency Results'})).toHaveCount(0);
+});
 test('command center has measured charts, working filters and expands with sidebar',async({page})=>{
  await page.setViewportSize({width:1600,height:1050});await setup(page);
  await expect(page.getByRole('heading',{name:'AI Interview Analytics'})).toBeVisible();await expect(page.locator('.pi-kpis')).toContainText('88/100');

@@ -23,6 +23,7 @@ import {
 import { displayName, formatPlacementDateTime, wallTimeFromInstant, wallTimeToInstant } from "./placementDisplay";
 import FeedbackDashboard from "./FeedbackDashboard";
 import CandidateReport from "./CandidateReport";
+import DriveCandidateScorecard from "./DriveCandidateScorecard";
 import ResultCohortBuilder, {type ResultFilterOptions,type ResultRule} from "./ResultCohortBuilder";
 import DriveQuestionBank from "./DriveQuestionBank";
 
@@ -1962,7 +1963,9 @@ export default function DriveManagement({
   }
   const visibleResultIds = tab === "results" ? candidates.map(candidate => candidate.student_id) : [];
   const allVisibleResultsSelected = visibleResultIds.length > 0 && visibleResultIds.every(id => checked.includes(id));
-  if (reportStudentId)
+  if (reportStudentId && tab === "candidates" && !selected)
+    return <DriveCandidateScorecard driveId={driveId} studentId={reportStudentId} onBack={()=>setParams(current=>{current.delete('candidate');return current})} onManage={()=>{const candidate=candidates.find(item=>item.student_id===reportStudentId);if(candidate)openCandidateDetails(candidate)}}/>;
+  if (reportStudentId && tab !== "candidates")
     return (
       <CandidateReport
         driveId={driveId}
@@ -2375,7 +2378,6 @@ export default function DriveManagement({
                 <input type="checkbox" className="h-4 w-4 accent-violet-600" aria-label={`Select ${candidate.full_name}`} checked={checked.includes(candidate.student_id)} onChange={event=>setChecked(current=>event.target.checked ? [...new Set([...current,candidate.student_id])] : current.filter(id=>id!==candidate.student_id))}/>
                 <StudentAvatar student={candidate} size="h-11 w-11"/>
                 <div className="min-w-0 flex-1"><div className="flex flex-wrap items-center gap-2"><h4 className="text-base font-medium text-slate-900">{candidate.full_name}</h4>{candidate.rank != null && <span className="rounded-full bg-violet-50 px-2 py-0.5 text-xs text-violet-700">#{candidate.rank} in drive</span>}<InterviewStatusBadge value={candidateInterviewStatus(candidate)}/></div><p className="mt-1 text-xs text-slate-500">{candidate.roll_number} · {[candidate.program,candidate.department_code].filter(Boolean).join(' · ')} · Attempt {candidate.attempt_number || 1}</p></div>
-                <button className={btn} onClick={()=>openCandidateDetails(candidate)}>Candidate details</button>
                 <button className={`${btn} inline-flex shrink-0 items-center gap-2 whitespace-nowrap border-violet-200 text-violet-700`} disabled={busy || !candidate.report_ready} onClick={()=>void inspect(candidate,'reports')}>{candidate.report_ready?'Open full report':'Report pending'} <ExternalLink size={14}/></button>
               </header>
               <div className="result-assessment-band flex flex-wrap items-center gap-3 border-b border-violet-100 bg-violet-50/60 px-5 py-3">
@@ -2509,7 +2511,7 @@ export default function DriveManagement({
                       )}
                       <td className="whitespace-nowrap px-4 py-3">
                         {tab === "results" ? (
-                          <div className="flex flex-wrap gap-2"><button className={btn} onClick={()=>openCandidateDetails(c)}>Candidate details</button><button
+                          <div className="flex flex-wrap gap-2"><button
                             className={btn}
                             disabled={busy || !c.report_ready}
                             onClick={() => void inspect(c, "reports")}
@@ -2521,6 +2523,7 @@ export default function DriveManagement({
                             className={btn}
                             disabled={busy}
                             onClick={() => {
+                              if(tab === 'candidates') {setParams(current=>{current.set('candidate',c.student_id);return current});return;}
                               setSelected(c);
                               setDetail(c);
                               setAttempts(Math.max(Number(c.max_attempts || drive?.max_attempts || 1), Number(c.attempt_number || 1)));
@@ -2655,7 +2658,7 @@ export default function DriveManagement({
                       View attempt history
                     </button>
                   </div>
-                  <section className="rounded-xl border border-slate-200 bg-slate-50 p-4"><h4 className="font-medium">Attempt policy & AI Coach</h4><p className="mt-1 text-sm text-slate-500">Drive default: {drive?.max_attempts || 1} attempt(s). Manual limits apply only to this candidate.</p>{(drive?.score_attempt_rules || []).map((rule,index) => <p key={index} className="mt-2 text-sm">Score {rule.min_score}–{rule.max_score}: {rule.max_attempts} attempt(s){rule.require_coach ? ' · Complete AI Coach before the next attempt' : ''}</p>)}{!(drive?.score_attempt_rules || []).length && <p className="mt-2 text-sm text-slate-500">No score-based rules configured.</p>}<button className={`${btn} mt-3`} onClick={() => {setSelected(null);setDetail(null);setEditorStep(1);setFullEditor(true);setParams(p => {p.set('section','settings');return p;});}}>Configure attempt & Coach rules</button></section>
+                  <section className="rounded-xl border border-slate-200 bg-slate-50 p-4"><h4 className="font-medium">Attempt policy & AI Coach</h4><p className="mt-1 text-sm text-slate-500">Drive default: {drive?.max_attempts || 1} attempt(s). Manual limits apply only to this candidate.</p>{(drive?.score_attempt_rules || []).map((rule,index) => <p key={index} className="mt-2 text-sm">Score {rule.min_score}–{rule.max_score}: {rule.max_attempts} attempt(s){rule.require_coach ? ' · Complete AI Coach before the next attempt' : ''}</p>)}{!(drive?.score_attempt_rules || []).length && <p className="mt-2 text-sm text-slate-500">No score-based rules configured.</p>}<button className={`${btn} mt-3`} onClick={() => {setSelected(null);setDetail(null);setEditorStep(1);setFullEditor(true);setParams(p => {p.set('section','settings');p.delete('candidate');return p;});}}>Configure attempt & Coach rules</button></section>
                   {drive && ["scheduled", "active"].includes(drive.status) && String(selected.assignment_status) !== "in_progress" && (
                       <>
                         <label className="block max-w-xs text-sm">

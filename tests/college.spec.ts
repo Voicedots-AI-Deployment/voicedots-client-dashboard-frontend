@@ -1479,6 +1479,7 @@ test('candidate stopped by proctor has an ended label and attempt policy control
   await page.reload();
   await expect(page.getByText('Ended by proctor',{exact:true})).toBeVisible();
   await page.getByRole('button',{name:'View details',exact:true}).click();
+  await page.getByRole('button',{name:'Manage candidate & attempts',exact:true}).click();
   await expect(page.getByText('Attempt policy & AI Coach')).toBeVisible();
   await expect(page.getByRole('button',{name:'Configure attempt & Coach rules'})).toBeVisible();
 });
@@ -1521,6 +1522,7 @@ test('attempt rules open the existing drive at Interview setup rather than a new
   await setup(page,true,{initialPath:'/dashboard/placement-management?drive=drive-1&section=candidates',driveDetails:{id:'drive-1',company_name:'Existing Company',role_title:'Engineer',location:'Remote',jd_raw_text:'Build Python services for customers.',status:'draft',max_attempts:3,window_start_at:'2099-01-01T00:00:00Z',window_end_at:'2099-01-02T00:00:00Z'}});
   await page.route('**/v3/college/drives/drive-1/dashboard/ranking**',route=>route.fulfill({json:{candidates:[{student_id:'s1',full_name:'Anu',roll_number:'R1',assignment_status:'assigned'}],pagination:{total:1}}}));
   await page.reload();await page.getByRole('button',{name:'View details',exact:true}).click();
+  await page.getByRole('button',{name:'Manage candidate & attempts',exact:true}).click();
   await page.getByRole('button',{name:'Configure attempt & Coach rules'}).click();
   await expect(page.getByRole('heading',{name:'Modify placement drive'})).toBeVisible();
   await expect(page.getByRole('button',{name:'2. Interview setup'})).toHaveAttribute('aria-current','step');
@@ -2098,7 +2100,7 @@ test('switching candidates ignores a delayed main report refresh', async ({page}
 });
 
 
-test('Interview results preserves candidate details and attempt controls in cards and table', async ({page}) => {
+test('Interview results omits candidate details in cards and table', async ({page}) => {
   await setup(page,true,{initialPath:'/dashboard/placement-management?drive=drive-1&section=results',driveDetails:{id:'drive-1',company_name:'Example',role_title:'Engineer',status:'active',max_attempts:3}});
   const candidate={student_id:'merged-student',full_name:'Merged Candidate',roll_number:'CS-001',email:'merged@example.edu',program:'B.Tech',department_code:'CSE',cgpa:8.2,graduation_year:2027,assignment_status:'assigned',attempt_number:1,max_attempts:3,report_ready:false};
   const queries:string[]=[];
@@ -2117,30 +2119,20 @@ test('Interview results preserves candidate details and attempt controls in card
   await expect(page.getByRole('navigation',{name:'Drive management sections'}).getByRole('button',{name:'Analytics',exact:true})).toHaveCount(0);
   await expect(page.getByRole('heading',{name:'Interview results',exact:true})).toBeVisible();
   await expect(page.getByText('merged@example.edu',{exact:true})).toBeVisible();
-  await page.getByRole('button',{name:'Candidate details',exact:true}).click();
-  const drawer=page.getByRole('dialog',{name:'Candidate details for Merged Candidate'});
-  await expect(drawer).toContainText('8.2 / 2027');
-  await expect(drawer).toContainText('Attempt policy & AI Coach');
-  await drawer.getByLabel('Allowed attempts').fill('4');
-  await drawer.getByRole('button',{name:'Save allowed attempts'}).click();
-  await expect.poll(()=>savedAttempts).toBe(4);
-  await page.getByRole('button',{name:'Close details',exact:true}).click();
+  await expect(page.getByRole('button',{name:'Candidate details',exact:true})).toHaveCount(0);
   await page.getByRole('group',{name:'Results layout'}).getByRole('button',{name:'Table',exact:true}).click();
   const row=page.getByRole('row').filter({hasText:'Merged Candidate'});
   await expect(row).toContainText('B.Tech · CSE');
   await expect(row).toContainText('0/3 used · attempt 1 available');
   await expect(row.getByRole('button',{name:'Report pending'})).toBeDisabled();
-  await row.getByRole('button',{name:'Candidate details'}).click();
-  await drawer.getByRole('button',{name:'View attempt history'}).click();
-  await expect(drawer).toContainText('Attempt policy & AI Coach');
-  await page.getByRole('button',{name:'Close details',exact:true}).click();
+  await expect(row.getByRole('button',{name:'Candidate details'})).toHaveCount(0);
   await page.getByLabel('Program',{exact:true}).selectOption('B.Tech');
   await page.getByLabel('Interview status',{exact:true}).selectOption('assigned');
   await expect.poll(()=>queries.some(url=>{const q=new URL(url).searchParams;return q.get('program')==='B.Tech'&&q.get('assignment_status')==='assigned'})).toBe(true);
   await page.screenshot({path:'/root/voicedots/artifacts/merged-candidates-results-desktop.png',fullPage:true});
   await page.setViewportSize({width:390,height:844});
   await page.getByRole('group',{name:'Results layout'}).getByRole('button',{name:'Cards',exact:true}).click();
-  await expect(page.getByRole('button',{name:'Candidate details',exact:true})).toBeVisible();
+  await expect(page.getByRole('button',{name:'Candidate details',exact:true})).toHaveCount(0);
   await page.screenshot({path:'/root/voicedots/artifacts/merged-candidates-results-mobile.png',fullPage:true});
 });
 
