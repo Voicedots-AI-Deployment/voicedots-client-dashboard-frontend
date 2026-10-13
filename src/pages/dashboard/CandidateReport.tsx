@@ -16,6 +16,7 @@ import { btn } from "./interviewAgentTypes";
 import { displayName, formatPlacementDateTime } from "./placementDisplay";
 import { roleLabels } from "./interviewAgentTypes";
 
+import AssessmentReportHeader from "./AssessmentReportHeader";
 import { CandidateScorecard, CandidateScoreCharts } from "./CandidateScorecard";
 
 type Data = Record<string, unknown>;
@@ -234,6 +235,8 @@ export default function CandidateReport({
     [resultSettings, setResultSettings] = useState<Data | null>(null);
   const [transcript, setTranscript] = useState<Data | null>(null),
     [integrity, setIntegrity] = useState<Data | null>(null);
+  const [scorecardTargets,setScorecardTargets]=useState<Record<string,Record<string,number>>>({});
+  useEffect(()=>{const controller=new AbortController();void collegeApi.get<{role_targets?:Record<string,Record<string,number>>}>('intelligence/settings',controller.signal).then(value=>{if(!controller.signal.aborted)setScorecardTargets(value.role_targets||{});}).catch(()=>{});return()=>controller.abort();},[driveId]);
   const [recording, setRecording] = useState<Data | null>(null),
     [recordingLoading, setRecordingLoading] = useState(false),
     [recordingError, setRecordingError] = useState("");
@@ -662,7 +665,6 @@ export default function CandidateReport({
     ...lowCompetencies.map(item => `${show(item.label || displayName(show(item.dimension)))}: ${item.percentage}/100.`),
   ];
   const candidateProfile = (bundle?.candidate_info || {}) as Data;
-  const studentInitials = String(student.full_name || "Candidate").trim().split(/\s+/).slice(0, 2).map(part => part[0] || "").join("").toUpperCase();
   const studentDetailRows = [
     ["Student ID", student.roll_number], ["Email", student.email], ["Program", student.program],
     ["Department", student.department_code], ["Year of study", student.year_of_study ?? candidateProfile.year_of_study],
@@ -675,7 +677,7 @@ export default function CandidateReport({
       <style>{"@media print{.report-nav,.report-back,.report-actions,.candidate-pager,.no-print{display:none!important}.candidate-report-content .hidden{display:block!important}details:not([open])>*:not(summary){display:block!important}article,details{break-inside:avoid}body{color:#111!important;background:#fff!important}}"}</style>
       <div className="candidate-pager no-print flex flex-wrap items-center justify-between gap-3 border-b border-slate-200 bg-white px-4 py-3">
         <div className="flex min-w-0 items-center gap-2 text-sm text-slate-500">
-          <button type="button" className="report-back inline-flex items-center gap-1.5 font-semibold text-slate-700 hover:text-indigo-700" onClick={onBack}><ArrowLeft size={15}/> Interview results</button>
+          <button type="button" className="report-back inline-flex items-center gap-1.5 font-semibold text-slate-700 hover:text-indigo-700" onClick={onBack}><ArrowLeft size={15}/> Candidates & assessments</button>
           <span>/</span><span className="truncate">{show(drive?.company_name, "Placement drive")} · {show(drive?.role_title, "Role")}</span>
         </div>
         <div className="flex shrink-0 items-center gap-2">
@@ -686,33 +688,15 @@ export default function CandidateReport({
         </div>
       </div>
 
-      <header className="flex flex-wrap items-center gap-4 report-candidate-header rounded-2xl border border-slate-200 bg-white p-5">
-        <div className="grid h-14 w-14 shrink-0 place-items-center rounded-2xl bg-slate-800 text-lg font-medium text-white">{studentInitials || "C"}</div>
-        <div className="min-w-0 flex-1">
-          <h1 className="text-2xl font-medium tracking-tight text-slate-900">{show(student.full_name, "Candidate")}</h1>
-          <div className="mt-1 flex flex-wrap gap-x-3 gap-y-1 text-xs text-slate-500">
-            {student.roll_number != null && student.roll_number !== "" && <span>{String(student.roll_number)}</span>}
-            {[student.program, student.department_code, student.graduation_year ?? candidateProfile.graduation_year].some(value => value != null && value !== "") && <span>{[student.program, student.department_code, student.graduation_year ?? candidateProfile.graduation_year].filter(value => value != null && value !== "").map(String).join(" · ")}</span>}
-            <span>{show(drive?.company_name, "Placement drive")} — {show(drive?.role_title, "Role")}</span>
-            {report.attempt_number != null && <span>Attempt {report.attempt_number}</span>}
-            <span>{report.completed_at ? `Completed ${stamp(report.completed_at)}` : interviewEnded ? "Interview ended" : "Interview in progress"}</span>
-          </div>
-          <details className="mt-1 text-xs text-slate-500"><summary className="inline-flex cursor-pointer items-center gap-1 font-semibold text-slate-600">Candidate details <ChevronDown size={13}/></summary><dl className="mt-2 grid max-w-3xl gap-x-8 gap-y-2 rounded-lg border border-slate-200 bg-white p-3 sm:grid-cols-2">{studentDetailRows.map(([label, value]) => <div key={String(label)} className="flex justify-between gap-4"><dt>{String(label)}</dt><dd className="text-right font-medium text-slate-800">{String(value)}</dd></div>)}</dl></details>
-        </div>
-        <div className="flex flex-wrap items-center gap-1.5 text-xs">
-          <span className="rounded-full bg-emerald-50 px-2.5 py-1 font-semibold text-emerald-800">{report.completed_at ? "Interview completed" : interviewEnded ? "Interview ended" : "Interview in progress"}</span>
-          <span className={`rounded-full px-2.5 py-1 ${publication.state === "released" ? "bg-indigo-50 text-indigo-800" : "bg-slate-100 text-slate-700"}`}>Result {displayName(show(publication.state, "hidden")).toLowerCase()}</span>
-          <span className="rounded-full bg-slate-100 px-2.5 py-1">{decision ? `Officer: ${decisionLabel(decision)}` : "Decision pending"}</span>
-          {driveError && <span role="alert" className="text-rose-700">Drive details: {driveError} <button className="underline" onClick={() => void load()}>Retry</button></span>}
-        </div>
-      </header>
+      <AssessmentReportHeader student={{...student,student_id:studentId}} report={{...report,overall_score:report.overall_score??detail.overall_score}} drive={drive} competencyCount={dimensionsWithScore.length} questionCount={reviews.length} duration={recordingDuration}/>
+      <details className="rounded-xl border border-slate-200 bg-white p-3 text-xs text-slate-600"><summary className="cursor-pointer font-semibold">Candidate details & assessment status</summary><dl className="mt-3 grid gap-2 sm:grid-cols-2">{studentDetailRows.map(([label,value])=><div key={String(label)}><dt className="font-semibold">{String(label)}</dt><dd>{String(value)}</dd></div>)}</dl><p className="mt-3">{report.completed_at?'Interview completed':interviewEnded?'Interview ended':'Interview in progress'} · Result {displayName(show(publication.state,'hidden'))} · {decision?decisionLabel(decision):'Decision pending'}</p>{driveError&&<p role="alert">{driveError}</p>}</details>
 
       {error && <div role="alert" className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-rose-200 bg-rose-50 p-3 text-sm text-rose-800">{error}<button className={`${btn} inline-flex shrink-0 items-center justify-center gap-2 whitespace-nowrap`} onClick={() => void load()}>Retry report</button></div>}
       {notice && <p role="status" className="rounded-lg border border-emerald-200 bg-emerald-50 px-3 py-2 text-sm text-emerald-800">{notice}</p>}
 
-      <div className="grid items-start gap-5 xl:grid-cols-[minmax(0,1fr)_340px]">
-        <main className="candidate-report-content min-w-0 space-y-5">
-          <section id="glance" className={`${reportPanel} scroll-mt-4`}>
+      <div className="assessment-reference-layout grid items-start gap-5 xl:grid-cols-[minmax(0,1fr)_340px]">
+        <main className="candidate-report-content candidate-full-reference min-w-0 space-y-5">
+          <details id="glance" className={`${reportPanel} scroll-mt-4`}><summary className="cursor-pointer text-sm font-semibold">Decision brief & supporting assessment signals</summary>
             <div className="mb-4 flex flex-wrap items-start justify-between gap-3">
               <div>
                 <p className="text-[11px] font-bold uppercase tracking-wide text-slate-500">Decision summary</p>
@@ -735,7 +719,7 @@ export default function CandidateReport({
             </div>
             {nextRoundQuestions.length > 0 && <details className="mt-3 rounded-xl border border-slate-200 p-4 text-sm"><summary className="cursor-pointer font-medium">Next-round questions · {nextRoundQuestions.length}</summary><ul className="mt-3 list-disc space-y-2 pl-4 text-slate-600">{nextRoundQuestions.map((item, index) => <li key={index}>{typeof item === "string" ? item : show((item as Data).question || (item as Data).text || (item as Data).prompt)}</li>)}</ul></details>}
 
-          </section>
+          </details>
 
           <section id="recording" className={`${reportPanel} scroll-mt-4`}>
             <div className="flex flex-wrap items-start justify-between gap-3"><div><p className="text-xs font-semibold uppercase tracking-wide text-indigo-700">Evidence</p><h2 className="mt-1 text-lg font-bold">Interview recording</h2><p className="mt-1 text-xs text-slate-500">{recordingStatus === "ready" ? `Secure recording · ${durationLabel(recordingDuration)}${recording?.started_at || report.recording?.started_at ? ` · ${stamp(recording?.started_at ?? report.recording?.started_at)}` : ""}` : recordingStatus === "expired" ? "Recording retention period ended" : recordingStatus === "failed" ? "Video upload failed" : recordingStatus === "unavailable" || recordingStatus === "not_configured" ? "No recording is available for this attempt" : `Recording ${displayName(show(recordingStatus))}`}</p></div><details className="text-xs text-slate-500"><summary className="cursor-pointer">Session details</summary><p className="mt-1 break-all">{report.session_id || "Session ID unavailable"}</p></details></div>
@@ -787,9 +771,12 @@ export default function CandidateReport({
             executive_summary:typeof executiveSummary==='string'?executiveSummary:undefined,
             strengths:strengthBriefs.map(text=>({text})),
             priority_improvement_areas:growthAreas.map(item=>typeof item==='string'?{problem:item}:{focus:typeof (item as Data).focus==='string'?String((item as Data).focus):undefined,problem:typeof (item as Data).problem==='string'?String((item as Data).problem):undefined,actions:Array.isArray((item as Data).actions)?((item as Data).actions as unknown[]).map(String):[]}),
-            question_reviews:reviews.map((review,index)=>({answer_id:index,question:String(review.question || review.question_text || 'Interview question'),answer:String(turns.find(turn=>turn.turn_id!=null && String(turn.turn_id)===String(review.turn_id))?.transcript ?? review.answer ?? review.transcript ?? '')})),
+            question_reviews:reviews.map((review,index)=>({answer_id:index,question:String(review.question || review.question_text || 'Interview question'),seconds:recordingOffset(review.answer_started_at || review.asked_at),score:typeof review.score==='number'?review.score:undefined,answer:String(turns.find(turn=>turn.turn_id!=null && String(turn.turn_id)===String(review.turn_id))?.transcript ?? review.answer ?? review.transcript ?? '')})),
+            employer_follow_up:nextRoundQuestions.map(item=>typeof item==='string'?item:show((item as Data).question || (item as Data).text || (item as Data).prompt)),
+            role_targets:scorecardTargets[String(drive?.role_title || report.role_title || '')],
+            rubric_version:typeof detail.rubric_version==='string'?detail.rubric_version:undefined,
             candidate_satisfaction:detail.candidate_satisfaction && typeof detail.candidate_satisfaction==='object' && typeof (detail.candidate_satisfaction as Data).score==='number'?{score:Number((detail.candidate_satisfaction as Data).score),label:show((detail.candidate_satisfaction as Data).label,'')}:undefined,
-          }} onQuestions={()=>{setActiveTab('answers');document.getElementById('deep-dive')?.scrollIntoView({behavior:'smooth'});}} onFeedback={()=>{setActiveTab('feedback');document.getElementById('deep-dive')?.scrollIntoView({behavior:'smooth'});}}/>
+          }} onEvidence={index=>{openAnswer(index);seekToQuestion(reviews[index]?.answer_started_at || reviews[index]?.asked_at);}} onQuestions={()=>{setActiveTab('answers');document.getElementById('deep-dive')?.scrollIntoView({behavior:'smooth'});}} onFeedback={()=>{setActiveTab('feedback');document.getElementById('deep-dive')?.scrollIntoView({behavior:'smooth'});}}/>
 
           <section id="deep-dive" className={`${reportPanel} scroll-mt-4 p-0`}>
             <div className="border-b border-slate-200 px-4 pt-4 sm:px-5"><p className="text-xs font-semibold uppercase tracking-wide text-indigo-700">Assessment details</p><h2 className="mt-1 text-lg font-bold">Interview deep dive</h2><nav className="report-nav mt-3 flex flex-wrap gap-1" role="tablist" aria-label="Candidate report sections">{nav.map(([item, label]) => <button key={item} type="button" role="tab" aria-selected={activeTab === item} className={`whitespace-nowrap border-b-2 px-3 py-2.5 text-sm font-semibold ${activeTab === item ? "border-indigo-600 text-indigo-700" : "border-transparent text-slate-500 hover:text-slate-800"}`} onClick={() => setActiveTab(item)}>{label}{item === "answers" && <span className="ml-1.5 text-xs text-slate-400">{reviews.length}</span>}{item === "skills" && <span className="ml-1.5 text-xs text-slate-400">{claimGaps.length} gaps</span>}{item === "rounds" && rounds.length > 0 && <span className="ml-1.5 text-xs text-slate-400">{rounds.length}</span>}{item === "proctor" && events.length > 0 && <span className="ml-1.5 text-xs text-slate-400">{events.length}</span>}</button>)}</nav></div>

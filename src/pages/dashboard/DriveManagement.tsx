@@ -25,7 +25,6 @@ import {
 import { displayName, formatPlacementDateTime, wallTimeFromInstant, wallTimeToInstant } from "./placementDisplay";
 import FeedbackDashboard from "./FeedbackDashboard";
 import CandidateReport from "./CandidateReport";
-import DriveCandidateScorecard from "./DriveCandidateScorecard";
 import ResultCohortBuilder, {type ResultFilterOptions,type ResultRule} from "./ResultCohortBuilder";
 import DriveQuestionBank from "./DriveQuestionBank";
 
@@ -202,7 +201,7 @@ const sections = {
   overview: "Overview",
   candidates: "Candidates",
   ats: "ATS fit",
-  results: "Interview results",
+  results: "Candidates & assessments",
   feedback: "Feedback",
   skills: "Skill intelligence",
   departments: "Departments",
@@ -325,7 +324,7 @@ function ResumeMatchSummary({ driveId, candidate }: { driveId: string; candidate
   const strengths=rows.filter(row=>["FULL_MATCH","RELATED_EVIDENCE"].includes(String(row.match_status))).slice(0,4);
   const gaps=rows.filter(row=>["NO_EVIDENCE","WEAK_OR_INFERRED"].includes(String(row.match_status))).slice(0,4);
   return <span className="relative inline-flex" onMouseEnter={()=>{if(closeTimer.current)clearTimeout(closeTimer.current);if(window.matchMedia?.("(hover: hover)").matches){if(!Array.isArray(candidate.skills))void loadResumeMatch(driveId,candidate.student_id).catch(()=>{});timer.current=setTimeout(show,180)}}} onMouseLeave={close} onKeyDown={event=>{if(event.key==="Escape"&&open){event.stopPropagation();setOpen(false);skipFocus.current=document.activeElement!==button.current;button.current?.focus()}}}>
-    <button ref={button} type="button" className="mt-1 rounded-full border border-violet-200 bg-violet-50 px-2 py-0.5 text-[11px] font-semibold text-violet-700 hover:bg-violet-100 focus-visible:outline focus-visible:outline-2 focus-visible:outline-violet-600" aria-haspopup="dialog" aria-expanded={open} aria-controls={`resume-match-${candidate.student_id}`} onFocus={()=>{if(skipFocus.current)skipFocus.current=false;else show()}} onBlur={event=>{if(!event.currentTarget.parentElement?.contains(event.relatedTarget as Node|null)&&!document.getElementById(`resume-match-${candidate.student_id}`)?.contains(event.relatedTarget as Node|null))close()}} onClick={()=>{if(!open)show()}}>AI resume match</button>
+    <button ref={button} type="button" className="mt-1 rounded-full border border-violet-200 bg-violet-50 px-2 py-0.5 text-[11px] font-semibold text-violet-700 hover:bg-violet-100 focus-visible:outline focus-visible:outline-2 focus-visible:outline-violet-600" aria-haspopup="dialog" aria-expanded={open} aria-controls={`resume-match-${candidate.student_id}`} onFocus={()=>{if(skipFocus.current)skipFocus.current=false;else show()}} onBlur={event=>{if(!event.currentTarget.parentElement?.contains(event.relatedTarget as Node|null)&&!document.getElementById(`resume-match-${candidate.student_id}`)?.contains(event.relatedTarget as Node|null))close()}} onClick={()=>{if(!open)show()}}>ATS fit & resume evidence</button>
     {open&&createPortal(<span id={`resume-match-${candidate.student_id}`} role="dialog" aria-label={`Resume match for ${candidate.full_name}`} style={position} className={`fixed z-50 block max-h-[min(32rem,calc(100dvh-2rem))] w-[min(24rem,calc(100vw-2rem))] overflow-y-auto overscroll-contain rounded-xl border border-slate-200 bg-white p-4 text-left shadow-xl dark:border-slate-700 dark:bg-slate-900`} onMouseEnter={()=>{if(closeTimer.current)clearTimeout(closeTimer.current)}} onMouseLeave={close}>
       <span className="flex items-start justify-between gap-3"><span className="min-w-0"><strong className="block truncate text-sm text-slate-900 dark:text-white">{candidate.full_name}</strong><span className="text-xs text-slate-500">Resume · role evidence</span></span><button type="button" aria-label="Close resume match" className="rounded-md px-2 text-slate-500 hover:bg-slate-100 focus-visible:outline focus-visible:outline-2 focus-visible:outline-violet-600" onClick={()=>setOpen(false)}>×</button></span>
       {loading?<span role="status" className="mt-3 block text-sm text-slate-500">Checking resume evidence…</span>:error?<span role="alert" className="mt-3 block text-sm text-rose-700">{error}<button type="button" className="ml-2 font-semibold underline" onClick={()=>void load()}>Retry</button></span>:!summary||summary.assignment_status!=="completed"||summary.ats_fit_score==null||rows.length===0?<span className="mt-3 block text-sm text-slate-500">Role-specific resume evidence is unavailable for this candidate.</span>:<>
@@ -1648,6 +1647,7 @@ export default function DriveManagement({
   const reportStudentId = params.get("candidate");
   const requestedSection = params.get("section");
   const tab = (
+    ["candidates", "ats"].includes(requestedSection || "") ? "results" :
     (requestedSection || "") in sections
       ? requestedSection
       : "overview"
@@ -1985,9 +1985,7 @@ export default function DriveManagement({
   }
   const visibleResultIds = tab === "results" ? candidates.map(candidate => candidate.student_id) : [];
   const allVisibleResultsSelected = visibleResultIds.length > 0 && visibleResultIds.every(id => checked.includes(id));
-  if (reportStudentId && tab === "candidates" && !selected)
-    return <DriveCandidateScorecard driveId={driveId} studentId={reportStudentId} onBack={()=>setParams(current=>{current.delete('candidate');return current})} onManage={()=>{const candidate=candidates.find(item=>item.student_id===reportStudentId);if(candidate)openCandidateDetails(candidate)}}/>;
-  if (reportStudentId && tab !== "candidates")
+  if (reportStudentId)
     return (
       <CandidateReport
         driveId={driveId}
@@ -2030,7 +2028,7 @@ export default function DriveManagement({
         className="flex flex-wrap gap-2"
         aria-label="Drive management sections"
       >
-        {Object.entries(sections).map(([key, label]) => (
+        {Object.entries(sections).filter(([key])=>!["candidates","ats"].includes(key)).map(([key, label]) => (
           <button
             key={key}
             className={`${btn} ${tab === key ? "bg-indigo-600 text-white" : ""}`}
@@ -2332,7 +2330,7 @@ export default function DriveManagement({
           {tab === "results" && (
             <section aria-labelledby="results-heading" className="result-workspace space-y-4">
               <div className="flex flex-wrap items-end justify-between gap-3 border-b border-slate-200 pb-4">
-                <div><p className="text-xs font-semibold uppercase tracking-[0.14em] text-violet-700">Placement overview</p><h3 id="results-heading" className="mt-1 text-xl font-bold tracking-tight text-slate-900">Interview results</h3><p className="mt-1 text-sm text-slate-500">Manage every assigned candidate, review interview evidence and record placement decisions.</p></div>
+                <div><p className="text-xs font-semibold uppercase tracking-[0.14em] text-violet-700">Placement overview</p><h3 id="results-heading" className="mt-1 text-xl font-bold tracking-tight text-slate-900">Candidates & assessments</h3><p className="mt-1 text-sm text-slate-500">One workspace for candidate profiles, ATS resume fit, interview results and placement decisions.</p></div>
                 <span className="rounded-full border border-slate-200 bg-white px-3 py-1.5 text-xs font-medium text-slate-600">{loading ? "Updating results…" : `${total} candidate${total === 1 ? "" : "s"}`}</span>
               </div>
               <div className="result-kpi-grid">
@@ -2400,15 +2398,15 @@ export default function DriveManagement({
                 <input type="checkbox" className="h-4 w-4 accent-violet-600" aria-label={`Select ${candidate.full_name}`} checked={checked.includes(candidate.student_id)} onChange={event=>setChecked(current=>event.target.checked ? [...new Set([...current,candidate.student_id])] : current.filter(id=>id!==candidate.student_id))}/>
                 <StudentAvatar student={candidate} size="h-11 w-11"/>
                 <div className="min-w-0 flex-1"><div className="flex flex-wrap items-center gap-2"><h4 className="text-base font-medium text-slate-900">{candidate.full_name}</h4>{candidate.rank != null && <span className="rounded-full bg-violet-50 px-2 py-0.5 text-xs text-violet-700">#{candidate.rank} in drive</span>}<InterviewStatusBadge value={candidateInterviewStatus(candidate)}/></div><p className="mt-1 text-xs text-slate-500">{candidate.roll_number} · {[candidate.program,candidate.department_code].filter(Boolean).join(' · ')} · Attempt {candidate.attempt_number || 1}</p></div>
-                <button className={`${btn} inline-flex shrink-0 items-center gap-2 whitespace-nowrap border-violet-200 text-violet-700`} disabled={busy || !candidate.report_ready} onClick={()=>void inspect(candidate,'reports')}>{candidate.report_ready?'Open full report':'Report pending'} <ExternalLink size={14}/></button>
+                <button className={`${btn} inline-flex shrink-0 items-center gap-2 whitespace-nowrap border-violet-200 text-violet-700`} disabled={busy || !candidate.report_ready} onClick={()=>void inspect(candidate,'reports')}>{candidate.report_ready?'Full report':'Report pending'} <ExternalLink size={14}/></button>
               </header>
               <div className="result-assessment-band flex flex-wrap items-center gap-3 border-b border-violet-100 bg-violet-50/60 px-5 py-3">
                 <span className="text-xs font-medium text-slate-600">AI recommendation</span><StatusBadge value={candidate.recommendation || 'Not assessed'}/>
                 {candidate.report_ready && <CandidateStrengthGap driveId={driveId} candidate={candidate} onOpenReport={()=>void inspect(candidate,'reports')}/>}
-                <span className="ml-auto text-xs text-slate-500">Attempt {candidate.attempt_number || 1}</span>
+                <button className={`${btn} ml-auto`} onClick={()=>openCandidateDetails(candidate)}>View details</button><span className="text-xs text-slate-500">Attempt {candidate.attempt_number || 1}</span>
               </div>
               <dl className="result-evidence-rows">
-                <div><dt>Candidate & attempts</dt><dd className="flex flex-wrap items-center gap-3"><span className="text-xs text-slate-600">{candidate.email || "Email unavailable"}</span><AttemptBadge candidate={candidate} driveMaxAttempts={drive?.max_attempts}/><ResumeMatchSummary key={`resume-${version}`} driveId={driveId} candidate={candidate}/></dd></div>
+                <div><dt>Profile, ATS fit & attempts</dt><dd className="flex flex-wrap items-center gap-3"><span className="text-xs text-slate-600">{candidate.email || "Email unavailable"}</span><AttemptBadge candidate={candidate} driveMaxAttempts={drive?.max_attempts}/><ResumeMatchSummary key={`resume-${version}`} driveId={driveId} candidate={candidate}/></dd></div>
                 <div><dt>Interview assessment</dt><dd className="flex flex-wrap items-center gap-2">{[['Interview',candidate.overall_score],['Readiness / PRI',candidate.ranking_score],['Job fit',candidate.job_fit_score]].map(([label,value])=><span key={String(label)} className={`result-score-chip ${typeof value !== 'number' ? 'score-unavailable' : value >= 75 ? 'score-strong' : value >= 50 ? 'score-developing' : 'score-review'}`}><span>{label}</span><strong>{typeof value === 'number' ? `${value}/100` : 'Not assessed'}</strong></span>)}{candidate.readiness && <span className="rounded-full bg-slate-100 px-3 py-1.5 text-xs text-slate-600">{displayName(candidate.readiness)}</span>}</dd></div>
                 <div><dt>Interview rounds</dt><dd className="flex flex-wrap items-center gap-2">{candidate.agent_summary?.length ? candidate.agent_summary.map((round,index)=><span key={index} className="result-round-chip"><span>{String(round.label || displayName(String(round.agent_type || `Round ${index+1}`)))}</span><strong>{round.score==null?'Not assessed':`${round.score}/100`}</strong></span>) : <span className="text-xs text-slate-500">Round scores not available</span>}</dd></div>
                 <div><dt>AI Proctor</dt><dd className="flex flex-wrap items-center gap-3"><span className={`result-score-chip ${candidate.proctoring_score == null ? 'score-unavailable' : candidate.proctoring_score >= 75 ? 'score-strong' : candidate.proctoring_score >= 50 ? 'score-developing' : 'score-review'}`}><span>Integrity</span><strong>{candidate.proctoring_score==null?'Not assessed':`${candidate.proctoring_score}/100`}</strong></span><span className={`text-xs ${candidate.integrity_review_status === 'review_required' ? 'text-amber-700' : 'text-slate-500'}`}>{candidate.integrity_review_status === 'not_available' && candidate.proctoring_score != null ? 'Recorded integrity score' : candidate.integrity_review_label || displayName(candidate.integrity_review_status || 'not assessed')}</span>{candidate.assessment_coverage != null && <span className="ml-auto text-xs text-slate-500">Evidence coverage {candidate.assessment_coverage}%</span>}</dd></div>
@@ -2538,8 +2536,8 @@ export default function DriveManagement({
                             disabled={busy || !c.report_ready}
                             onClick={() => void inspect(c, "reports")}
                           >
-                            {c.report_ready ? "Open report" : "Report pending"}
-                          </button></div>
+                            {c.report_ready ? "Full report" : "Report pending"}
+                          </button><button className={btn} onClick={()=>openCandidateDetails(c)}>View details</button><ResumeMatchSummary key={`resume-table-${version}`} driveId={driveId} candidate={c}/></div>
                         ) : (
                           <button
                             className={btn}

@@ -1,0 +1,21 @@
+// Sample data for local review only; never imported by the production application.
+export const placementSample = {
+ institution: { id: 'preview-college', name: 'Example Engineering College' },
+ summary: { interviews: 1250, candidates: 1032, average_competency: 76, satisfaction: 88, feedback_responses: 1032, satisfaction_responses: 1032, positive_experience_percent: 82 },
+ competencies: ['Subject knowledge', 'Communication', 'Problem solving', 'Practical skills', 'Critical thinking'].map((name, index) => ({ key: String(index), name, score: [82, 78, 72, 75, 73][index], responses: 1250, weight: 20, target: 80 })),
+ experience_distribution: ['Excellent', 'Good', 'Average', 'Poor', 'Very poor'].map((name, index) => ({ name, count: [640, 268, 83, 31, 10][index] })),
+ readiness: [{ name: 'Ready', count: 575 }, { name: 'Developing', count: 475 }, { name: 'Needs improvement', count: 200 }],
+ trend: Array.from({ length: 8 }, (_, index) => ({ date: `2026-10-${String(index + 1).padStart(2, '0')}`, interviews: 125 + index * 5, competency: [62, 66, 64, 69, 71, 73, 74, 76][index], satisfaction: [74, 76, 75, 79, 81, 83, 86, 88][index] })),
+ by_department: ['CSE', 'ECE', 'ME', 'EEE', 'IT'].map((name, index) => ({ name, interviews: [420, 280, 210, 190, 150][index], score: [82, 78, 72, 75, 73][index], ready_percent: [64, 53, 32, 38, 48][index] })),
+ by_program: [], by_role: [],
+ by_category: ['Campus placements', 'Internships', 'Skill evaluation', 'Mock interviews'].map((name, index) => ({ name, interviews: [420, 280, 310, 240][index], score: 76, ready_percent: 46 })),
+ recent_interviews: ['Arjun Kumar', 'Priya Sharma', 'Rahul Menon', 'Sneha R', 'Vikram S'].map((full_name, index) => ({ session_id: `preview-session-${index}`, student_id: `preview-student-${index}`, full_name, department: ['CSE', 'MBA', 'AI', 'Data Science', 'ECE'][index], program: ['B.Tech', 'MBA', 'M.Tech', 'B.Sc', 'B.Tech'][index], role: 'Software Engineer', drive_id: 'drive-1', drive_name: 'Campus Placement Drive', interview_date: `2026-10-${String(12 - index).padStart(2, '0')}T10:00:00Z`, overall_score: [85, 78, 92, 66, 81][index] })),
+ strengths: ['Communication skills', 'Analytical thinking', 'Domain knowledge', 'Structured debugging', 'Problem solving'].map((text, index) => ({ text, count: 320 - index * 30 })),
+ development_gaps: ['SQL optimisation', 'Practical validation', 'Project storytelling', 'Industry awareness', 'Leadership examples'].map((text, index) => ({ text, count: 150 - index * 20 })),
+ suggestions: [{ text: 'More practical questions would be helpful.', department: 'CSE', drive: 'Campus drive' }],
+ alerts: [{ type: 'readiness', title: 'Focused development support', detail: 'Review candidates below the configured readiness threshold.' }, { type: 'human_review', title: 'Human review recommended', detail: 'Review assessment evidence before making selection decisions.' }],
+ filters: { department: ['CSE', 'ECE', 'ME', 'EEE', 'IT'], program: ['B.Tech', 'M.Tech', 'MBA'], role: ['Software Engineer'], experience: ['fresher'], category: ['placement_prep', 'mock_interview'] },
+ settings: { readiness_threshold: 70, satisfaction_threshold: 60, min_feedback_responses: 5, role_targets: {} },
+ scope_note: 'Analytics reflect authorized assessment evidence and submitted candidate feedback.', rubric_version: 'stage6-rubric-v1',
+ institutional_comparisons: [{ name: 'Your institution', average_competency: 76, assessed_count: 1250, period: 'October 2026', source: 'Current selection' }, { name: 'Authorized aggregate benchmark', average_competency: 74, assessed_count: 860, period: 'October 2026', source: 'Permitted aggregate sample' }],
+};
