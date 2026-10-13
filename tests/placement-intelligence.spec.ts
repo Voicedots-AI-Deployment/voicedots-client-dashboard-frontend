@@ -62,7 +62,7 @@ test('command center has measured charts, working filters and expands with sideb
  let filter='';await page.route('**/v3/college/intelligence/dashboard?**',route=>{filter=route.request().url();return route.fulfill({json:fixture})});
  await page.getByLabel('Department',{exact:true}).selectOption('CSE');await expect.poll(()=>filter).toContain('department=CSE');
  await page.getByLabel('Role',{exact:true}).selectOption('Engineer');await expect.poll(()=>filter).toContain('role=Engineer');
- await expect(page.locator('.recharts-wrapper')).toHaveCount(5);
+ await expect(page.locator('.recharts-wrapper')).toHaveCount(3);await expect(page.getByRole('figure',{name:'Candidate competency scores'})).toContainText('78/100');await expect(page.getByRole('figure',{name:'Interviews by assessment category'})).toContainText('Placement Prep');
  const before=(await page.locator('.placement-intelligence').boundingBox())!.width;await page.getByRole('button',{name:'Collapse sidebar',exact:true}).click();await expect.poll(async()=> (await page.locator('.placement-intelligence').boundingBox())!.width).toBeGreaterThan(before);
  mkdirSync(screenshots,{recursive:true});await page.screenshot({path:`${screenshots}/placement-dashboard-desktop.png`,fullPage:true});
  await page.getByRole('button',{name:'Reports & alerts',exact:true}).click();await expect(page.getByRole('heading',{name:'Department Benchmarking'})).toBeVisible();
@@ -98,4 +98,14 @@ test('malformed analytics response displays a retryable error without crashing',
  await expect(page.getByRole('alert')).toContainText('Unable to complete the request. Please try again.');
  await expect(page.getByRole('region',{name:'Placement dashboard',exact:true})).toBeVisible();
  expect(errors).toEqual([]);
+});
+
+test('crowded competency labels and long insights remain readable without stretched cards',async({page})=>{
+ await page.setViewportSize({width:1440,height:1000});await setup(page);
+ const crowded={...fixture,competencies:Array.from({length:16},(_,i)=>({key:`skill-${i}`,name:`Competency ${i+1} with a descriptive professional label`,score:30+i,responses:12,target:null,weight:null})),strengths:Array.from({length:5},(_,i)=>({text:`Grounded strength ${i}: `+'Project evidence and structured explanation. '.repeat(12),count:1})),summary:{...fixture.summary,satisfaction:null,satisfaction_responses:0}};
+ await page.route('**/v3/college/intelligence/dashboard?**',route=>route.fulfill({json:crowded}));await page.getByRole('button',{name:'Refresh analytics'}).click();
+ const chart=page.getByRole('figure',{name:'Candidate competency scores'});await expect(chart.locator('li')).toHaveCount(16);await expect(chart).toContainText('Competency 16');await expect(page.getByText('Complete six-question feedback has not been collected.')).toBeVisible();
+ expect(await chart.evaluate(element=>element.clientHeight<=360)).toBe(true);
+ const cards=await page.locator('.pi-middle-grid .pi-card').evaluateAll(elements=>elements.map(element=>element.getBoundingClientRect().height));expect(Math.max(...cards)).toBeLessThan(800);
+ for(const width of [320,390,768,1440]){await page.setViewportSize({width,height:1000});await expect.poll(()=>page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth)).toBe(true);}
 });

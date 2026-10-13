@@ -2240,7 +2240,7 @@ test('feedback dashboard uses saved data, filters, details and exports',async({p
  await expect(page.locator('.feedback-kpis')).toContainText('12');
  await expect(page.locator('.feedback-recommendation')).toContainText('8.1 / 10');
  await expect(page.locator('.feedback-question-grid>div')).toHaveCount(6);
- await expect(page.locator('.feedback-chart .recharts-wrapper')).toHaveCount(3);
+ await expect(page.locator('.feedback-chart .recharts-wrapper')).toHaveCount(1);await expect(page.getByRole('figure',{name:'Feedback by drive',exact:true})).toBeVisible();await expect(page.getByRole('figure',{name:'Feedback by department',exact:true})).toBeVisible();
  const out='/root/voicedots/releases/placement-feedback-dashboard-20261012';mkdirSync(out,{recursive:true});
  await page.setViewportSize({width:1600,height:1100});await page.screenshot({path:out+'/feedback-desktop.png',fullPage:true});
  await page.getByRole('button',{name:'View',exact:true}).click();
@@ -2415,4 +2415,10 @@ test('recording refresh follows secure link lifetime and preserves playback posi
   await expect(video).toHaveAttribute('src','https://media.example/link-2.webm');
   await expect.poll(()=>video.evaluate(element=>(element as HTMLVideoElement).readyState)).toBeGreaterThanOrEqual(2);
   await expect.poll(()=>video.evaluate(element=>(element as HTMLVideoElement).currentTime)).toBeCloseTo(0.5,1);
+});
+
+test('malformed feedback data remains retryable without a page crash',async({page})=>{
+ const errors:string[]=[];page.on('pageerror',error=>errors.push(error.message));await feedbackSetup(page);
+ await page.route('**/v3/college/feedback/dashboard?**',route=>route.fulfill({json:{summary:{}}}));await page.locator('.feedback-dashboard').getByRole('button',{name:'Refresh',exact:true}).click();
+ await expect(page.getByRole('alert')).toBeVisible();await expect(page.locator('.feedback-kpis')).toHaveCount(0);expect(errors).toEqual([]);
 });
