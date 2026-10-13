@@ -322,11 +322,11 @@ test('candidate list shows the current attempt and configured attempt limit', as
     pagination: { total: 1 },
   } }));
   await page.reload();
-  await expect(page).toHaveURL(/section=results/);
+  await expect(page).toHaveURL(/section=candidates/);
   const driveNavigation = page.getByRole('navigation', { name: 'Drive management sections' });
   await expect(driveNavigation.getByRole('button', { name: 'Analytics', exact: true })).toHaveCount(0);
-  await expect(driveNavigation.getByRole('button', { name: 'Candidates', exact: true })).toHaveCount(0);
-  await expect(page.getByRole('heading', { name: 'Interview results', exact: true })).toBeVisible();
+  await expect(driveNavigation.getByRole('button', { name: 'Candidates', exact: true })).toBeVisible();
+  await expect(page.getByRole('columnheader', { name: 'Result Status', exact: true })).toBeVisible();
   await expect(page.getByText('Attempt 2 of 3 · in progress')).toBeVisible();
 });
 
@@ -2113,7 +2113,7 @@ test('Interview results preserves candidate details and attempt controls in card
   expect(photoRequests.every(url=>new URL(url).searchParams.get('optional')==='true')).toBe(true);
   await expect(page.getByLabel('Merged Candidate initials')).toBeVisible();
   await expect(page).toHaveURL(/section=results/);
-  await expect(page.getByRole('navigation',{name:'Drive management sections'}).getByRole('button',{name:'Candidates',exact:true})).toHaveCount(0);
+  await expect(page.getByRole('navigation',{name:'Drive management sections'}).getByRole('button',{name:'Candidates',exact:true})).toBeVisible();
   await expect(page.getByRole('navigation',{name:'Drive management sections'}).getByRole('button',{name:'Analytics',exact:true})).toHaveCount(0);
   await expect(page.getByRole('heading',{name:'Interview results',exact:true})).toBeVisible();
   await expect(page.getByText('merged@example.edu',{exact:true})).toBeVisible();

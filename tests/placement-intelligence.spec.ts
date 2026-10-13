@@ -23,9 +23,9 @@ test('command center has measured charts, working filters and expands with sideb
  await page.getByRole('button',{name:'Reports & alerts',exact:true}).click();await expect(page.getByRole('heading',{name:'Department Benchmarking'})).toBeVisible();
  await page.getByRole('button',{name:'Configure',exact:true}).click();await page.getByLabel('Readiness threshold',{exact:true}).fill('75');let saved:any;await page.route('**/v3/college/intelligence/settings',route=>{saved=route.request().postDataJSON();return route.fulfill({json:saved})});await page.getByRole('button',{name:'Save policy'}).click();await expect.poll(()=>saved?.readiness_threshold).toBe(75);
 });
-test('legacy drive Candidates links open the compact Interview Results workspace',async({page})=>{
+test('drive Candidates restores the original table and details drawer',async({page})=>{
  await page.setViewportSize({width:1500,height:1050});await setup(page,'/dashboard/placement-management?drive=drive-1&section=candidates');
- await expect(page).toHaveURL(/section=results/);await expect(page.getByRole('heading',{name:'Interview results',exact:true})).toBeVisible();await expect(page.getByText('Ananya Sharma',{exact:true})).toBeVisible();const navigation=page.getByRole('navigation',{name:'Drive management sections'});await expect(navigation.getByRole('button',{name:'Analytics',exact:true})).toHaveCount(0);await expect(navigation.getByRole('button',{name:'Candidates',exact:true})).toHaveCount(0);
+ await expect(page).toHaveURL(/section=candidates/);await expect(page.getByRole('columnheader',{name:'Result Status',exact:true})).toBeVisible();await expect(page.getByText('Ananya Sharma',{exact:true})).toBeVisible();const navigation=page.getByRole('navigation',{name:'Drive management sections'});await expect(navigation.getByRole('button',{name:'Analytics',exact:true})).toHaveCount(0);await expect(navigation.getByRole('button',{name:'Candidates',exact:true})).toBeVisible();
 });
 test('dashboard mobile fits and empty data does not invent values',async({page})=>{
  await page.setViewportSize({width:390,height:844});await setup(page);await expect(page.getByRole('heading',{name:'AI Interview Analytics'})).toBeVisible();await expect.poll(()=>page.evaluate(()=>document.documentElement.scrollWidth<=window.innerWidth)).toBe(true);await page.screenshot({path:`${screenshots}/placement-dashboard-mobile.png`,fullPage:true});
@@ -40,7 +40,7 @@ test('dashboard and drive Interview Results remain contained across tablet and n
   await page.getByRole('button',{name:'Competency & career analytics',exact:true}).click();
   await expect.poll(()=>page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth)).toBe(true);
   await page.goto('/dashboard/placement-management?drive=drive-1&section=candidates');
-  await expect(page.getByRole('heading',{name:'Interview results',exact:true})).toBeVisible();
+  await expect(page.getByRole('columnheader',{name:'Result Status',exact:true})).toBeVisible();
   await expect.poll(()=>page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth)).toBe(true);
  }
 });

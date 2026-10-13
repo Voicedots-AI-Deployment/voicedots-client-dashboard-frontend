@@ -197,6 +197,7 @@ function CandidateOfficerActions({ driveId, candidate, onSaved }: { driveId: str
 }
 const sections = {
   overview: "Overview",
+  candidates: "Candidates",
   ats: "ATS fit",
   results: "Interview results",
   feedback: "Feedback",
@@ -208,6 +209,7 @@ const sections = {
 type Tab = keyof typeof sections;
 const paths: Record<Tab, string> = {
   overview: "dashboard/overview",
+  candidates: "dashboard/ranking",
   ats: "dashboard/ats-fit",
   results: "dashboard/ranking",
   feedback: "dashboard/overview",
@@ -1621,18 +1623,12 @@ export default function DriveManagement({
 }) {
   const [params, setParams] = useSearchParams();
   const reportStudentId = params.get("candidate");
-  const requestedSection = params.get("section") === "candidates" ? "results" : params.get("section");
+  const requestedSection = params.get("section");
   const tab = (
     (requestedSection || "") in sections
       ? requestedSection
       : "overview"
   ) as Tab;
-  useEffect(() => {
-    if (params.get("section") === "candidates") setParams(current => {
-      current.set("section", "results");
-      return current;
-    }, { replace: true });
-  }, [params, setParams]);
   const [drive, setDrive] = useState<Drive | null>(null),
     [data, setData] = useState<Data | null>(null),
     [detail, setDetail] = useState<unknown>(null);
@@ -1741,11 +1737,12 @@ export default function DriveManagement({
       offset: String(offset),
       q: search,
     });
-    if (tab === "results") {
+    if (tab === "results" || tab === "candidates") {
       if (departmentFilter) query.set("department", departmentFilter);
       if (programFilter) query.set("program", programFilter);
       if (statusFilter) query.set("assignment_status", statusFilter);
     }
+    if (tab === "candidates") query.set("sort_by", listSort);
     if (tab === "ats") {
       if (departmentFilter) query.set("department", departmentFilter);
       if (atsEligibility) query.set("eligible", atsEligibility === "eligible" ? "true" : "false");
@@ -2253,7 +2250,7 @@ export default function DriveManagement({
             </div>
           );
         })()}
-      {["ats", "results"].includes(tab) && (
+      {["candidates", "ats", "results"].includes(tab) && (
         <>
           {tab !== "results" && <div className="grid gap-3 md:grid-cols-3 xl:grid-cols-6">
             <label className="text-sm">
@@ -2283,6 +2280,10 @@ export default function DriveManagement({
                 ))}
               </select>
             </label>
+            {tab === "candidates" && <>
+              <label className="text-sm">Program<select className={field} value={programFilter} onChange={event=>{setOffset(0);setProgramFilter(event.target.value)}}><option value="">All programs</option>{programOptions.map(program=><option key={program.code} value={program.code}>{displayName(program.display_name)}</option>)}</select></label>
+              <label className="text-sm">Interview status<select className={field} value={statusFilter} onChange={event=>{setOffset(0);setStatusFilter(event.target.value)}}><option value="">All statuses</option>{["assigned","invited","in_progress","completed","expired","cancelled"].map(status=><option key={status} value={status}>{displayName(status)}</option>)}</select></label>
+            </>}
             {tab === "ats" ? (
               <>
                 <label className="text-sm">
@@ -2632,7 +2633,7 @@ export default function DriveManagement({
                 driveId={driveId}
                 drive={drive}
               />
-              {tab === "results" && (
+              {["results", "candidates"].includes(tab) && (
                 <>
                   <div className="flex flex-wrap gap-3">
                     {["completed", "released", "held_for_review"].includes(
