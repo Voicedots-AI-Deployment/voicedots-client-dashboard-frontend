@@ -1414,7 +1414,7 @@ test('Student Roster exposes the photo permission during add and edit flows', as
 });
 
 
-test('interview date and time fields render required markers while department requirement follows program configuration', async ({page})=>{
+test('interview dates remain required while eligible departments are optional', async ({page})=>{
   await setup(page,true,{initialPath:'/dashboard/placement-management',academicCatalog:{programs:[{code:'B.Tech',display_name:'Bachelor of Technology',duration_years:4,departments:[{code:'CSE',display_name:'Computer Science'}]},{code:'NO_DEPTS',display_name:'Program without departments',duration_years:3,departments:[]}],graduation_years:[2027,2028]}});
   await page.getByRole('button',{name:'Create drive',exact:true}).click();
   await page.getByLabel('Company name').fill('Campus Employer');
@@ -1429,7 +1429,7 @@ test('interview date and time fields render required markers while department re
   await page.getByRole('button',{name:'5. Eligibility'}).click();
   await page.getByRole('checkbox',{name:/Bachelor Of Technology B\.Tech/}).check();
   const departments=page.locator('fieldset[aria-label="Eligible departments"]');
-  await expect(departments.locator('legend')).toContainText('Eligible departments*');
+  await expect(departments.locator('legend')).toContainText('Optional');
   await page.getByRole('checkbox',{name:/Bachelor Of Technology B\.Tech/}).uncheck();
   await page.getByRole('checkbox',{name:/NO_DEPTS/}).check();
   await expect(departments).toContainText('Optional');
@@ -2421,4 +2421,116 @@ test('malformed feedback data remains retryable without a page crash',async({pag
  const errors:string[]=[];page.on('pageerror',error=>errors.push(error.message));await feedbackSetup(page);
  await page.route('**/v3/college/feedback/dashboard?**',route=>route.fulfill({json:{summary:{}}}));await page.locator('.feedback-dashboard').getByRole('button',{name:'Refresh',exact:true}).click();
  await expect(page.getByRole('alert')).toBeVisible();await expect(page.locator('.feedback-kpis')).toHaveCount(0);expect(errors).toEqual([]);
+});
+
+test('optional departments permit creation for BBA', async ({page}) => {
+  await setup(page,true,{initialPath:'/dashboard/placement-management'});
+  await page.route('**/v3/college/academic-catalog',route=>route.fulfill({json:generalBbaCatalog}));
+  let preview:Record<string,unknown>|undefined,created:Record<string,unknown>|undefined;
+  await page.route('**/v3/college/drives/eligibility/preview',route=>{preview=route.request().postDataJSON();return route.fulfill({json:{total_students:0,eligible_count:0,not_eligible_count:0,missing_photo_count:0,candidates:[]}})});
+  await page.route('**/v3/college/drives',route=>{
+    if(route.request().method()!=='POST')return route.fallback();
+    created=route.request().postDataJSON();return route.fulfill({json:{drive_id:'new-drive',status:'draft',warnings:[]}});
+  });
+  await page.getByRole('button',{name:'Create drive',exact:true}).click();
+  await page.getByLabel('Company name').fill('Campus Employer');
+  await page.locator('#role_title').fill('Business Analyst');
+  await page.getByLabel('Location').fill('Chennai');
+  await page.getByLabel('Job description').fill('Analyze business requirements and document solutions.');
+  await page.getByRole('button',{name:'Continue'}).click();
+  await page.getByLabel('Interview starts date').fill('2027-01-10');
+  await page.getByLabel('Interview starts hour').selectOption('9');
+  await page.getByLabel('Interview starts AM / PM').selectOption('AM');
+  await page.getByLabel('Interview ends date').fill('2027-01-11');
+  await page.getByLabel('Interview ends hour').selectOption('6');
+  await page.getByLabel('Interview ends AM / PM').selectOption('PM');
+  await page.getByRole('button',{name:'4. Questions'}).click();
+  await page.getByRole('button',{name:'5. Eligibility'}).click();
+  for(const program of ['BBA']) await page.locator('fieldset[aria-label="Eligible programs"]').getByRole('checkbox',{name:new RegExp(program)}).check();
+  const departmentGroup=page.locator('fieldset[aria-label="Eligible departments"]');
+  await expect(departmentGroup).toContainText('Optional');
+
+  await page.locator('#graduation_from').selectOption('2027');
+  await page.locator('#graduation_to').selectOption('2027');
+  await expect.poll(()=>preview?.eligible_departments).toEqual([]);
+  await page.getByRole('button',{name:'Continue'}).click();
+  await page.getByRole('button',{name:'Create placement drive'}).click();
+  await expect(page.getByText('Drive created (draft).')).toBeVisible();
+  expect(created?.eligible_departments).toEqual([]);
+  expect(created?.eligible_programs).toEqual(['BBA']);
+});
+
+test('optional departments permit creation for B.Tech', async ({page}) => {
+  await setup(page,true,{initialPath:'/dashboard/placement-management'});
+  await page.route('**/v3/college/academic-catalog',route=>route.fulfill({json:generalBbaCatalog}));
+  let preview:Record<string,unknown>|undefined,created:Record<string,unknown>|undefined;
+  await page.route('**/v3/college/drives/eligibility/preview',route=>{preview=route.request().postDataJSON();return route.fulfill({json:{total_students:0,eligible_count:0,not_eligible_count:0,missing_photo_count:0,candidates:[]}})});
+  await page.route('**/v3/college/drives',route=>{
+    if(route.request().method()!=='POST')return route.fallback();
+    created=route.request().postDataJSON();return route.fulfill({json:{drive_id:'new-drive',status:'draft',warnings:[]}});
+  });
+  await page.getByRole('button',{name:'Create drive',exact:true}).click();
+  await page.getByLabel('Company name').fill('Campus Employer');
+  await page.locator('#role_title').fill('Business Analyst');
+  await page.getByLabel('Location').fill('Chennai');
+  await page.getByLabel('Job description').fill('Analyze business requirements and document solutions.');
+  await page.getByRole('button',{name:'Continue'}).click();
+  await page.getByLabel('Interview starts date').fill('2027-01-10');
+  await page.getByLabel('Interview starts hour').selectOption('9');
+  await page.getByLabel('Interview starts AM / PM').selectOption('AM');
+  await page.getByLabel('Interview ends date').fill('2027-01-11');
+  await page.getByLabel('Interview ends hour').selectOption('6');
+  await page.getByLabel('Interview ends AM / PM').selectOption('PM');
+  await page.getByRole('button',{name:'4. Questions'}).click();
+  await page.getByRole('button',{name:'5. Eligibility'}).click();
+  for(const program of ['B.Tech']) await page.locator('fieldset[aria-label="Eligible programs"]').getByRole('checkbox',{name:new RegExp(program)}).check();
+  const departmentGroup=page.locator('fieldset[aria-label="Eligible departments"]');
+  await expect(departmentGroup).toContainText('Optional');
+
+  await page.locator('#graduation_from').selectOption('2027');
+  await page.locator('#graduation_to').selectOption('2027');
+  await expect.poll(()=>preview?.eligible_departments).toEqual([]);
+  await page.getByRole('button',{name:'Continue'}).click();
+  await page.getByRole('button',{name:'Create placement drive'}).click();
+  await expect(page.getByText('Drive created (draft).')).toBeVisible();
+  expect(created?.eligible_departments).toEqual([]);
+  expect(created?.eligible_programs).toEqual(['B.Tech']);
+});
+
+test('optional departments permit creation for BBA and B.Tech', async ({page}) => {
+  await setup(page,true,{initialPath:'/dashboard/placement-management'});
+  await page.route('**/v3/college/academic-catalog',route=>route.fulfill({json:generalBbaCatalog}));
+  let preview:Record<string,unknown>|undefined,created:Record<string,unknown>|undefined;
+  await page.route('**/v3/college/drives/eligibility/preview',route=>{preview=route.request().postDataJSON();return route.fulfill({json:{total_students:0,eligible_count:0,not_eligible_count:0,missing_photo_count:0,candidates:[]}})});
+  await page.route('**/v3/college/drives',route=>{
+    if(route.request().method()!=='POST')return route.fallback();
+    created=route.request().postDataJSON();return route.fulfill({json:{drive_id:'new-drive',status:'draft',warnings:[]}});
+  });
+  await page.getByRole('button',{name:'Create drive',exact:true}).click();
+  await page.getByLabel('Company name').fill('Campus Employer');
+  await page.locator('#role_title').fill('Business Analyst');
+  await page.getByLabel('Location').fill('Chennai');
+  await page.getByLabel('Job description').fill('Analyze business requirements and document solutions.');
+  await page.getByRole('button',{name:'Continue'}).click();
+  await page.getByLabel('Interview starts date').fill('2027-01-10');
+  await page.getByLabel('Interview starts hour').selectOption('9');
+  await page.getByLabel('Interview starts AM / PM').selectOption('AM');
+  await page.getByLabel('Interview ends date').fill('2027-01-11');
+  await page.getByLabel('Interview ends hour').selectOption('6');
+  await page.getByLabel('Interview ends AM / PM').selectOption('PM');
+  await page.getByRole('button',{name:'4. Questions'}).click();
+  await page.getByRole('button',{name:'5. Eligibility'}).click();
+  for(const program of ['BBA', 'B.Tech']) await page.locator('fieldset[aria-label="Eligible programs"]').getByRole('checkbox',{name:new RegExp(program)}).check();
+  const departmentGroup=page.locator('fieldset[aria-label="Eligible departments"]');
+  await expect(departmentGroup).toContainText('Optional');
+
+  await page.locator('#graduation_from').selectOption('2027');
+  await page.locator('#graduation_to').selectOption('2027');
+  await expect.poll(()=>preview?.eligible_departments).toEqual([]);
+  await page.getByRole('button',{name:'Continue'}).click();
+  await page.getByRole('button',{name:'Confirm and review'}).click();
+  await page.getByRole('button',{name:'Create placement drive'}).click();
+  await expect(page.getByText('Drive created (draft).')).toBeVisible();
+  expect(created?.eligible_departments).toEqual([]);
+  expect(created?.eligible_programs).toEqual(['BBA', 'B.Tech']);
 });
