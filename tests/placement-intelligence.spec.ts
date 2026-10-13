@@ -13,9 +13,12 @@ async function setup(page:Page,path='/dashboard/placement-management?view=dashbo
 const screenshots='/root/voicedots/releases/placement-intelligence-20261012/screenshots';
 test('Candidates View details opens the company assessment scorecard for the current drive',async({page})=>{
  await setup(page,'/dashboard/placement-management?drive=drive-1&section=candidates');
+ await page.route('**/v3/college/attendance/photos/students/student-1?optional=true',route=>route.fulfill({json:{photo:'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+aN1cAAAAASUVORK5CYII='}}));
  await page.getByRole('button',{name:'View details',exact:true}).click();
  await expect(page.getByRole('heading',{name:'Candidate Assessment Scorecard',exact:true})).toBeVisible();
  await expect(page.getByRole('heading',{name:'Ananya Sharma',exact:true})).toBeVisible();
+ await expect(page.getByRole('img',{name:'Ananya Sharma profile'})).toBeVisible();
+ await expect.poll(()=>page.getByRole('img',{name:'Ananya Sharma profile'}).evaluate((img:HTMLImageElement)=>img.naturalWidth)).toBeGreaterThan(0);
  await expect(page.getByRole('heading',{name:'Competency Results',exact:true})).toBeVisible();
  await expect(page.getByText('78/100',{exact:true}).first()).toBeVisible();
  await expect(page.getByRole('heading',{name:'Candidate 360° Profile',exact:true})).toHaveCount(0);
