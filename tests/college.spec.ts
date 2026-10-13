@@ -972,10 +972,14 @@ test('analytics has honest empty data and fits a mobile viewport',async ({page})
  await page.screenshot({path:'test-results/placement-analytics-mobile.png',fullPage:true});
 });
 
-test('roster imports a workbook and offers a downloadable CSV template',async({page})=>{
- await setup(page,true,{initialPath:'/dashboard/attendance'});await page.route('**/v3/college/students/upload',async route=>{expect(route.request().headers()['content-type']).toContain('multipart/form-data; boundary=');expect(route.request().postDataBuffer()?.toString()).toContain('roster.csv');return route.fulfill({json:{records_created:2,records_updated:1,records_processed:3,errors_count:1,errors_sample:['Students row 5: Email is required'],warnings_count:0,warnings_sample:[]}})});
- await page.route('**/v3/college/students/template?format=csv**',route=>route.fulfill({contentType:'text/csv',body:'roll_number,full_name,email\r\n'}));
- await page.getByRole('button',{name:'Student Roster',exact:true}).click();await page.getByText('Import students or update CGPA in bulk',{exact:true}).click();const downloaded=page.waitForEvent('download');await page.getByRole('button',{name:'Download CSV template'}).click();expect((await downloaded).suggestedFilename()).toBe('student-import-template.csv');await page.getByLabel('Student import file').setInputFiles({name:'roster.csv',mimeType:'text/csv',buffer:Buffer.from('roll_number,full_name,email\n001,Asha,asha@example.com')});await page.getByRole('button',{name:'Import students',exact:true}).click();await expect(page.getByText('2 created · 1 updated · 1 errors · 0 warnings')).toBeVisible();await expect(page.getByText('Students row 5: Email is required')).toBeVisible();
+test('roster reviews a workbook before saving and offers a downloadable CSV template',async({page})=>{
+ await setup(page,true,{initialPath:'/dashboard/attendance'});
+ await page.route('**/v3/college/students/upload?**',async route=>{
+  expect(route.request().headers()['content-type']).toContain('multipart/form-data; boundary=');
+  return route.fulfill({json:route.request().url().includes('preview=true')?{status:'review',rows:[{row_number:2,values:{roll_number:'001',full_name:'Asha',email:'asha@example.com'},issues:[],warnings:[],action:'create'}],columns:[{key:'roll_number',label:'Student ID'},{key:'full_name',label:'Student name'}],catalog:[],catalog_rows:[],catalog_issues:[],valid_count:1,errors_count:0,duplicates_count:0}:{records_created:1,records_updated:0,records_processed:1,errors_count:0,errors_sample:[],warnings_count:0,warnings_sample:[]}});
+ });
+ await page.route('**/v3/college/students/template?format=csv**',route=>route.fulfill({contentType:'text/csv',body:'Student ID,Student name,Email\r\n'}));
+ await page.getByRole('button',{name:'Student Roster',exact:true}).click();await page.getByText('Import students or update CGPA in bulk',{exact:true}).click();const downloaded=page.waitForEvent('download');await page.getByRole('button',{name:'Download CSV template'}).click();expect((await downloaded).suggestedFilename()).toBe('student-roster-template.csv');await page.getByLabel('Student import file').setInputFiles({name:'roster.csv',mimeType:'text/csv',buffer:Buffer.from('Student ID,Student name,Email\n001,Asha,asha@example.com')});await page.getByRole('button',{name:'Review file',exact:true}).click();await expect(page.getByRole('button',{name:'Confirm import',exact:true})).toBeEnabled();await page.getByRole('button',{name:'Confirm import',exact:true}).click();await expect(page.getByText('1 created · 0 updated · 0 errors · 0 warnings')).toBeVisible();
 });
 
 for (const existing of [true, false]) {
@@ -1958,9 +1962,10 @@ test('CGPA is optional when adding a student and bulk scores use a separate impo
   await expect.poll(()=>saved?.cgpa).toBeNull();
   await page.getByText('Import students or update CGPA in bulk',{exact:true}).click();
   await page.getByLabel('Student import action').selectOption('cgpa');
-  await page.route('**/v3/college/students/upload?mode=cgpa',route=>{bulkUrl=route.request().url();return route.fulfill({json:{records_created:0,records_updated:1,errors_count:0,warnings_count:0}});});
+  await page.route('**/v3/college/students/upload?mode=cgpa**',route=>{bulkUrl=route.request().url();return route.fulfill({json:bulkUrl.includes('preview=true')?{status:'review',rows:[{row_number:2,values:{roll_number:'NO-CGPA-01',cgpa:'8.75'},issues:[],warnings:[],action:'update'}],columns:[{key:'roll_number',label:'Student ID'},{key:'cgpa',label:'CGPA'}],catalog:[],catalog_rows:[],catalog_issues:[],valid_count:1,errors_count:0,duplicates_count:0}:{records_created:0,records_updated:1,errors_count:0,warnings_count:0}});});
   await page.getByLabel('Student import file').setInputFiles({name:'scores.csv',mimeType:'text/csv',buffer:Buffer.from('roll_number,cgpa\nNO-CGPA-01,8.75\n')});
-  await page.getByRole('button',{name:'Update CGPA',exact:true}).click();
+  await page.getByRole('button',{name:'Review file',exact:true}).click();
+  await page.getByRole('button',{name:'Confirm CGPA update',exact:true}).click();
   await expect.poll(()=>bulkUrl).toContain('mode=cgpa');
   await expect(page.getByRole('status').filter({hasText:'0 created · 1 updated'})).toBeVisible();
 });
