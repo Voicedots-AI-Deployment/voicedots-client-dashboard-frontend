@@ -1211,6 +1211,38 @@ test('candidate resume match opens from keyboard focus with only ATS evidence an
   await expect(popup).toBeHidden();
 });
 
+test('resume match keeps long evidence compact and reuses the request across layouts',async({page})=>{
+  await setup(page,true,{initialPath:'/dashboard/placement-management?drive=drive-1&section=results',driveDetails:{id:'drive-1',company_name:'Example',role_title:'Engineer',status:'active'}});
+  await page.route('**/v3/college/drives/drive-1/dashboard/ranking**',route=>route.fulfill({json:{candidates:[{student_id:'s-long',full_name:'Long Evidence',roll_number:'R1',assignment_status:'completed',max_attempts:1,attempt_number:1,overall_score:80,readiness:'Not Ready',report_ready:true}],pagination:{total:1}}}));
+  let requests=0;
+  const evidence='Implemented Python services and database queries. '.repeat(60)+'UNIQUE_END_OF_EVIDENCE';
+  await page.route('**/v3/college/drives/drive-1/dashboard/ats-fit**',async route=>{requests++;await new Promise(resolve=>setTimeout(resolve,150));await route.fulfill({json:{candidates:[{student_id:'s-long',assignment_status:'completed',ats_fit_score:82,skills:[{skill:'Python',match_status:'FULL_MATCH',evidence_text:evidence}]}]}})});
+  await page.reload();
+  await page.getByRole('button',{name:'AI resume match',exact:true}).scrollIntoViewIfNeeded();
+  await expect.poll(()=>requests).toBe(1);
+  await page.getByRole('button',{name:'AI resume match',exact:true}).hover();
+  const popup=page.getByRole('dialog',{name:'Resume match for Long Evidence'});
+  await expect(popup).toContainText('82/100');
+  await expect(popup).not.toContainText('UNIQUE_END_OF_EVIDENCE');
+  await page.screenshot({path:'/root/voicedots/artifacts/resume-match-compact.png',fullPage:true});
+  const bounds=await popup.boundingBox();expect(bounds!.height).toBeLessThanOrEqual(512);expect(bounds!.y).toBeGreaterThanOrEqual(0);
+  await popup.getByRole('button',{name:'Read full evidence',exact:true}).click();
+  await expect(popup).toContainText('UNIQUE_END_OF_EVIDENCE');
+  await page.keyboard.press('Escape');await expect(popup).toHaveCount(0);
+  await page.getByRole('group',{name:'Results layout'}).getByRole('button',{name:'Table',exact:true}).click();
+  const row=page.getByRole('row').filter({hasText:'Long Evidence'});
+  await expect(row).toContainText('1/1 used');
+  await page.screenshot({path:'/root/voicedots/artifacts/interview-results-clean-table.png',fullPage:true});
+  const badges=row.locator('span.rounded-full');for(const badge of await badges.all()){expect(await badge.evaluate(el=>getComputedStyle(el).whiteSpace)).toBe('nowrap')}
+  await page.getByRole('group',{name:'Results layout'}).getByRole('button',{name:'Cards',exact:true}).click();
+  await page.getByRole('button',{name:'AI resume match',exact:true}).focus();
+  await expect(popup).toContainText('82/100');expect(requests).toBe(1);
+  await page.keyboard.press('Escape');
+  await page.getByRole('button',{name:'Refresh',exact:true}).click();
+  await page.getByRole('button',{name:'AI resume match',exact:true}).scrollIntoViewIfNeeded();
+  await expect.poll(()=>requests).toBe(2);
+});
+
 test('pending candidate resume summary stays neutral when role analysis is unavailable',async({page})=>{
   await setup(page);
   await page.route('**/v3/college/drives/drive-1',route=>route.fulfill({json:{id:'drive-1',company_name:'Example Company',role_title:'Engineer',status:'active'}}));
@@ -2123,7 +2155,7 @@ test('Interview results omits candidate details in cards and table', async ({pag
   await page.getByRole('group',{name:'Results layout'}).getByRole('button',{name:'Table',exact:true}).click();
   const row=page.getByRole('row').filter({hasText:'Merged Candidate'});
   await expect(row).toContainText('B.Tech · CSE');
-  await expect(row).toContainText('0/3 used · attempt 1 available');
+  await expect(row).toContainText('0/3 used');
   await expect(row.getByRole('button',{name:'Report pending'})).toBeDisabled();
   await expect(row.getByRole('button',{name:'Candidate details'})).toHaveCount(0);
   await page.getByLabel('Program',{exact:true}).selectOption('B.Tech');

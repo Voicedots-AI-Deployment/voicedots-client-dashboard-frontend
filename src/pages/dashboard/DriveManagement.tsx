@@ -1,3 +1,5 @@
+import { createPortal } from 'react-dom';
+import EvidenceText from './EvidenceText';
 import { AttemptBadge, attemptValue } from "./CandidateAttemptBadge";
 import { useEffect, useRef, useState } from "react";
 import { useSearchParams } from "react-router-dom";
@@ -252,7 +254,7 @@ function ScoreBadge({ score }: { score?: number | null }) {
 }
 function StatusBadge({ value }: { value?: string | null }) {
   const label = value === "shortlist" ? "Shortlisted" : value === "reject" ? "Rejected" : displayName(value || "not assessed"), normalized = label.toLowerCase();
-  const tone = /shortlist|ready|released|strong hire|no review required/.test(normalized) ? "bg-emerald-100 text-emerald-800" : /reject|not ready|serious|review required/.test(normalized) ? "bg-rose-100 text-rose-800" : /hold|pending|needs review|consider/.test(normalized) ? "bg-amber-100 text-amber-800" : "bg-slate-100 text-slate-700";
+  const tone = /reject|not ready|serious/.test(normalized) ? "bg-rose-100 text-rose-800" : /shortlist|ready|released|strong hire|no review required/.test(normalized) ? "bg-emerald-100 text-emerald-800" : /review required/.test(normalized) ? "bg-amber-100 text-amber-800" : /hold|pending|needs review|consider/.test(normalized) ? "bg-amber-100 text-amber-800" : "bg-slate-100 text-slate-700";
   return <span className={`inline-flex rounded-full px-2.5 py-1 text-xs font-semibold ${tone}`}>{label}</span>;
 }
 
@@ -285,37 +287,55 @@ function InterviewProgressChart({assigned, progress}:{assigned:number;progress:D
 
 const resumeMatchRequests = new Map<string, {expires:number; request:Promise<Data>}>();
 function loadResumeMatch(driveId:string,studentId:string) {
-  const key=`${driveId}:${studentId}`;
+  const key=`${localStorage.getItem("access_token")||"anonymous"}:${driveId}:${studentId}`;
   const cached=resumeMatchRequests.get(key);
   if(cached && cached.expires>Date.now()) return cached.request;
   if(resumeMatchRequests.size>100) resumeMatchRequests.clear();
   const request=collegeApi.get<Data>(`drives/${encodeURIComponent(driveId)}/dashboard/ats-fit?student_id=${encodeURIComponent(studentId)}&limit=1`);
-  resumeMatchRequests.set(key,{expires:Date.now()+30000,request});
+  resumeMatchRequests.set(key,{expires:Date.now()+300000,request});
   request.catch(()=>resumeMatchRequests.delete(key));
   return request;
 }
 
+// Warm only visible completed candidates, with bounded background concurrency.
+const resumeWarmQueue: Array<()=>Promise<unknown>>=[];
+let resumeWarmActive=0;
+function warmResumeMatch(driveId:string,studentId:string) {
+  const session=localStorage.getItem('access_token');
+  let cancelled=false;
+  resumeWarmQueue.push(async()=>{
+    if(cancelled||localStorage.getItem('access_token')!==session)return;
+    await loadResumeMatch(driveId,studentId);
+  });
+  function drain(){while(resumeWarmActive<2&&resumeWarmQueue.length){const task=resumeWarmQueue.shift()!;resumeWarmActive++;void task().catch(()=>{}).finally(()=>{resumeWarmActive--;drain()})}}
+  drain();
+  return()=>{cancelled=true};
+}
+
 function ResumeMatchSummary({ driveId, candidate }: { driveId: string; candidate: Candidate }) {
-  const [open,setOpen]=useState(false),[loading,setLoading]=useState(false),[error,setError]=useState(""),[summary,setSummary]=useState<Data|null>(null),[side,setSide]=useState<"left"|"right">("left");
-  const timer=useRef<ReturnType<typeof setTimeout>|null>(null),closeTimer=useRef<ReturnType<typeof setTimeout>|null>(null),loaded=useRef(false),button=useRef<HTMLButtonElement|null>(null);
-  const load=async()=>{setOpen(true);if(loaded.current||loading)return;loaded.current=true;setLoading(true);setError("");try{const result=Array.isArray(candidate.skills) ? {candidates:[candidate]} : await loadResumeMatch(driveId,candidate.student_id);setSummary(((result.candidates||[]) as Data[])[0]||null)}catch{setError("Resume match could not be loaded. Try again.");loaded.current=false}finally{setLoading(false)}};
-  const show=()=>{if(timer.current)clearTimeout(timer.current);if(closeTimer.current)clearTimeout(closeTimer.current);const rect=button.current?.getBoundingClientRect();setSide(rect&&window.innerWidth-rect.left<380?"right":"left");void load()};
-  const close=()=>{if(closeTimer.current)clearTimeout(closeTimer.current);closeTimer.current=setTimeout(()=>setOpen(false),160)};
+  const [open,setOpen]=useState(false),[loading,setLoading]=useState(false),[error,setError]=useState(""),[summary,setSummary]=useState<Data|null>(null),[position,setPosition]=useState({top:16,left:16});
+  const timer=useRef<ReturnType<typeof setTimeout>|null>(null),closeTimer=useRef<ReturnType<typeof setTimeout>|null>(null),loaded=useRef(false),skipFocus=useRef(false),button=useRef<HTMLButtonElement|null>(null);
+  useEffect(()=>()=>{if(timer.current)clearTimeout(timer.current);if(closeTimer.current)clearTimeout(closeTimer.current)},[]);
+  useEffect(()=>{if(!open)return;const dismiss=(event:Event)=>{const target=event.target as Node|null;if(!button.current?.parentElement?.contains(target)&&!document.getElementById(`resume-match-${candidate.student_id}`)?.contains(target))setOpen(false)};document.addEventListener('pointerdown',dismiss);window.addEventListener('resize',closePopup);function closePopup(){setOpen(false)}return()=>{document.removeEventListener('pointerdown',dismiss);window.removeEventListener('resize',closePopup)}},[open,candidate.student_id]);
+  useEffect(()=>{if(candidate.assignment_status!=='completed'||Array.isArray(candidate.skills)||!button.current||typeof IntersectionObserver==='undefined')return;let cancelWarm:(()=>void)|undefined;const observer=new IntersectionObserver(entries=>{if(entries.some(entry=>entry.isIntersecting)){cancelWarm=warmResumeMatch(driveId,candidate.student_id);observer.disconnect()}},{rootMargin:'0px'});observer.observe(button.current);return()=>{observer.disconnect();cancelWarm?.()}},[driveId,candidate.student_id,candidate.assignment_status,candidate.skills]);
+  const load=async()=>{setOpen(true);if(loaded.current||loading)return;loaded.current=true;setLoading(true);setError("");try{const result=Array.isArray(candidate.skills) ? {candidates:[candidate]} : await loadResumeMatch(driveId,candidate.student_id);setSummary(((result.candidates||[]) as Data[]).find(item=>String(item.student_id)===candidate.student_id)||null)}catch{setError("Resume match could not be loaded. Try again.");loaded.current=false}finally{setLoading(false)}};
+  const show=()=>{if(timer.current)clearTimeout(timer.current);if(closeTimer.current)clearTimeout(closeTimer.current);const rect=button.current?.getBoundingClientRect();if(rect)setPosition({top:Math.max(16,Math.min(rect.bottom+8,window.innerHeight-Math.min(512,window.innerHeight-32)-16)),left:Math.max(16,Math.min(rect.left,window.innerWidth-Math.min(384,window.innerWidth-32)-16))});void load()};
+  const close=()=>{if(timer.current)clearTimeout(timer.current);if(closeTimer.current)clearTimeout(closeTimer.current);closeTimer.current=setTimeout(()=>setOpen(false),160)};
   const rows=Array.isArray(summary?.skills)?summary!.skills as Data[]:[];
   const strengths=rows.filter(row=>["FULL_MATCH","RELATED_EVIDENCE"].includes(String(row.match_status))).slice(0,4);
   const gaps=rows.filter(row=>["NO_EVIDENCE","WEAK_OR_INFERRED"].includes(String(row.match_status))).slice(0,4);
-  return <span className="relative inline-flex" onMouseEnter={()=>{if(window.matchMedia?.("(hover: hover)").matches)timer.current=setTimeout(show,260)}} onMouseLeave={close} onKeyDown={event=>{if(event.key==="Escape"&&open){event.stopPropagation();setOpen(false);button.current?.focus()}}}>
-    <button ref={button} type="button" className="mt-1 rounded-full border border-violet-200 bg-violet-50 px-2 py-0.5 text-[11px] font-semibold text-violet-700 hover:bg-violet-100 focus-visible:outline focus-visible:outline-2 focus-visible:outline-violet-600" aria-haspopup="dialog" aria-expanded={open} aria-controls={`resume-match-${candidate.student_id}`} onFocus={show} onBlur={event=>{if(!event.currentTarget.parentElement?.contains(event.relatedTarget as Node|null))close()}} onClick={()=>{if(!open)show()}}>AI resume match</button>
-    {open&&<span id={`resume-match-${candidate.student_id}`} role="dialog" aria-label={`Resume match for ${candidate.full_name}`} className={`absolute ${side==="left"?"left-0":"right-0"} top-full z-50 mt-2 block w-[min(22rem,calc(100vw-2rem))] rounded-xl border border-slate-200 bg-white p-4 text-left shadow-xl dark:border-slate-700 dark:bg-slate-900`} onMouseEnter={()=>{if(closeTimer.current)clearTimeout(closeTimer.current)}} onMouseLeave={close}>
+  return <span className="relative inline-flex" onMouseEnter={()=>{if(closeTimer.current)clearTimeout(closeTimer.current);if(window.matchMedia?.("(hover: hover)").matches){if(!Array.isArray(candidate.skills))void loadResumeMatch(driveId,candidate.student_id).catch(()=>{});timer.current=setTimeout(show,180)}}} onMouseLeave={close} onKeyDown={event=>{if(event.key==="Escape"&&open){event.stopPropagation();setOpen(false);skipFocus.current=document.activeElement!==button.current;button.current?.focus()}}}>
+    <button ref={button} type="button" className="mt-1 rounded-full border border-violet-200 bg-violet-50 px-2 py-0.5 text-[11px] font-semibold text-violet-700 hover:bg-violet-100 focus-visible:outline focus-visible:outline-2 focus-visible:outline-violet-600" aria-haspopup="dialog" aria-expanded={open} aria-controls={`resume-match-${candidate.student_id}`} onFocus={()=>{if(skipFocus.current)skipFocus.current=false;else show()}} onBlur={event=>{if(!event.currentTarget.parentElement?.contains(event.relatedTarget as Node|null)&&!document.getElementById(`resume-match-${candidate.student_id}`)?.contains(event.relatedTarget as Node|null))close()}} onClick={()=>{if(!open)show()}}>AI resume match</button>
+    {open&&createPortal(<span id={`resume-match-${candidate.student_id}`} role="dialog" aria-label={`Resume match for ${candidate.full_name}`} style={position} className={`fixed z-50 block max-h-[min(32rem,calc(100dvh-2rem))] w-[min(24rem,calc(100vw-2rem))] overflow-y-auto overscroll-contain rounded-xl border border-slate-200 bg-white p-4 text-left shadow-xl dark:border-slate-700 dark:bg-slate-900`} onMouseEnter={()=>{if(closeTimer.current)clearTimeout(closeTimer.current)}} onMouseLeave={close}>
       <span className="flex items-start justify-between gap-3"><span className="min-w-0"><strong className="block truncate text-sm text-slate-900 dark:text-white">{candidate.full_name}</strong><span className="text-xs text-slate-500">Resume · role evidence</span></span><button type="button" aria-label="Close resume match" className="rounded-md px-2 text-slate-500 hover:bg-slate-100 focus-visible:outline focus-visible:outline-2 focus-visible:outline-violet-600" onClick={()=>setOpen(false)}>×</button></span>
-      {loading?<span role="status" className="mt-3 block text-sm text-slate-500">Checking resume evidence…</span>:error?<span role="alert" className="mt-3 block text-sm text-rose-700">{error}</span>:!summary||summary.assignment_status!=="completed"||summary.ats_fit_score==null||rows.length===0?<span className="mt-3 block text-sm text-slate-500">Role-specific resume evidence is unavailable for this candidate.</span>:<>
+      {loading?<span role="status" className="mt-3 block text-sm text-slate-500">Checking resume evidence…</span>:error?<span role="alert" className="mt-3 block text-sm text-rose-700">{error}<button type="button" className="ml-2 font-semibold underline" onClick={()=>void load()}>Retry</button></span>:!summary||summary.assignment_status!=="completed"||summary.ats_fit_score==null||rows.length===0?<span className="mt-3 block text-sm text-slate-500">Role-specific resume evidence is unavailable for this candidate.</span>:<>
         <span className="mt-3 flex items-center justify-between gap-2 rounded-lg bg-slate-50 px-3 py-2 dark:bg-slate-800"><span className="text-xs font-medium text-slate-600 dark:text-slate-300">AI resume match</span><strong className="text-sm text-slate-900 dark:text-white">{summary.ats_fit_score==null?"Not assessed":`${summary.ats_fit_score}/100`}</strong></span>
         <span className="mt-3 block text-xs font-bold uppercase tracking-wide text-emerald-700">Resume strengths</span>
-        {strengths.length?strengths.map((row,index)=><span key={`s-${index}`} className="mt-1 block break-words text-xs leading-5 text-slate-700 dark:text-slate-200"><b className="text-emerald-700">✓ {String(row.skill||row.requirement)}</b>{row.evidence_text?` · ${String(row.evidence_text)}`:""}</span>):<span className="mt-1 block text-xs text-slate-500">No supported strengths are available.</span>}
+        {strengths.length?strengths.map((row,index)=><span key={`s-${index}`} className="mt-1 block break-words text-xs leading-5 text-slate-700 dark:text-slate-200"><b className="text-emerald-700">✓ {String(row.skill||row.requirement)}</b>{row.evidence_text?<EvidenceText limit={150} text={String(row.evidence_text)}/>:""}</span>):<span className="mt-1 block text-xs text-slate-500">No supported strengths are available.</span>}
         <span className="mt-3 block text-xs font-bold uppercase tracking-wide text-amber-700">Resume gaps</span>
         {gaps.length?gaps.map((row,index)=><span key={`g-${index}`} className="mt-1 block break-words text-xs leading-5 text-slate-700 dark:text-slate-200"><b className="text-amber-700">! {String(row.skill||row.requirement)}</b><span className="text-slate-500"> · {row.match_status==="NO_EVIDENCE"?"No matching resume evidence":"Evidence is limited"}</span></span>):<span className="mt-1 block text-xs text-slate-500">No gaps identified in the matched requirements.</span>}
       </>}
-    </span>}
+    </span>,document.body)}
   </span>;
 }
 
@@ -1989,7 +2009,7 @@ export default function DriveManagement({
       <div className="flex flex-wrap items-center justify-between gap-3 border-b border-slate-200 pb-4">
         <button className={btn} onClick={back}>← Placement drives</button>
         <div className="flex flex-wrap items-center gap-2">
-          <button className={btn} disabled={busy || loading} onClick={() => setVersion(v => v + 1)}>Refresh</button>
+          <button className={btn} disabled={busy || loading} onClick={() => {resumeMatchRequests.clear();setVersion(v => v + 1)}}>Refresh</button>
           {drive && <button className={`${btn} bg-violet-600 text-white`} disabled={busy || loading} onClick={() => setParams(p => {p.set("section", "settings");p.set("edit", "company");return p;})}>Edit drive</button>}
           {drive && <LifecycleActions drive={drive} busy={busy || loading} onRequest={setLifecycleRequest}/>}
           {drive && <button className={`${btn} border-rose-200 text-rose-700 hover:bg-rose-50`} disabled={busy || loading} onClick={() => setLifecycleRequest("removed")}>Delete drive</button>}
@@ -2386,7 +2406,7 @@ export default function DriveManagement({
                 <span className="ml-auto text-xs text-slate-500">Attempt {candidate.attempt_number || 1}</span>
               </div>
               <dl className="result-evidence-rows">
-                <div><dt>Candidate & attempts</dt><dd className="flex flex-wrap items-center gap-3"><span className="text-xs text-slate-600">{candidate.email || "Email unavailable"}</span><AttemptBadge candidate={candidate} driveMaxAttempts={drive?.max_attempts}/><ResumeMatchSummary driveId={driveId} candidate={candidate}/></dd></div>
+                <div><dt>Candidate & attempts</dt><dd className="flex flex-wrap items-center gap-3"><span className="text-xs text-slate-600">{candidate.email || "Email unavailable"}</span><AttemptBadge candidate={candidate} driveMaxAttempts={drive?.max_attempts}/><ResumeMatchSummary key={`resume-${version}`} driveId={driveId} candidate={candidate}/></dd></div>
                 <div><dt>Interview assessment</dt><dd className="flex flex-wrap items-center gap-2">{[['Interview',candidate.overall_score],['Readiness / PRI',candidate.ranking_score],['Job fit',candidate.job_fit_score]].map(([label,value])=><span key={String(label)} className={`result-score-chip ${typeof value !== 'number' ? 'score-unavailable' : value >= 75 ? 'score-strong' : value >= 50 ? 'score-developing' : 'score-review'}`}><span>{label}</span><strong>{typeof value === 'number' ? `${value}/100` : 'Not assessed'}</strong></span>)}{candidate.readiness && <span className="rounded-full bg-slate-100 px-3 py-1.5 text-xs text-slate-600">{displayName(candidate.readiness)}</span>}</dd></div>
                 <div><dt>Interview rounds</dt><dd className="flex flex-wrap items-center gap-2">{candidate.agent_summary?.length ? candidate.agent_summary.map((round,index)=><span key={index} className="result-round-chip"><span>{String(round.label || displayName(String(round.agent_type || `Round ${index+1}`)))}</span><strong>{round.score==null?'Not assessed':`${round.score}/100`}</strong></span>) : <span className="text-xs text-slate-500">Round scores not available</span>}</dd></div>
                 <div><dt>AI Proctor</dt><dd className="flex flex-wrap items-center gap-3"><span className={`result-score-chip ${candidate.proctoring_score == null ? 'score-unavailable' : candidate.proctoring_score >= 75 ? 'score-strong' : candidate.proctoring_score >= 50 ? 'score-developing' : 'score-review'}`}><span>Integrity</span><strong>{candidate.proctoring_score==null?'Not assessed':`${candidate.proctoring_score}/100`}</strong></span><span className={`text-xs ${candidate.integrity_review_status === 'review_required' ? 'text-amber-700' : 'text-slate-500'}`}>{candidate.integrity_review_status === 'not_available' && candidate.proctoring_score != null ? 'Recorded integrity score' : candidate.integrity_review_label || displayName(candidate.integrity_review_status || 'not assessed')}</span>{candidate.assessment_coverage != null && <span className="ml-auto text-xs text-slate-500">Evidence coverage {candidate.assessment_coverage}%</span>}</dd></div>
@@ -2400,12 +2420,12 @@ export default function DriveManagement({
             </article>)}
           </div>}
           {!!candidates.length && (tab !== "results" || resultsLayout === "table") && (
-            <div id="result-candidate-table" className={`${panel} result-workspace overflow-x-auto p-0`}>
+            <div id="result-candidate-table" className={`${panel} result-workspace overflow-x-auto p-0`} data-layout={tab==='results'?'results':undefined}>
               <table className="w-full min-w-[1080px] text-left text-sm">
                 <thead className="bg-slate-50 text-[11px] uppercase tracking-wide text-slate-500">
                   <tr>
                     {(tab === "results"
-                      ? ["Candidate", "Status / attempts", "Interview / PRI", "Role fit", "Integrity", "AI assessment", "Decision / release", "Actions"]
+                      ? ["Candidate", "Status & attempts", "Interview score", "Role fit", "Integrity", "AI recommendation", "Decision & release", "Actions"]
                       : tab === "ats"
                         ? [
                             "Candidate",
@@ -2459,17 +2479,17 @@ export default function DriveManagement({
                         <div className="flex min-w-0 items-center gap-3"><StudentAvatar student={c}/><div className="min-w-0"><strong>{c.full_name}</strong>{tab==='results' && c.rank != null && <span className="ml-2 text-xs text-violet-600">#{c.rank}</span>}<p className="text-xs text-slate-500">
                           {c.roll_number}
                           {c.email ? ` · ${c.email}` : ""}
-                        </p>{(tab==="ats")&&drive&&<ResumeMatchSummary driveId={driveId} candidate={c}/>}</div></div>
+                        </p>{(tab==="ats")&&drive&&<ResumeMatchSummary key={`resume-${version}`} driveId={driveId} candidate={c}/>}</div></div>
                         </div>
                       </td>
                       {tab === "results" ? (
                         <>
-                          <td className="p-3"><InterviewStatusBadge value={candidateInterviewStatus(c)}/><div className="mt-2"><AttemptBadge candidate={c} driveMaxAttempts={drive?.max_attempts}/></div><p className="mt-2 text-xs text-slate-500">{[c.program,c.department_code].filter(Boolean).join(" · ") || "Academic details unavailable"}</p></td>
+                          <td className="p-3"><InterviewStatusBadge value={candidateInterviewStatus(c)}/><div className="mt-2"><AttemptBadge candidate={c} driveMaxAttempts={drive?.max_attempts} compact/></div><p className="mt-2 text-xs text-slate-500">{[c.program,c.department_code].filter(Boolean).join(" · ") || "Academic details unavailable"}</p></td>
                           <td className="p-3"><span className="text-base font-medium">{c.overall_score==null?'—':`${c.overall_score}/100`}</span><p className="mt-1 text-xs text-slate-500">PRI {c.ranking_score==null?'—':`${c.ranking_score}/100`}</p></td>
-                          <td className="p-3"><p>{c.job_fit_score==null?'—':`${c.job_fit_score}/100`}</p><p className="mt-1 text-xs text-slate-500">{c.readiness || 'Not assessed'}</p></td>
+                          <td className="p-3"><p>{c.job_fit_score==null?'—':`${c.job_fit_score}/100`}</p><p className="mt-1 text-xs text-slate-500">{displayName(c.readiness || 'Not assessed')}</p></td>
                           <td className="p-3"><p>{c.proctoring_score==null?'—':`${c.proctoring_score}/100`}</p><div className="mt-1"><StatusBadge value={c.integrity_review_label || c.integrity_review_status || 'not assessed'}/></div></td>
-                          <td className="p-3"><StatusBadge value={c.recommendation || 'Review Required'}/>{c.report_ready && <div className="mt-2"><CandidateStrengthGap driveId={driveId} candidate={c} onOpenReport={()=>void inspect(c,'reports')}/></div>}</td>
-                          <td className="p-3"><StatusBadge value={c.officer_decision || 'pending'}/><div className="mt-2 text-xs text-slate-500">Result <StatusBadge value={c.publication?.state || 'hidden'}/></div></td>
+                          <td className="p-3"><StatusBadge value={c.recommendation || 'Not assessed'}/>{c.report_ready && <div className="mt-2"><CandidateStrengthGap driveId={driveId} candidate={c} onOpenReport={()=>void inspect(c,'reports')}/></div>}</td>
+                          <td className="p-3"><StatusBadge value={c.officer_decision || 'pending'}/><div className="mt-2 flex flex-col items-start gap-1 text-xs text-slate-500"><span>Student result</span><StatusBadge value={c.publication?.state || 'hidden'}/></div></td>
                         </>
                       ) : tab === "ats" ? (
                         <>

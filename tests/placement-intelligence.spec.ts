@@ -36,6 +36,19 @@ test('Candidates View details opens the company assessment scorecard for the cur
  await page.getByRole('group',{name:'Results layout'}).getByRole('button',{name:'Table',exact:true}).click();
  await expect(page.getByRole('button',{name:'Candidate details',exact:true})).toHaveCount(0);
 });
+test('assessment report previews long answers and preserves full evidence on request',async({page})=>{
+ await setup(page,'/dashboard/placement-management?drive=drive-1&section=candidates');
+ const answer='I implemented an API with authentication, monitoring and error handling. '.repeat(30)+'COMPLETE_ANSWER_END';
+ await page.route('**/v3/college/students/student-1/reports',route=>route.fulfill({json:{...bundle,reports:bundle.reports.map(report=>({...report,detail:{...report.detail,question_reviews:[{question:'Explain your project architecture',answer}]}}))}}));
+ await page.getByRole('button',{name:'View details',exact:true}).click();
+ const highlights=page.locator('.scorecard-evidence-panels').filter({has:page.getByRole('heading',{name:'Interview Evidence Highlights',exact:true})});
+ await expect(highlights).not.toContainText('COMPLETE_ANSWER_END');
+ await highlights.getByRole('button',{name:'Read full evidence',exact:true}).click();
+ await expect(highlights).toContainText('COMPLETE_ANSWER_END');
+ await highlights.getByRole('button',{name:'Show less',exact:true}).click();
+ await expect(highlights).not.toContainText('COMPLETE_ANSWER_END');
+});
+
 test('drive scorecard excludes assessments from other drives',async({page})=>{
  await setup(page,'/dashboard/placement-management?drive=drive-1&section=candidates');
  await page.route('**/v3/college/students/student-1/reports',route=>route.fulfill({json:{...bundle,reports:bundle.reports.map(report=>({...report,drive_id:'other-drive'}))}}));
