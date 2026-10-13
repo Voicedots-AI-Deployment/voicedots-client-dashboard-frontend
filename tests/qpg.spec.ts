@@ -1,4 +1,5 @@
 import {test,expect,type Page,type Locator} from '@playwright/test';
+async function openPaperPart(page:Page){const part=page.locator('details[aria-label="Part A"]');if(await part.getAttribute('open')===null)await part.locator('summary').first().click();}
 async function openDetails(dialog:Locator,title:string){
  const summary=dialog.getByText(title,{exact:true});
  if(await summary.count() && await summary.locator('..').getAttribute('open')===null)await summary.click();
@@ -73,6 +74,11 @@ async function setup(page:Page,failed=false,published=false){
  await page.getByLabel('Semester',{exact:true}).selectOption('4');
  await page.getByLabel('Subject',{exact:true}).selectOption('s1');
  await page.getByRole('navigation',{name:'Question paper sections'}).getByRole('button',{name:'Question Papers',exact:true}).click();
+ await page.getByLabel('Program',{exact:true}).selectOption('BTECH');
+ await page.getByLabel('Branch',{exact:true}).selectOption('CSE');
+ await page.getByLabel('Year',{exact:true}).selectOption('2');
+ await page.getByLabel('Semester',{exact:true}).selectOption('4');
+ await page.getByLabel('Subject',{exact:true}).selectOption('s1');
  await page.getByRole('navigation',{name:'Question Papers workspace'}).getByRole('button',{name:'Question Bank',exact:true}).click();
 }
 test('manual question create edit details and archive',async({page})=>{
@@ -165,30 +171,55 @@ test('subject syllabus add save publish and historical view',async({page})=>{
  await expect(panel.getByText('CO1 — Understand networks',{exact:true})).toBeVisible();
 });
 
+test('course load L/T/P and credits can be edited and displayed',async({page})=>{
+ await setup(page);
+ await page.getByRole('button',{name:'Subject Master',exact:true}).click();
+ await page.getByRole('navigation',{name:'Question paper sections'}).getByRole('button',{name:'Syllabus Master',exact:true}).click();
+ const panel=page.getByRole('region',{name:'Syllabus Master'});
+ const details=panel.getByRole('region',{name:'Course load'});
+ await expect(details).toContainText('Lecture (L)');
+ await expect(details).toContainText('Credits');
+ const requests:Record<string,unknown>[]=[];
+ await page.route('**/subjects/s1/syllabus/course-load',async route=>{
+  const body=route.request().postDataJSON() as Record<string,unknown>;requests.push(body);
+  const course={code:'CN',name:'Computer Networks',program_code:'BTECH',branch_code:'CSE',year_number:2,semester_number:4,lecture_hours:body.lecture_hours,tutorial_hours:body.tutorial_hours,practical_hours:body.practical_hours,credits:body.credits};
+  const saved={current:{id:'sv1',version:1,revision:2,status:'DRAFT',content:{cos:[],units:[],topics:[],course}},published_id:null,can_write:true,structure:{cos:[],units:[],topics:[],course}};
+  await route.fulfill({json:saved});
+ });
+ await details.getByRole('button',{name:'Edit course load'}).click();
+ const dialog=page.getByRole('dialog',{name:'Edit course load'});
+ for(const [label,value] of [['Lecture hours (L)','3'],['Tutorial hours (T)','1'],['Practical hours (P)','0'],['Credits','4']] as const)await dialog.getByLabel(label).fill(value);
+ await dialog.getByRole('button',{name:'Save course load'}).click();
+ await expect(dialog).toHaveCount(0);
+ await expect(details).toContainText('3');await expect(details).toContainText('1');await expect(details).toContainText('0');await expect(details).toContainText('4');
+ expect(requests).toHaveLength(1);
+ expect(requests[0]).toMatchObject({lecture_hours:'3',tutorial_hours:'1',practical_hours:'0',credits:'4'});
+});
+
 test('blueprint offered and attempted totals validate and publish',async({page})=>{
  await setup(page,false,true);
- await page.getByRole('button',{name:'Question Papers',exact:true}).click();await page.getByRole('button',{name:'Paper Patterns',exact:true}).click();
+ await page.getByRole('button',{name:'Prepare Paper',exact:true}).click();await page.getByRole('button',{name:'Paper Patterns',exact:true}).click();
  const panel=page.getByRole('region',{name:'Subject blueprint'});
  await panel.getByLabel('Published syllabus',{exact:true}).selectOption('sv1');
  await panel.getByLabel('Blueprint name',{exact:true}).fill('Mid Semester');
  for(const [i,name,offered,attempted,marks] of [[1,'Part A',10,10,1],[2,'Part B',7,5,2],[3,'Part C',4,2,5]] as const){
   if(i>1)await panel.getByRole('button',{name:'Add section',exact:true}).click();
-  const section=panel.getByRole('region',{name:`Blueprint section ${i}`,exact:true});
+  const section=panel.locator(`details[aria-label="Blueprint section ${i}"]`);await section.locator('summary').first().click();
   await section.getByLabel('Section name',{exact:true}).fill(name);
   await section.getByLabel('Questions offered',{exact:true}).fill(String(offered));
   await section.getByLabel('Questions attempted',{exact:true}).fill(String(attempted));
   await section.getByLabel('Marks each',{exact:true}).fill(String(marks));
   if(i>1)await section.getByRole('checkbox',{name:'Students answer all questions in this Part'}).uncheck();
  }
- await panel.getByText('Advanced: syllabus coverage and Bloom targets',{exact:true}).click();
+ await panel.getByText('Advanced syllabus coverage and learning targets',{exact:true}).click();for(const title of ['Course Outcomes','Units','Topics','Bloom distribution','Difficulty distribution'])await panel.locator('summary').filter({hasText:new RegExp('^'+title+' ·')}).click();
  await panel.getByLabel('cos CO1 marks',{exact:true}).fill('30');
  await panel.getByLabel('units U1 marks',{exact:true}).fill('30');
  await panel.getByLabel('topics T1 marks',{exact:true}).fill('6');
  await panel.getByLabel('Bloom K2 percent',{exact:true}).fill('100');
  await panel.getByLabel('Difficulty MEDIUM percent',{exact:true}).fill('100');
  await panel.getByRole('button',{name:'Check Pattern',exact:true}).click();
- await expect(panel.getByRole('status')).toContainText('Offered Marks: 44');
- await expect(panel.getByRole('status')).toContainText('Attempted Marks: 30');
+ await expect(panel.getByRole('status').filter({hasText:'Offered Marks:'})).toContainText('Offered Marks: 44');
+ await expect(panel.getByRole('status').filter({hasText:'Offered Marks:'})).toContainText('Attempted Marks: 30');
  await panel.getByRole('button',{name:'Publish Paper Pattern',exact:true}).click();
  await expect(panel.getByText('Blueprint v1 · Published',{exact:true})).toBeVisible();
  await expect(panel.getByLabel('Blueprint name',{exact:true})).toBeDisabled();
@@ -230,15 +261,17 @@ async function assemblySetup(page:Page,empty=false,final=false){
   }else{return route.fallback();}
   await route.fulfill({json});
  });
- await page.getByRole('button',{name:'Question Papers',exact:true}).click();
+ await page.getByRole('button',{name:'Prepare Paper',exact:true}).click();
+ await page.getByRole('button',{name:'Create paper view',exact:true}).click();
  await page.getByLabel('Paper syllabus').selectOption('sv1');
  await page.getByLabel('Published paper pattern').selectOption('b1');
- await page.getByRole('button',{name:'Create Paper',exact:true}).click();
+ await page.getByRole('button',{name:'Create Paper',exact:true}).click();await openPaperPart(page);
 }
 
 test('paper assembly selects choice alternatives, validates, previews, saves and removes',async({page})=>{
  await assemblySetup(page);
  const panel=page.getByRole('region',{name:'Paper assembly'});
+ await openPaperPart(page);
  await expect(panel.getByText('Offered Marks: 2 · Attempted Marks: 1',{exact:true})).toBeVisible();
  await page.getByRole('button',{name:'Check Paper',exact:true}).click();
  await expect(page.getByText('Every offered slot needs an Approved question.')).toBeVisible();
@@ -253,22 +286,26 @@ test('paper assembly selects choice alternatives, validates, previews, saves and
  await dialog.getByRole('button',{name:'Use Question',exact:true}).click();
  await page.getByRole('button',{name:'Check Paper',exact:true}).click();
  await expect(page.getByText('✓ Every permitted choice satisfies configured coverage')).toBeVisible();
+ await page.route('**/papers/p1/preview?*',route=>route.fulfill({json:{render_model:documentModel()}}));
  await page.getByRole('button',{name:'Paper Preview',exact:true}).click();
- await expect(page.getByRole('button',{name:'Replace Question',exact:true})).toHaveCount(0);
- await expect(page.getByText('Which network protocol 1?',{exact:true})).toBeVisible();
+ const exam=page.getByRole('dialog',{name:'Paper Preview'});
+ await expect(exam.getByLabel('Document Preview')).toBeVisible();
+ await expect(exam.getByText('1. Which network protocol 1? [1 marks]',{exact:true})).toBeVisible();
+ await exam.getByRole('button',{name:'Close',exact:true}).click();
  await expect(page.getByText('Selected question v2 · Approved',{exact:true})).toHaveCount(2);
  await page.getByRole('button',{name:'Send for Faculty Review',exact:true}).click();
  await expect(page.getByText('Faculty Review · 60 minutes',{exact:false})).toBeVisible();
  await page.getByLabel('Paper title').fill('Faculty midterm draft');
  await page.getByRole('button',{name:'Save Draft',exact:true}).click();
- await page.getByRole('button',{name:'Back to questions',exact:true}).click();
+ await openPaperPart(page);
  await page.getByRole('button',{name:'Remove',exact:true}).first().click();
  await expect(page.getByText('No question selected.',{exact:true})).toHaveCount(1);
 });
 
 test('mobile assembly shows insufficient approved inventory and picker closes accessibly',async({page})=>{
  await page.setViewportSize({width:390,height:844});await assemblySetup(page,true);
- await expect(page.getByText('Insufficient question availability',{exact:false})).toBeVisible();
+ await openPaperPart(page);
+ await expect(page.getByRole('region',{name:'Question availability'}).getByText('Add or approve more questions',{exact:false})).toBeVisible();
  await page.getByRole('button',{name:'Select Alternative',exact:true}).first().click();
  const dialog=page.getByRole('dialog');await expect(dialog.getByText('No eligible questions match.',{exact:false})).toBeVisible();
  await expect(dialog.getByRole('button',{name:'Use Question',exact:true})).toHaveCount(0);
@@ -380,7 +417,7 @@ test('locked paper creates a new editable version with preserved selections',asy
  await page.getByRole('button',{name:'Finalize and Lock',exact:true}).click();
  await page.getByRole('button',{name:'Create New Version',exact:true}).click();
  await expect(page.getByLabel('Paper title',{exact:true})).toBeEnabled();
- await expect(page.getByText('Which network protocol 1?',{exact:true})).toBeVisible();
+ await openPaperPart(page);await expect(page.getByText('Which network protocol 1?',{exact:true})).toBeVisible();
  await expect(page.getByText('Paper v2',{exact:false})).toBeVisible();
  await expect(page.getByRole('button',{name:'Export PDF',exact:true})).toHaveCount(0);
  await expect(page.getByRole('button',{name:'Save Draft',exact:true})).toBeVisible();
@@ -468,7 +505,7 @@ test('AI acceptance flows through review approval into paper assembly',async({pa
  await page.getByRole('button',{name:'Review',exact:true}).click();const review=page.getByRole('dialog',{name:'Review Question'});
  await expect(review.getByText('Needs Review',{exact:true})).toBeVisible();await openDetails(review,'Additional question checks');await review.getByRole('button',{name:'Run Validation',exact:true}).click();await expect(review.getByText('Structural · PASS',{exact:true})).toBeVisible();await expect(review.getByText('Needs Review',{exact:true})).toBeVisible();const beforeApproval=await page.evaluate(async()=>{const r=await fetch('/v3/college/question-papers/papers/pai/eligible');return r.json();});expect(beforeApproval.items).toEqual([]);await review.getByRole('button',{name:'Approve',exact:true}).click();await expect(review).toHaveCount(0);
  await page.getByLabel('Review status').selectOption('APPROVED');await page.getByRole('button',{name:'Review',exact:true}).click();await expect(review.getByText('Approved',{exact:true})).toBeVisible();await review.getByRole('button',{name:'Close',exact:true}).click();
- await page.getByRole('button',{name:'Question Papers',exact:true}).click();await page.getByLabel('Paper syllabus').selectOption('sv1');await page.getByLabel('Published paper pattern').selectOption('bai');await page.getByRole('button',{name:'Create Paper',exact:true}).click();
+ await page.getByRole('button',{name:'Prepare Paper',exact:true}).click();await page.getByRole('button',{name:'Create paper view',exact:true}).click();await page.getByLabel('Paper syllabus').selectOption('sv1');await page.getByLabel('Published paper pattern').selectOption('bai');await page.getByRole('button',{name:'Create Paper',exact:true}).click();await openPaperPart(page);
  await page.getByRole('button',{name:'Select Question',exact:true}).click();const picker=page.getByRole('dialog');await expect(picker.getByText('Explain TCP acknowledgments.',{exact:true})).toBeVisible();await picker.getByRole('button',{name:'Use Question',exact:true}).click();await expect(picker).toBeHidden();await expect(page.getByRole('region',{name:'Paper assembly'}).getByText('Explain TCP acknowledgments.',{exact:true})).toBeVisible();
 });
 
@@ -584,7 +621,7 @@ test('advisory blueprint candidates cannot be used and unresolved slots remain v
 });
 
 test('stale analysis blocks applying recommendation while manual assembly remains available',async({page})=>{
- await assemblySetup(page);await blueprintAssistMocks(page,'stale');await page.route('**/papers/p1/ai-assist',async route=>route.fulfill({json:{...(await blueprintAssistReport()),stale:false}}));
+ await assemblySetup(page);await openPaperPart(page);await blueprintAssistMocks(page,'stale');await page.route('**/papers/p1/ai-assist',async route=>route.fulfill({json:{...(await blueprintAssistReport()),stale:false}}));
  let assignments=0;page.on('request',r=>{if(r.method()==='PUT'&&r.url().includes('/items/'))assignments++;});
  const panel=page.getByRole('region',{name:'AI Blueprint Analysis'});await panel.getByRole('button',{name:'Analyze Blueprint'}).click();await panel.getByRole('button',{name:'Use Question',exact:true}).first().click();await expect(panel.getByRole('alert')).toContainText('Analysis is stale');expect(assignments).toBe(0);await expect(page.getByRole('button',{name:'Select Alternative',exact:true}).first()).toBeEnabled();
 });
@@ -683,16 +720,16 @@ test('grouped QPG navigation preserves subject context and accessible actions',a
  await bank.getByText('More options',{exact:true}).click();await bank.getByRole('button',{name:'Question Drafts'}).click();await expect(page.getByRole('heading',{name:'Draft Questions',exact:true})).toBeVisible();
  await primary.getByRole('button',{name:'Reports'}).click();await expect(page.getByRole('heading',{name:'Reports & Analytics',exact:true})).toBeVisible();
  await expect(page.getByRole('navigation',{name:'Question bank views'})).toHaveCount(0);
- await primary.getByRole('button',{name:'Question Papers'}).click();await expect(page.getByRole('navigation',{name:'Question paper views'}).getByRole('button')).toHaveText(['Paper Patterns','Create Paper','Drafts','Review','Final Papers']);
+ await primary.getByRole('button',{name:'Question Papers'}).click();await page.getByRole('button',{name:'Prepare Paper',exact:true}).click();await expect(page.getByRole('navigation',{name:'Question paper views'}).getByRole('button')).toHaveText(['Paper Patterns','Create Paper','Drafts','Review','Final Papers']);
  await page.keyboard.press('Tab');await expect(page.locator(':focus')).toBeVisible();
 });
 
 test('paper stage lists filter existing records without changing APIs',async({page})=>{
  await setup(page,false,true);
  await page.route('**/v3/college/question-papers/papers?*',r=>r.fulfill({json:{items:[{id:'pd',title:'Draft Exam',status:'DRAFT'},{id:'pr',title:'Review Exam',status:'FACULTY_REVIEW'},{id:'pf',title:'Final Exam',status:'LOCKED'}]}}));
- await page.getByRole('button',{name:'Question Papers',exact:true}).click();
+ await page.getByRole('button',{name:'Prepare Paper',exact:true}).click();
  const nav=page.getByRole('navigation',{name:'Question paper views'});
- await nav.getByRole('button',{name:'Drafts',exact:true}).click();await expect(page.getByRole('button',{name:'Draft Exam · Draft'})).toBeVisible();await expect(page.getByRole('button',{name:/Final Exam/})).toHaveCount(0);
+ await nav.getByRole('button',{name:'Drafts',exact:true}).click();await expect(page.getByRole('button',{name:/Draft Exam.*Draft/})).toBeVisible();await expect(page.getByRole('button',{name:/Final Exam/})).toHaveCount(0);
  await nav.getByRole('button',{name:'Paper review view'}).click();await expect(page.getByRole('button',{name:/Review Exam/})).toBeVisible();await expect(page.getByRole('button',{name:/Draft Exam/})).toHaveCount(0);
  await nav.getByRole('button',{name:'Final Papers'}).click();await expect(page.getByRole('button',{name:/Final Exam/})).toBeVisible();await expect(page.getByRole('button',{name:/Review Exam/})).toHaveCount(0);
  await nav.getByRole('button',{name:'Create paper view'}).click();await expect(page.getByLabel('Published paper pattern')).toBeVisible();
@@ -772,10 +809,10 @@ test('readonly bank details conceal answer and version payload even when an old 
 
 test('hierarchical blueprint editor saves typed OR children and constraints',async({page})=>{
  await setup(page,false,true);
- await page.getByRole('button',{name:'Question Papers',exact:true}).click();await page.getByRole('button',{name:'Paper Patterns',exact:true}).click();
+ await page.getByRole('button',{name:'Prepare Paper',exact:true}).click();await page.getByRole('button',{name:'Paper Patterns',exact:true}).click();
  const panel=page.getByRole('region',{name:'Subject blueprint'});
  await panel.getByLabel('Published syllabus',{exact:true}).selectOption('sv1');await panel.getByLabel('Blueprint name',{exact:true}).fill('Nested reference');
- await panel.getByLabel('Marks students must answer',{exact:true}).fill('11');await panel.getByLabel('Marks each',{exact:true}).fill('11');
+ await panel.getByLabel('Marks students must answer',{exact:true}).fill('11');await panel.locator('details[aria-label="Blueprint section 1"] > summary').click();await panel.getByLabel('Marks each',{exact:true}).fill('11');
  await panel.getByText('Advanced: add OR alternatives or sub-questions',{exact:true}).click();await panel.getByRole('button',{name:'Add compulsory main question',exact:true}).click();
  const hierarchy=panel.getByRole('group',{name:'Main questions, OR branches and sub-questions'});await hierarchy.locator('summary').filter({hasText:'Main question 1'}).click();
  for(let i=0;i<2;i++){
@@ -806,4 +843,121 @@ test('bound hierarchy generation preserves node and revision identity',async({pa
  await page.route('**/questions/generate',async route=>{expect(route.request().postDataJSON().binding).toEqual(binding);expect(route.request().postDataJSON().marks).toBe(6);await route.fulfill({status:409,json:{detail:'Paper binding changed. Refresh the exact node.'}});});
  const panel=page.getByRole('region',{name:'AI Blueprint Analysis'});await panel.getByRole('button',{name:'Analyze Blueprint'}).click();await panel.getByRole('button',{name:'Generate Question',exact:true}).first().click();await page.getByRole('button',{name:'Open Generation',exact:true}).click();
  await expect(page.getByLabel('Marks per question',{exact:true})).toHaveValue('6');await page.getByRole('button',{name:/^Generate \d+ questions?$/}).click();await expect(page.getByText('Paper binding changed. Refresh the exact node.',{exact:true})).toBeVisible();
+});
+
+async function paperJourney(page:Page,stale=false){
+ await assemblySetup(page);
+ const paper=await page.evaluate(async()=>{const r=await fetch('/v3/college/question-papers/papers/p1');return r.json();});
+ const candidates=[1,2].map(n=>({id:'r'+n,decision:'PENDING',duplicate:n===2,question_id:null as string|null,review_status:null as string|null,warnings:[],provenance:[],question:{question_text:n===2?'Existing exact duplicate':'Unique first question',question_type:'MCQ',marks:1,co_id:'co1',unit_id:'u1',topic_id:'t1',bloom_level:'K1',difficulty:'EASY',answer:'TCP',options:['TCP','UDP'],rationale:'Syllabus example'}}));
+ const build={id:'build1',status:'COMPLETED',revision:1,stale,paper_revision:paper.revision,positions:candidates.map((c,index)=>({item_id:'i'+(index+1),label:String(index+1),section:'Part A',request:{...c.question},job:{id:'j'+(index+1),status:'COMPLETED',revision:1,failure_reason:'',results:[c]}}))};
+ let regenerations=0,saves=0;let failRegeneration=false;
+ await page.route(/\/v3\/college\/question-papers\//,async route=>{
+  const path=new URL(route.request().url()).pathname,method=route.request().method();let json:unknown;
+  if(path.endsWith('/generation-config'))json={enabled:true};
+  else if(path.endsWith('/papers'))json={items:[paper]};
+  else if(path.endsWith('/ai-build'))json={build};
+  else if(path.endsWith('/rebase')){build.stale=false;build.revision++;json=build;}
+  else if(path.endsWith('/regenerate')){
+   if(failRegeneration)return route.fulfill({status:409,json:{detail:'Refresh the completed build before replacing a candidate.'}});
+   regenerations++;const c=candidates[1];c.question.question_text='New distinct replacement';c.duplicate=false;build.positions[1].job.revision++;build.revision++;json=build;
+  }
+  else if(path.includes('/generation-jobs/')){
+   const position=build.positions.find(p=>path.includes('/'+p.job.id));if(!position)return route.fallback();
+   const c=position.job.results[0];
+   if(path.endsWith('/accept')){if(c.duplicate)return route.fulfill({status:409,json:{detail:'Exact normalized duplicate exists. Edit the candidate or reject it.'}});c.decision='ACCEPTED';c.question_id='bank-'+c.id;c.review_status='NEEDS_REVIEW';position.job.revision++;}
+   else if(method==='PUT'){const data=route.request().postDataJSON();c.question={...c.question,question_text:data.question_text,answer:data.answer,options:data.options};c.duplicate=false;position.job.revision++;}
+   json=position.job;
+  }
+  else if(path.endsWith('/review-queue'))json={items:candidates.filter(c=>c.decision==='ACCEPTED'&&c.review_status==='NEEDS_REVIEW').map(c=>({...c.question,id:c.question_id,subject_id:'s1',status:c.review_status,version:1,source_type:'AI_GENERATED',source_reference:'Conceptual',created_at:'2026-10-12T00:00:00Z'})),total:candidates.filter(c=>c.review_status==='NEEDS_REVIEW').length};
+  else if(path.includes('/questions/bank-')&&method==='GET'){const c=candidates.find(c=>path.endsWith(c.question_id!))!;json={...c.question,id:c.question_id,subject_id:'s1',status:c.review_status,version:c.review_status==='APPROVED'?2:1,source_type:'AI_GENERATED',source_reference:'Conceptual'};}
+  else if(path.includes('/questions/bank-')&&path.endsWith('/approve')){const c=candidates.find(c=>path.includes(c.question_id!))!;c.review_status='APPROVED';json={...c.question,id:c.question_id,status:'APPROVED',version:2};}
+  else if(path.endsWith('/assemble')){paper.items=paper.items.map((i:Record<string,unknown>,n:number)=>({...i,snapshot:{...candidates[n].question,id:candidates[n].question_id,status:'APPROVED',version:2,source_type:'AI_GENERATED',source_reference:'Conceptual generation',subject_id:'s1'},question_version:2}));paper.status='VALIDATED';paper.validation={valid:true,errors:[],checks:['All permitted choices pass']};paper.revision++;json={filled:2};}
+  else if(path==='/v3/college/question-papers/papers/p1'){
+   if(method==='PUT'){saves++;const data=route.request().postDataJSON();paper.title=data.title;paper.metadata={instructions:data.instructions,examination_session:data.examination_session};paper.revision++;build.paper_revision=paper.revision;build.revision++;}
+   json=paper;
+  }
+  else if(path.endsWith('/papers/p1/history'))json={items:[]};
+  else if(path.endsWith('/papers/p1/availability'))json={sections:[]};
+  else if(['/review','/approve','/lock','/validate'].some(a=>path.endsWith('/papers/p1'+a))){paper.status=({'review':'FACULTY_REVIEW','approve':'APPROVED','lock':'LOCKED','validate':'VALIDATED'} as Record<string,string>)[path.split('/').pop()!];paper.revision++;json=paper;}
+  else return route.fallback();
+  return route.fulfill({json});
+ });
+ await page.getByRole('button',{name:'Question Bank',exact:true}).click();await page.getByRole('button',{name:'Prepare Paper',exact:true}).click();await page.getByRole('button',{name:'Create paper view',exact:true}).click();
+ return {paper,build,candidates,regenerations:()=>regenerations,saves:()=>saves,failRegeneration:()=>{failRegeneration=true;}};
+}
+
+test('AI paper journey recovers duplicate, restores draft after question review, assembles and locks',async({page})=>{
+ const fixture=await paperJourney(page);
+ const ai=page.getByRole('region',{name:'Build paper with AI'});
+ await expect(ai.getByRole('button',{name:'Assemble approved questions'})).toBeDisabled();
+ await ai.getByRole('button',{name:'Accept all for review (2)',exact:true}).click();
+ await expect(ai.getByRole('alert')).toContainText('Q2: Exact normalized duplicate');
+ await ai.getByRole('button',{name:'Regenerate Q2',exact:true}).click();
+ const dialog=page.getByRole('dialog',{name:'Regenerate Q2?'});await dialog.getByRole('button',{name:'Generate replacement'}).click();
+ await expect(ai.getByText('Replacement for Q2 is ready.',{exact:false})).toBeVisible();expect(fixture.regenerations()).toBe(1);expect(fixture.candidates[0].decision).toBe('ACCEPTED');
+ await ai.getByRole('button',{name:'Accept all for review (1)',exact:true}).click();
+ await ai.getByRole('button',{name:'Open question faculty review'}).click();
+ await expect(page.getByRole('region',{name:'Question review queue'})).toBeVisible();await expect(page.getByRole('button',{name:'Approve all shown (2)'})).toBeVisible();
+ await page.getByRole('button',{name:'Approve all shown (2)'}).click();await page.getByRole('dialog').getByRole('button',{name:'Approve 2 questions'}).click();
+ await expect(page.getByText('2 of 2 questions approved.',{exact:false})).toBeVisible();await expect(page.getByRole('heading',{name:'All accepted questions are approved'})).toBeVisible();
+ await page.getByRole('button',{name:'Back to AI paper draft'}).click();
+ await expect(page.getByLabel('Paper title')).toHaveValue('Midterm');await expect(ai.getByText('3. Faculty approved: 2 / 2')).toBeVisible();
+ await ai.getByRole('button',{name:'Assemble approved questions'}).click();await expect(page.getByRole('button',{name:'Send for Faculty Review'})).toBeEnabled();
+ await page.getByRole('button',{name:'Send for Faculty Review'}).click();await page.getByLabel('Review comment',{exact:true}).fill('Reviewed all questions and answers.');await page.getByRole('button',{name:'Approve Paper'}).click();await page.getByRole('button',{name:'Finalize and Lock'}).click();
+ await expect(page.getByLabel('Paper title')).toBeDisabled();expect(fixture.paper.status).toBe('LOCKED');
+});
+
+test('AI paper metadata save preserves candidates and unchanged save is idempotent',async({page})=>{
+ const fixture=await paperJourney(page);await page.getByLabel('Examination session').fill('Morning');await page.getByLabel('Paper instructions').fill('Answer clearly.');
+ await page.getByRole('button',{name:'Save Draft',exact:true}).click();await expect(page.getByRole('status').filter({hasText:'Draft saved successfully'})).toBeVisible();
+ await expect(page.getByRole('button',{name:'Accept all for review (2)',exact:true})).toBeEnabled();await page.getByRole('button',{name:'Save Draft',exact:true}).click();await expect(page.getByText('Draft is already saved.',{exact:false})).toBeVisible();expect(fixture.saves()).toBe(1);
+});
+
+test('stale AI draft keeps question review reachable and regeneration errors appear in dialog',async({page})=>{
+ const fixture=await paperJourney(page,true);const ai=page.getByRole('region',{name:'Build paper with AI'});await expect(ai.getByRole('button',{name:'Open question faculty review'})).toBeEnabled();
+ await ai.getByRole('button',{name:'Continue with generated questions'}).click();fixture.failRegeneration();await ai.getByRole('button',{name:'Regenerate Q2',exact:true}).click();await page.getByRole('dialog').getByRole('button',{name:'Generate replacement'}).click();
+ await expect(page.getByRole('dialog').getByRole('alert')).toContainText('Refresh the completed build');
+});
+
+test('AI duplicate can be edited and accepted without regenerating other positions',async({page})=>{
+ const fixture=await paperJourney(page);const ai=page.getByRole('region',{name:'Build paper with AI'});
+ await ai.getByRole('button',{name:'Edit Q2',exact:true}).click();const dialog=page.getByRole('dialog',{name:'Edit AI paper draft'});
+ await expect(dialog.getByLabel('Candidate question')).toHaveCount(1);await dialog.getByLabel('Candidate question').fill('Compare two different transport protocol scenarios.');await dialog.getByRole('button',{name:'Save question draft'}).click();
+ await expect(dialog.getByRole('status')).toContainText('saved to the AI draft');await dialog.getByRole('button',{name:'Done editing'}).click();await ai.getByRole('button',{name:'Accept all for review (2)',exact:true}).click();
+ await expect(ai.getByText('2. Accepted for review: 2 / 2')).toBeVisible();expect(fixture.regenerations()).toBe(0);
+});
+
+test('browser refresh restores the independent question workspace and selected paper',async({page})=>{
+ await paperJourney(page);await page.reload();await expect(page.getByLabel('Paper title')).toHaveValue('Midterm');await expect(page.getByRole('region',{name:'Selected academic context'})).toContainText('Computer Networks');await expect(page.getByRole('button',{name:'Accept all for review (2)',exact:true})).toBeEnabled();
+});
+
+test('unavailable remembered subject keeps the selector accessible',async({page})=>{
+ await page.addInitScript(()=>sessionStorage.setItem('qpg-workspace-context',JSON.stringify({program:'BTECH',branch:'CSE',year:'2',semester:'4',subject:'removed-subject'})));
+ await setup(page,false,true);await page.goto('/dashboard/question-papers?view=papers');
+ await expect(page.getByLabel('Subject',{exact:true})).toBeVisible();await page.getByLabel('Subject',{exact:true}).selectOption('s1');
+ await expect(page.getByRole('region',{name:'Selected academic context'})).toContainText('Computer Networks');
+});
+test('paper question review keeps scope and return button after refresh',async({page})=>{
+ await paperJourney(page);await page.getByRole('button',{name:'Accept all for review (2)',exact:true}).click();await page.getByRole('button',{name:'Open question faculty review'}).click();
+ await page.reload();await expect(page.getByRole('heading',{name:/This paper’s question review/})).toBeVisible();await expect(page.getByRole('button',{name:'Back to AI paper draft'})).toBeVisible();
+ await page.getByRole('button',{name:'Back to AI paper draft'}).click();await expect(page.getByLabel('Paper title')).toHaveValue('Midterm');
+});
+test('drafts view stays selected after refresh',async({page})=>{
+ await paperJourney(page);await page.getByRole('navigation',{name:'Question paper views'}).getByRole('button',{name:'Drafts',exact:true}).click();await page.reload();
+ await expect(page.getByRole('navigation',{name:'Question paper views'}).getByRole('button',{name:'Drafts',exact:true})).toHaveAttribute('aria-current','page');
+});
+test('unsaved paper metadata is restored after navigation',async({page})=>{
+ const fixture=await paperJourney(page);await page.getByLabel('Paper title').fill('My unfinished title');await page.getByLabel('Paper instructions').fill('My unfinished instructions');
+ await page.getByRole('button',{name:'Question Bank',exact:true}).click();await page.getByRole('button',{name:'Prepare Paper',exact:true}).click();await page.getByRole('button',{name:'Create paper view'}).click();
+ await expect(page.getByLabel('Paper title')).toHaveValue('My unfinished title');await expect(page.getByLabel('Paper instructions')).toHaveValue('My unfinished instructions');expect(fixture.saves()).toBe(0);
+ await page.getByRole('button',{name:'Save Draft',exact:true}).click();await expect(page.getByRole('status').filter({hasText:'Draft saved successfully'})).toBeVisible();expect(fixture.saves()).toBe(1);
+});
+
+
+test('paper pattern editor works without secure-context randomUUID',async({page})=>{
+ await page.addInitScript(()=>Object.defineProperty(window.crypto,'randomUUID',{value:undefined,configurable:true}));
+ await setup(page,false,true);await page.getByRole('button',{name:'Prepare Paper',exact:true}).click();
+ await expect(page.getByRole('heading',{name:'Paper Patterns',exact:true})).toBeVisible();
+ await page.getByRole('button',{name:'New Pattern',exact:true}).click();
+ await page.getByRole('button',{name:'Add section',exact:true}).click();await expect(page.getByLabel('Section name')).toHaveCount(2);
 });

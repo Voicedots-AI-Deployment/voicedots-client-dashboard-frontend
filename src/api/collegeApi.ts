@@ -1,3 +1,4 @@
+import {createUuid} from '@/lib/uuid';
 import axios from 'axios';
 import { apiClient } from './apiClient';
 export type CollegeAccess = { erp_role?:string; enabled: boolean; college_id?:string; college_name?: string; timezone?:string };
@@ -23,7 +24,7 @@ export const collegeApi = {
       const suppliedKey = (body as Record<string, unknown>).idempotency_key;
       const idempotencyKey = typeof suppliedKey === 'string' && suppliedKey.length >= 16
         ? suppliedKey
-        : sessionStorage.getItem(storageKey) || crypto.randomUUID();
+        : sessionStorage.getItem(storageKey) || createUuid();
       sessionStorage.setItem(storageKey, idempotencyKey);
       data = { ...(body as Record<string, unknown>), idempotency_key: idempotencyKey };
     }
