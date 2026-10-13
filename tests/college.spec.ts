@@ -1478,7 +1478,7 @@ test('candidate stopped by proctor has an ended label and attempt policy control
   await page.route('**/v3/college/drives/drive-1/dashboard/ranking**',route=>route.fulfill({json:{candidates:[{student_id:'s1',full_name:'Ended Candidate',roll_number:'R1',assignment_status:'expired',preparation_status:'ready',live_session_status:'candidate_ended',live_session_termination_source:'proctor'}],pagination:{total:1}}}));
   await page.reload();
   await expect(page.getByText('Ended by proctor',{exact:true})).toBeVisible();
-  await page.getByRole('button',{name:'Candidate details',exact:true}).click();
+  await page.getByRole('button',{name:'View details',exact:true}).click();
   await expect(page.getByText('Attempt policy & AI Coach')).toBeVisible();
   await expect(page.getByRole('button',{name:'Configure attempt & Coach rules'})).toBeVisible();
 });
@@ -1520,7 +1520,7 @@ test('ATS popup reuses already loaded evidence without another matching request'
 test('attempt rules open the existing drive at Interview setup rather than a new draft',async({page})=>{
   await setup(page,true,{initialPath:'/dashboard/placement-management?drive=drive-1&section=candidates',driveDetails:{id:'drive-1',company_name:'Existing Company',role_title:'Engineer',location:'Remote',jd_raw_text:'Build Python services for customers.',status:'draft',max_attempts:3,window_start_at:'2099-01-01T00:00:00Z',window_end_at:'2099-01-02T00:00:00Z'}});
   await page.route('**/v3/college/drives/drive-1/dashboard/ranking**',route=>route.fulfill({json:{candidates:[{student_id:'s1',full_name:'Anu',roll_number:'R1',assignment_status:'assigned'}],pagination:{total:1}}}));
-  await page.reload();await page.getByRole('button',{name:'Candidate details',exact:true}).click();
+  await page.reload();await page.getByRole('button',{name:'View details',exact:true}).click();
   await page.getByRole('button',{name:'Configure attempt & Coach rules'}).click();
   await expect(page.getByRole('heading',{name:'Modify placement drive'})).toBeVisible();
   await expect(page.getByRole('button',{name:'2. Interview setup'})).toHaveAttribute('aria-current','step');
