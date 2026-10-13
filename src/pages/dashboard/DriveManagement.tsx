@@ -1,6 +1,4 @@
 import { AttemptBadge, attemptValue } from "./CandidateAttemptBadge";
-import PlacementDashboard from "./PlacementDashboard";
-import CandidateDirectory from "./CandidateDirectory";
 import { useEffect, useRef, useState } from "react";
 import { useSearchParams } from "react-router-dom";
 import { ExternalLink, Download, Users, CheckCircle2, CircleDashed, Clock, UserCheck, Send } from "lucide-react";
@@ -199,8 +197,6 @@ function CandidateOfficerActions({ driveId, candidate, onSaved }: { driveId: str
 }
 const sections = {
   overview: "Overview",
-  candidates: "Candidates",
-  intelligence: "Analytics",
   ats: "ATS fit",
   results: "Interview results",
   feedback: "Feedback",
@@ -212,8 +208,6 @@ const sections = {
 type Tab = keyof typeof sections;
 const paths: Record<Tab, string> = {
   overview: "dashboard/overview",
-  candidates: "dashboard/ranking",
-  intelligence: "dashboard/overview",
   ats: "dashboard/ats-fit",
   results: "dashboard/ranking",
   feedback: "dashboard/overview",
@@ -1627,12 +1621,18 @@ export default function DriveManagement({
 }) {
   const [params, setParams] = useSearchParams();
   const reportStudentId = params.get("candidate");
-  const requestedSection = params.get("section");
+  const requestedSection = params.get("section") === "candidates" ? "results" : params.get("section");
   const tab = (
     (requestedSection || "") in sections
       ? requestedSection
       : "overview"
   ) as Tab;
+  useEffect(() => {
+    if (params.get("section") === "candidates") setParams(current => {
+      current.set("section", "results");
+      return current;
+    }, { replace: true });
+  }, [params, setParams]);
   const [drive, setDrive] = useState<Drive | null>(null),
     [data, setData] = useState<Data | null>(null),
     [detail, setDetail] = useState<unknown>(null);
@@ -1965,7 +1965,7 @@ export default function DriveManagement({
   }
   const visibleResultIds = tab === "results" ? candidates.map(candidate => candidate.student_id) : [];
   const allVisibleResultsSelected = visibleResultIds.length > 0 && visibleResultIds.every(id => checked.includes(id));
-  if (reportStudentId && tab !== "candidates")
+  if (reportStudentId)
     return (
       <CandidateReport
         driveId={driveId}
@@ -2253,8 +2253,6 @@ export default function DriveManagement({
             </div>
           );
         })()}
-      {tab === "intelligence" && <PlacementDashboard driveId={driveId}/>}
-      {tab === "candidates" && <CandidateDirectory driveId={driveId} driveMaxAttempts={drive?.max_attempts} onCandidateDetails={candidate=>openCandidateDetails({...candidate,student_id:candidate.student_id||candidate.id||""})}/>}
       {["ats", "results"].includes(tab) && (
         <>
           {tab !== "results" && <div className="grid gap-3 md:grid-cols-3 xl:grid-cols-6">
@@ -2634,7 +2632,7 @@ export default function DriveManagement({
                 driveId={driveId}
                 drive={drive}
               />
-              {["results", "candidates"].includes(tab) && (
+              {tab === "results" && (
                 <>
                   <div className="flex flex-wrap gap-3">
                     {["completed", "released", "held_for_review"].includes(

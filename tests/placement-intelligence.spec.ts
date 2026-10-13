@@ -23,16 +23,16 @@ test('command center has measured charts, working filters and expands with sideb
  await page.getByRole('button',{name:'Reports & alerts',exact:true}).click();await expect(page.getByRole('heading',{name:'Department Benchmarking'})).toBeVisible();
  await page.getByRole('button',{name:'Configure',exact:true}).click();await page.getByLabel('Readiness threshold',{exact:true}).fill('75');let saved:any;await page.route('**/v3/college/intelligence/settings',route=>{saved=route.request().postDataJSON();return route.fulfill({json:saved})});await page.getByRole('button',{name:'Save policy'}).click();await expect.poll(()=>saved?.readiness_threshold).toBe(75);
 });
-test('drive Candidates View details opens evidence-backed Candidate 360 scorecard',async({page})=>{
+test('legacy drive Candidates links open the compact Interview Results workspace',async({page})=>{
  await page.setViewportSize({width:1500,height:1050});await setup(page,'/dashboard/placement-management?drive=drive-1&section=candidates');
- const hero=(await page.locator('.candidate-directory>.pi-hero').boundingBox())!;const search=(await page.locator('.candidate-directory>.pi-filter-panel').boundingBox())!;expect(search.y-hero.y-hero.height).toBeGreaterThanOrEqual(16);await page.getByRole('button',{name:'View details'}).click();await expect(page.getByRole('heading',{name:'Candidate 360° Profile'})).toBeVisible();await expect(page.getByRole('heading',{name:'Ananya Sharma'})).toBeVisible();await expect(page.getByRole('heading',{name:'Competency Results'})).toBeVisible();await expect(page.getByText('Target 80 · gap 2.0')).toBeVisible();await expect(page.getByRole('button',{name:'Open full report & human review'})).toBeVisible();await page.locator('#candidate-evidence summary').click();const evidence=(await page.locator('#candidate-evidence details').boundingBox())!;const answer=(await page.locator('#candidate-evidence details p').first().boundingBox())!;expect(answer.width).toBeGreaterThan(evidence.width*.9);await page.screenshot({path:`${screenshots}/candidate-360.png`,fullPage:true});
+ await expect(page).toHaveURL(/section=results/);await expect(page.getByRole('heading',{name:'Interview results',exact:true})).toBeVisible();await expect(page.getByText('Ananya Sharma',{exact:true})).toBeVisible();const navigation=page.getByRole('navigation',{name:'Drive management sections'});await expect(navigation.getByRole('button',{name:'Analytics',exact:true})).toHaveCount(0);await expect(navigation.getByRole('button',{name:'Candidates',exact:true})).toHaveCount(0);
 });
 test('dashboard mobile fits and empty data does not invent values',async({page})=>{
  await page.setViewportSize({width:390,height:844});await setup(page);await expect(page.getByRole('heading',{name:'AI Interview Analytics'})).toBeVisible();await expect.poll(()=>page.evaluate(()=>document.documentElement.scrollWidth<=window.innerWidth)).toBe(true);await page.screenshot({path:`${screenshots}/placement-dashboard-mobile.png`,fullPage:true});
  await page.route('**/v3/college/intelligence/dashboard?**',route=>route.fulfill({json:{...fixture,summary:{interviews:0,candidates:0,average_competency:null,satisfaction:null,feedback_responses:0,positive_experience_percent:null},competencies:[],experience_distribution:[],readiness:[],trend:[],by_category:[],recent_interviews:[],strengths:[],development_gaps:[],suggestions:[]}}));await page.getByRole('button',{name:'Refresh analytics'}).click();await expect(page.locator('.pi-kpis')).toContainText('Not measured');
 });
 
-test('dashboard and Candidate 360 remain contained across tablet and narrow mobile widths', async ({page}) => {
+test('dashboard and drive Interview Results remain contained across tablet and narrow mobile widths', async ({page}) => {
  for (const width of [320,768,1024,1440]) {
   await page.setViewportSize({width,height:900});await setup(page);
   await expect(page.getByRole('heading',{name:'AI Interview Analytics'})).toBeVisible();
@@ -40,8 +40,7 @@ test('dashboard and Candidate 360 remain contained across tablet and narrow mobi
   await page.getByRole('button',{name:'Competency & career analytics',exact:true}).click();
   await expect.poll(()=>page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth)).toBe(true);
   await page.goto('/dashboard/placement-management?drive=drive-1&section=candidates');
-  await page.getByRole('button',{name:'View details'}).click();
-  await expect(page.getByRole('heading',{name:'Ananya Sharma'})).toBeVisible();
+  await expect(page.getByRole('heading',{name:'Interview results',exact:true})).toBeVisible();
   await expect.poll(()=>page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth)).toBe(true);
  }
 });
