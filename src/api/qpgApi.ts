@@ -1,6 +1,6 @@
 import { apiClient } from './apiClient';
 import { collegeApi } from './collegeApi';
-export type Subject = { id:string; erp_subject_id:string; code:string; name:string; program_code:string; branch_code:string; year_number:number; semester_number:number; lecture_hours:number|null; tutorial_hours:number|null; practical_hours:number|null; credits:number|null };
+export type Subject = {institution_name?:string;education_level?:string;batch_name?:string;specialization_name?:string; id:string; erp_subject_id:string; code:string; name:string; program_code:string; branch_code:string; year_number:number; semester_number:number; lecture_hours:number|null; tutorial_hours:number|null; practical_hours:number|null; credits:number|null };
 export type SyllabusItem = { id:string; code:string; title:string; subject_id:string; unit_id?:string };
 export type Question = { id:string; subject_id:string; subject_name?:string; question_text:string; question_type:string; marks:number; co_id:string|null; unit_id:string|null; topic_id:string|null; bloom_level:string; difficulty:string; answer:string; options:string[]; source_type:string; source_reference:string; status:string; version:number; created_by:string; updated_by:string; created_at:string; updated_at:string };
 export type QuestionVersion = { id:string; version:number; content:Question; previous_content:Question|null; change_reason:string; actor:string; created_at:string };

@@ -68,12 +68,14 @@ async function setup(page:Page,failed=false,published=false){
  });
  await page.goto('/dashboard/question-papers');
  await page.getByRole('navigation',{name:'Question paper sections'}).getByRole('button',{name:'Subject Master',exact:true}).click();
- await page.getByLabel('Program',{exact:true}).selectOption('BTECH');
- await page.getByLabel('Branch',{exact:true}).selectOption('CSE');
+ await page.getByRole('button',{name:'Open existing subjects'}).click();
+ await page.getByLabel('Degree',{exact:true}).selectOption('BTECH');
+ await page.getByLabel('Department',{exact:true}).selectOption('CSE');
  await page.getByLabel('Year',{exact:true}).selectOption('2');
  await page.getByLabel('Semester',{exact:true}).selectOption('4');
  await page.getByLabel('Subject',{exact:true}).selectOption('s1');
  await page.getByRole('navigation',{name:'Question paper sections'}).getByRole('button',{name:'Question Papers',exact:true}).click();
+ if(await page.getByRole('button',{name:'Open existing subjects',exact:true}).count())await page.getByRole('button',{name:'Open existing subjects',exact:true}).click();
  await page.getByLabel('Program',{exact:true}).selectOption('BTECH');
  await page.getByLabel('Branch',{exact:true}).selectOption('CSE');
  await page.getByLabel('Year',{exact:true}).selectOption('2');
@@ -710,7 +712,7 @@ test('grouped QPG navigation preserves subject context and accessible actions',a
  await expect(page.getByRole('region',{name:'Selected academic context'})).toContainText('Year 2 › Semester 4');
  await primary.getByRole('button',{name:'Question Papers'}).click();await expect(page.getByLabel('Program',{exact:true})).toHaveCount(0);
  await primary.getByRole('button',{name:'Subject Master'}).click();
- await expect(page.getByLabel('Program',{exact:true})).toHaveValue('BTECH');
+ await expect(page.getByLabel('Degree',{exact:true})).toHaveValue('BTECH');
  await primary.getByRole('button',{name:'Syllabus Master'}).click();
  await expect(page.getByRole('region',{name:'Syllabus Master'})).toBeVisible();
  await primary.getByRole('button',{name:'Question Papers'}).click();await page.getByRole('navigation',{name:'Question Papers workspace'}).getByRole('button',{name:'Question Bank'}).click();
@@ -759,7 +761,7 @@ test('Reports academic filters cards coverage distributions usage papers and CSV
  await page.route('**/question-papers/reports?*',r=>{captured=r.request().url();return r.fulfill({json:reportFixture()});});
  await page.route('**/question-papers/reports/export?*',r=>{captured=r.request().url();return r.fulfill({contentType:'text/csv',body:'Report,Field,Value\nBank,total,4',headers:{'Content-Disposition':'attachment; filename="qpg-report.csv"'}});});
  await page.getByRole('navigation',{name:'Question paper sections'}).getByRole('button',{name:'Reports',exact:true}).click();
- await expect(page.getByLabel('Program',{exact:true})).toHaveValue('BTECH');
+ await expect(page.getByLabel('Degree',{exact:true})).toHaveValue('BTECH');
  await page.getByLabel('Report syllabus',{exact:true}).selectOption('sv1');
  await page.getByLabel('Event date range',{exact:true}).selectOption('LAST_7_DAYS');
  await page.getByRole('button',{name:'View Reports',exact:true}).click();await expect(page.getByRole('region',{name:'At a glance'})).toBeVisible();for(const title of ['Question and paper status details','Syllabus coverage and question distribution','Question usage and unused questions','Finalized papers and pattern usage (1)','Finalized papers and pattern usage (0)','Advanced: similarity, validation and AI activity'])await openDetails(page.getByRole('region',{name:'Reports and Analytics'}),title);
@@ -791,8 +793,9 @@ test('readonly bank details conceal answer and version payload even when an old 
  await page.route('**/question-papers/academic-options',route=>route.fulfill({json:{programs:[{code:'BTECH',display_name:'B.Tech',duration_years:4,departments:[{code:'CSE',display_name:'Computer Science'}]}],erp_subjects:[],can_setup:false,can_write:false}}));
  await page.reload();
  await page.getByRole('navigation',{name:'Question paper sections'}).getByRole('button',{name:'Subject Master',exact:true}).click();
- await page.getByLabel('Program',{exact:true}).selectOption('BTECH');
- await page.getByLabel('Branch',{exact:true}).selectOption('CSE');
+ await page.getByRole('button',{name:'Open existing subjects'}).click();
+ await page.getByLabel('Degree',{exact:true}).selectOption('BTECH');
+ await page.getByLabel('Department',{exact:true}).selectOption('CSE');
  await page.getByLabel('Year',{exact:true}).selectOption('2');
  await page.getByLabel('Semester',{exact:true}).selectOption('4');
  await page.getByLabel('Subject',{exact:true}).selectOption('s1');
