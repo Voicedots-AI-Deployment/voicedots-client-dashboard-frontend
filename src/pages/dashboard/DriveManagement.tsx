@@ -1040,7 +1040,7 @@ function DriveSettings({
         disabled={locked}
         value={String(form[key] ?? "")}
         aria-invalid={Boolean(fieldErrors[key])}
-        onChange={(e) => {setFieldErrors(current=>({...current,[key]:""}));setForm((v) => ({ ...v, [key]: key === "max_attempts" ? String(Math.min(5, Math.max(1, Number(e.target.value) || 1))) : e.target.value }));}}
+        onChange={(e) => {setFieldErrors(current=>({...current,[key]:""}));setForm((v) => ({ ...v, [key]: key === "max_attempts" ? String(Math.min(20, Math.max(1, Number(e.target.value) || 1))) : e.target.value }));}}
       />
       {fieldErrors[key]&&<span role="alert" className="mt-1 block text-xs text-rose-600">{fieldErrors[key]}</span>}
     </label>
@@ -1135,6 +1135,9 @@ function DriveSettings({
       else setWarning(collegeError(error));
     }
   }
+  function updateAttemptRule(index:number,key:string,value:number|boolean) {
+    setForm(current=>({...current,score_attempt_rules:((current.score_attempt_rules || []) as Data[]).map((rule,i)=>i===index?{...rule,[key]:value}:rule)}));
+  }
   function addAgent(value: string) {
     const customId = value.startsWith("custom:") ? value.slice(7) : "";
     const defaultTrack = value.startsWith("default:") ? value.slice(8) : "";
@@ -1142,7 +1145,7 @@ function DriveSettings({
       ? library?.agents.find((agent) => agent.id === customId)
       : undefined;
     const track = custom?.track || defaultTrack || value;
-    if (!track || selection.length > 4) return;
+    if (!track || (selection.length >= 4 && !selection.some(item=>item.track===track))) return;
     const existingIndex = selection.findIndex((item) => item.track === track);
     if (existingIndex >= 0) {
       // A default profile for this track may already be in the drive. A
@@ -1287,14 +1290,15 @@ function DriveSettings({
         {input("max_attempts", "Default attempts per student", "number")}
         <div className="sm:col-span-2 rounded-xl border border-slate-200 p-4 dark:border-slate-700">
           <h3 className="font-semibold">Score-based attempt rules</h3>
-          {Array.isArray(form.score_attempt_rules) && form.score_attempt_rules.length > 0 ? <div className="mt-3 space-y-2">{form.score_attempt_rules.map((rule: Data, index: number) => <div className="grid gap-2 rounded-lg bg-slate-50 p-3 text-sm dark:bg-slate-800 sm:grid-cols-4" key={index}><label>Minimum score<input className={field} type="number" aria-label={`Rule ${index + 1} minimum score`} value={String(rule.min_score ?? "")}/></label><label>Maximum score<input className={field} type="number" aria-label={`Rule ${index + 1} maximum score`} value={String(rule.max_score ?? "")}/></label><label>Maximum attempts<input className={field} type="number" aria-label={`Rule ${index + 1} maximum attempts`} value={String(rule.max_attempts ?? "")}/></label><label className="flex items-center gap-2"><input type="checkbox" aria-label={`Rule ${index + 1} requires AI Coach`} checked={Boolean(rule.require_coach)} readOnly/>Require AI Coach</label></div>)}</div> : <p className="mt-2 text-sm text-slate-500">No score-based rules. The fixed attempt limit applies.</p>}
+          {Array.isArray(form.score_attempt_rules) && form.score_attempt_rules.length > 0 ? <div className="mt-3 space-y-2">{form.score_attempt_rules.map((rule: Data, index: number) => <div className="grid gap-2 rounded-lg bg-slate-50 p-3 text-sm dark:bg-slate-800 sm:grid-cols-4" key={index}><label>Minimum score<input className={field} type="number" aria-label={`Rule ${index + 1} minimum score`} value={String(rule.min_score ?? "")} onChange={event=>updateAttemptRule(index,"min_score",Number(event.target.value))}/></label><label>Maximum score<input className={field} type="number" aria-label={`Rule ${index + 1} maximum score`} value={String(rule.max_score ?? "")} onChange={event=>updateAttemptRule(index,"max_score",Number(event.target.value))}/></label><label>Maximum attempts<input className={field} type="number" aria-label={`Rule ${index + 1} maximum attempts`} value={String(rule.max_attempts ?? "")} onChange={event=>updateAttemptRule(index,"max_attempts",Number(event.target.value))}/></label><label className="flex items-center gap-2"><input type="checkbox" aria-label={`Rule ${index + 1} requires AI Coach`} checked={Boolean(rule.require_coach)} onChange={event=>updateAttemptRule(index,"require_coach",event.target.checked)}/>Require AI Coach</label></div>)}</div> : <p className="mt-2 text-sm text-slate-500">No score-based rules. The fixed attempt limit applies.</p>}
         </div>
         <label className="block text-sm">
           Difficulty
           <select
             className={field}
             value={String(form.difficulty_tier)}
-            disabled={drive.status !== "draft"}
+            aria-label="Interview difficulty"
+            disabled={locked}
             onChange={(e) =>
               setForm((value) => ({
                 ...value,
@@ -1307,11 +1311,9 @@ function DriveSettings({
             <option value="intermediate">Intermediate</option>
             <option value="advanced">Advanced</option>
           </select>
-          {drive.status !== "draft" && (
-            <span className="mt-1 block text-xs text-slate-500">
-              Locked after the drive is finalized.
-            </span>
-          )}
+          <span className="mt-1 block text-xs text-slate-500">
+            Changes apply to newly prepared interviews. Completed reports keep their original configuration.
+          </span>
         </label>
       </>
     ) : title === "Eligibility" ? (

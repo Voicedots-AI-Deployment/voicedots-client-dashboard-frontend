@@ -669,7 +669,7 @@ test('drive deletion uses delete endpoint and removes the drive rather than unlo
   await page.getByRole('button',{name:'Delete drive'}).click();
   await expect.poll(()=>deleted).toBe(true);
   await expect(page.getByRole('heading',{name:'Northstar'})).toHaveCount(0);
-  await expect(page.getByRole('status')).toContainText('Drive deleted.');
+  await expect(page.getByRole('status').filter({hasText:'Drive deleted.'})).toBeVisible();
   expect(deleted).toBe(true);
   expect(lockRequested).toBe(false);
 });
@@ -1578,7 +1578,7 @@ test('results export includes selected candidates and compact strengths with rep
   const download=page.waitForEvent('download');await page.getByRole('button',{name:'Export Excel'}).click();
   expect((await download).suggestedFilename()).toBe('interview-results.xlsx');expect(selected).toEqual(['s1']);
   await page.getByRole('group',{name:'Results layout'}).getByRole('button',{name:'Table',exact:true}).click();
-  await expect(page.getByRole('columnheader',{name:'Status / attempts',exact:true})).toBeVisible();
+  await expect(page.getByRole('columnheader',{name:'Status & attempts',exact:true})).toBeVisible();
   await expect(page.getByLabel('Select Selected Candidate',{exact:true})).toBeChecked();
   await page.getByRole('group',{name:'Results layout'}).getByRole('button',{name:'Cards',exact:true}).click();
   await page.setViewportSize({width:390,height:844});
@@ -2347,4 +2347,72 @@ test('editing legacy BBA drive removes redundant department criterion without ch
   await page.getByRole('button',{name:'Save this section'}).click();
   await expect.poll(()=>saved?.eligible_programs).toEqual(['BBA']);
   expect(saved?.eligible_departments).toEqual([]);
+});
+
+test('placement sidebar omits Candidate profiles while drive Candidates remains available',async({page})=>{
+  await setup(page,true,{initialPath:'/dashboard/placement-management?view=placements&drive=drive-1'});
+  await expect(page.locator('aside').getByText('Candidate profiles',{exact:true})).toHaveCount(0);
+  await expect(page.getByRole('button',{name:'Candidates',exact:true}).last()).toBeVisible();
+});
+
+test('report recovers a transient secure recording request without manual refresh',async({page})=>{
+  await setup(page,true,{initialPath:'/dashboard/placement-management?drive=drive-1&section=results&candidate=s1'});
+  let loads=0;
+  await page.route('**/v3/college/students/s1/reports',route=>route.fulfill({json:{student:{full_name:'Recording Candidate'},reports:[{source:'drive',drive_id:'drive-1',session_id:'session-1',detail:{status:'released',question_reviews:[]}}]}}));
+  await page.route('**/v3/college/students/s1/reports/session-1/recording',route=>{
+    loads++;return loads===1?route.fulfill({status:503,json:{detail:'Temporary storage error'}}):route.fulfill({json:{status:'ready',playback_url:'https://media.example/recovered.webm',duration_seconds:2,segment_count:1}});
+  });
+  await page.route('https://media.example/recovered.webm',route=>route.fulfill({contentType:'video/webm',body:readFileSync('tests/fixtures/interview-test.webm')}));
+  await page.reload();
+  const video=page.getByLabel('Interview recording',{exact:true});
+  await expect(video).toHaveAttribute('src','https://media.example/recovered.webm');
+  await expect.poll(()=>video.evaluate(element=>(element as HTMLVideoElement).readyState)).toBeGreaterThanOrEqual(2);
+  expect(loads).toBe(2);
+});
+
+test('Modify drive saves cleared optional fields and accepts twenty attempts',async({page})=>{
+  await setup(page,true,{initialPath:'/dashboard/placement-management?drive=drive-1&section=settings',driveDetails:{id:'drive-1',company_name:'Example',role_title:'Tester',location:'Remote',jd_raw_text:'Test APIs.',status:'active',is_locked:false,company_description:'Old description',company_website:'https://example.com',company_linkedin:'https://linkedin.com/company/example',window_start_at:'2099-01-01T00:00:00Z',window_end_at:'2099-01-02T00:00:00Z',max_attempts:1,score_attempt_rules:[{min_score:0,max_score:100,max_attempts:5,require_coach:false}]}});
+  const bodies:Record<string,unknown>[]=[];
+  await page.route('**/v3/college/drives/drive-1',route=>{if(route.request().method()==='PUT'){bodies.push(route.request().postDataJSON());return route.fulfill({json:{status:'updated',warnings:[]}})}return route.fallback();});
+  const company=page.locator('article').filter({has:page.getByRole('heading',{name:'Drive and company',exact:true})});
+  await company.getByRole('button',{name:'Modify section'}).click();
+  await page.getByRole('textbox',{name:'Company details',exact:true}).fill('');await page.locator('#company_website').fill('');await page.locator('#company_linkedin').fill('');
+  await page.getByRole('button',{name:'Save this section'}).click();
+  await expect.poll(()=>bodies.length).toBe(1);expect(bodies[0].company_description).toBe('');expect(bodies[0].company_website).toBe('');expect(bodies[0].company_linkedin).toBe('');
+  const config=page.locator('article').filter({has:page.getByRole('heading',{name:'Interview configuration',exact:true})});
+  await config.getByRole('button',{name:'Modify section'}).click();await page.locator('#max_attempts').fill('20');await page.getByLabel('Interview difficulty',{exact:true}).selectOption('advanced');await page.getByLabel('Rule 1 maximum attempts',{exact:true}).fill('8');await page.getByLabel('Rule 1 requires AI Coach',{exact:true}).check();
+  await page.getByRole('button',{name:'Save this section'}).click();
+  await expect.poll(()=>bodies.length).toBe(2);expect(bodies[1].max_attempts).toBe(20);expect(bodies[1].difficulty_tier).toBe('advanced');expect(bodies[1].score_attempt_rules).toEqual([{min_score:0,max_score:100,max_attempts:8,require_coach:true}]);
+});
+
+test('complete drive editor preserves legacy dates and sends explicit null when cleared',async({page})=>{
+  await setup(page,true,{initialPath:'/dashboard/placement-management?drive=drive-1&section=settings',driveDetails:{id:'drive-1',company_name:'Example',role_title:'Tester',location:'Remote',jd_raw_text:'Test APIs.',status:'draft',difficulty_tier:'dynamic',drive_date:'11-01-2099',application_deadline:'01-01-2099',company_description:'Old',company_website:'https://example.com',window_start_at:'2099-01-01T00:00:00Z',window_end_at:'2099-01-02T00:00:00Z',criteria_programs:['B.Tech'],criteria_department_codes:['CSE'],criteria_graduation_years:[2027],agent_selection:[{track:'hr'}],round_configuration:[{track:'hr',question_source:'personalized',questions:[]}]}});
+  let saved:Record<string,unknown>|undefined;
+  await page.route('**/v3/college/drives/drive-1',route=>{if(route.request().method()==='PUT'){saved=route.request().postDataJSON();return route.fulfill({json:{status:'updated',warnings:[]}})}return route.fallback();});
+  await page.getByRole('button',{name:'Edit complete setup'}).click();
+  await page.locator('#company_description').fill('');await page.locator('#company_website').fill('');
+  await page.getByRole('button',{name:'2. Interview setup'}).click();
+  await expect(page.locator('#drive_date')).toHaveValue('2099-01-11');await expect(page.locator('#application_deadline')).toHaveValue('2099-01-01');
+  await page.locator('#drive_date').fill('');await page.locator('#application_deadline').fill('');
+  await page.getByRole('button',{name:'6. Review & save'}).click();
+  await page.getByRole('button',{name:'Save changes',exact:true}).click();
+  await expect.poll(()=>saved!==undefined).toBe(true);
+  for(const field of ['drive_date','application_deadline','application_deadline_at','company_description','company_website'])expect(saved?.[field]).toBeNull();
+});
+
+test('recording refresh follows secure link lifetime and preserves playback position',async({page})=>{
+  await setup(page,true,{initialPath:'/dashboard/placement-management?drive=drive-1&section=results&candidate=s1'});
+  let loads=0;
+  await page.route('**/v3/college/students/s1/reports',route=>route.fulfill({json:{student:{full_name:'Recording Candidate'},reports:[{source:'drive',drive_id:'drive-1',session_id:'session-1',detail:{status:'released',question_reviews:[]}}]}}));
+  await page.route('**/v3/college/students/s1/reports/session-1/recording',route=>{loads++;return route.fulfill({json:{status:'ready',playback_url:`https://media.example/link-${loads}.webm`,duration_seconds:2,segment_count:1,playback_expires_in_seconds:60}})});
+  await page.route('https://media.example/**',route=>route.fulfill({contentType:'video/webm',headers:{'accept-ranges':'bytes'},body:readFileSync('tests/fixtures/interview-test.webm')}));
+  await page.clock.install();await page.reload();
+  const video=page.getByLabel('Interview recording',{exact:true});
+  await expect.poll(()=>video.evaluate(element=>(element as HTMLVideoElement).readyState)).toBeGreaterThanOrEqual(2);
+  await video.evaluate(element=>{(element as HTMLVideoElement).currentTime=0.5;});
+  await expect.poll(()=>video.evaluate(element=>(element as HTMLVideoElement).currentTime)).toBeCloseTo(0.5,1);
+  await page.clock.fastForward(49000);
+  await expect(video).toHaveAttribute('src','https://media.example/link-2.webm');
+  await expect.poll(()=>video.evaluate(element=>(element as HTMLVideoElement).readyState)).toBeGreaterThanOrEqual(2);
+  await expect.poll(()=>video.evaluate(element=>(element as HTMLVideoElement).currentTime)).toBeCloseTo(0.5,1);
 });

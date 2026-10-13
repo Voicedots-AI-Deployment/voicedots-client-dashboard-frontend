@@ -168,3 +168,24 @@ body {
 /* Keep evidence tables inside the main report track beside the review panel. */
 .candidate-review .candidate-report-content{grid-template-columns:minmax(0,1fr)}
 .candidate-review .candidate-report-content>section,.candidate-review .report-tab-content{min-width:0;max-width:100%}
+
+/* Drive review: consistent rhythm, readable evidence and aligned columns. */
+.result-workspace[data-layout="results"] table{table-layout:fixed;min-width:1180px}
+.result-workspace[data-layout="results"] th,.result-workspace[data-layout="results"] td{padding:18px 16px;vertical-align:top;overflow-wrap:anywhere}
+.result-workspace[data-layout="results"] th:first-child{width:25%}
+.result-workspace[data-layout="results"] th:nth-child(2){width:16%}
+.result-workspace[data-layout="results"] th:last-child{width:11%}
+.result-workspace[data-layout="results"] td p{line-height:1.6}
+.result-workspace[data-layout="results"] th{font-size:11px;line-height:1.5}
+.result-workspace[data-layout="results"] tbody tr:hover{background:#f8fafc}
+.candidate-review .candidate-report-content>section{padding:24px}
+.candidate-review #deep-dive{padding:0}
+.candidate-review .candidate-report-content p,.candidate-review .candidate-report-content li{overflow-wrap:anywhere}
+.candidate-review .report-score-grid{grid-template-columns:repeat(auto-fit,minmax(145px,1fr));gap:12px;border:0;overflow:visible}
+.candidate-review .report-score-card,.candidate-review .report-score-card:nth-child(n+4){padding:16px;border:1px solid #e2e8f0;border-radius:10px}
+.candidate-review .report-score-card:last-child{border-right:1px solid #e2e8f0}
+.candidate-review .report-score-card p:first-child{min-height:32px;line-height:1.5}
+.candidate-review .scorecard-evidence-panels>section,.candidate-review .scorecard-evidence-panels>article{min-width:0}
+.dark .result-workspace[data-layout="results"] tbody tr:hover{background:#1e293b}
+.dark .candidate-review .report-score-card{border-color:#334155}
+@media(max-width:640px){.candidate-review .candidate-report-content>section{padding:16px}.candidate-review #deep-dive{padding:0}.candidate-review .report-score-grid{grid-template-columns:repeat(2,minmax(0,1fr));gap:10px}.candidate-review .report-score-card{padding:12px}}

@@ -39,6 +39,8 @@ const empty:FormState = {
 const dateToApi = (value:string) => value ? `${value.slice(8,10)}-${value.slice(5,7)}-${value.slice(0,4)}` : null;
 const dateFromApi = (value?:string|null) => {
   if (!value) return '';
+  const legacy=value.match(/^(\d{2})-(\d{2})-(\d{4})$/);
+  if(legacy)return `${legacy[3]}-${legacy[2]}-${legacy[1]}`;
   const match=value.match(/^(\d{4})-(\d{2})-(\d{2})/);
   return match?`${match[1]}-${match[2]}-${match[3]}`:'';
 };

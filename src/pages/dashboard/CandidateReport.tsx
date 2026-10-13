@@ -13,7 +13,7 @@ import {
 } from "lucide-react";
 import { collegeApi, collegeError, type Drive } from "@/api/collegeApi";
 import { btn } from "./interviewAgentTypes";
-import { displayName } from "./placementDisplay";
+import { displayName, formatPlacementDateTime } from "./placementDisplay";
 import { roleLabels } from "./interviewAgentTypes";
 
 import { CandidateScorecard, CandidateScoreCharts } from "./CandidateScorecard";
@@ -55,7 +55,7 @@ const show = (value: unknown, fallback = "Not available") =>
     ? fallback
     : String(value);
 const stamp = (value: unknown) =>
-  value ? new Date(String(value)).toLocaleString() : "Not available";
+  value ? formatPlacementDateTime(String(value)) : "Not available";
 const durationLabel=(value:unknown)=>{const total=Math.max(0,Math.floor(Number(value)||0)),hours=Math.floor(total/3600),minutes=Math.floor(total%3600/60),seconds=total%60;return hours?`${hours}h ${minutes}m ${seconds}s`:`${minutes}m ${seconds}s`};
 const decisionLabel = (value: unknown) => value === "shortlist" ? "Shortlisted" : value === "reject" ? "Rejected" : displayName(show(value, "undecided"));
 const eventExplanation = (event: Data) => {
@@ -338,14 +338,17 @@ export default function CandidateReport({
   }
   const recordingRequest = useRef(0);
   const refreshedPlayback = useRef(false);
+  const recordingRetries = useRef(0);
+  const restoreVideo = useRef<{time:number;playing:boolean}|null>(null);
   async function loadRecording() {
     if (!report?.session_id) return;
     const request = ++recordingRequest.current;
+    if(videoRef.current)restoreVideo.current={time:videoRef.current.currentTime,playing:!videoRef.current.paused};
     setRecordingLoading(true);
     setRecordingError("");
     try {
       const value = await collegeApi.get<Data>(`students/${studentId}/reports/${report.session_id}/recording`);
-      if (request === recordingRequest.current) setRecording(value);
+      if (request === recordingRequest.current) {setRecording(value);recordingRetries.current=0;}
     } catch (e) {
       if (request === recordingRequest.current) setRecordingError(collegeError(e));
     } finally {
@@ -360,7 +363,7 @@ export default function CandidateReport({
     } else setRecordingError("Playback could not load. Refresh the secure link and try again.");
   }
   useEffect(() => {
-    refreshedPlayback.current = false;
+    refreshedPlayback.current = false;recordingRetries.current=0;restoreVideo.current=null;
     setRecording(null);setRecordingError('');setRecordingLoading(false);
     if (report?.session_id) void loadRecording();
     return () => { recordingRequest.current += 1; };
@@ -370,6 +373,27 @@ export default function CandidateReport({
     const timer=window.setInterval(()=>{if(document.visibilityState!=='hidden')void loadRecording();},10000);
     return()=>window.clearInterval(timer);
   },[recording?.status,report?.session_id,recordingLoading]);
+  useEffect(() => {
+    if(!report?.session_id || recordingLoading || !recordingError || recordingRetries.current>=3)return;
+    const delay=2000 * 2 ** recordingRetries.current++;
+    const timer=window.setTimeout(()=>void loadRecording(),delay);
+    return()=>window.clearTimeout(timer);
+  },[recordingError,recordingLoading,report?.session_id]);
+  useEffect(() => {
+    if(recording?.status!=="ready")return;
+    const timer=window.setInterval(()=>{if(document.visibilityState!=="hidden")void loadRecording();},Math.max(10000,Math.min(480000,Number(recording.playback_expires_in_seconds || 600)*800)));
+    const visible=()=>{if(document.visibilityState==="visible")void loadRecording();};
+    document.addEventListener("visibilitychange",visible);
+    return()=>{window.clearInterval(timer);document.removeEventListener("visibilitychange",visible);};
+  },[recording?.status,recording?.playback_expires_in_seconds,report?.session_id,studentId]);
+  function restoreVideoPosition() {
+    const saved=restoreVideo.current,video=videoRef.current;
+    if(!saved || !video)return;
+    restoreVideo.current=null;
+    // Browser-recorded WebM can have an unknown duration until it is played.
+    video.currentTime=Number.isFinite(video.duration)?Math.min(saved.time,video.duration):saved.time;
+    if(saved.playing)void video.play().catch(()=>{});
+  }
   function seekToQuestion(askedAt: unknown) {
     // After a reconnect the finished file concatenates browser segments and
     // has no single wall-clock offset for the full timeline. Never offer a
@@ -715,11 +739,11 @@ export default function CandidateReport({
 
           <section id="recording" className={`${reportPanel} scroll-mt-4`}>
             <div className="flex flex-wrap items-start justify-between gap-3"><div><p className="text-xs font-semibold uppercase tracking-wide text-indigo-700">Evidence</p><h2 className="mt-1 text-lg font-bold">Interview recording</h2><p className="mt-1 text-xs text-slate-500">{recordingStatus === "ready" ? `Secure recording · ${durationLabel(recordingDuration)}${recording?.started_at || report.recording?.started_at ? ` · ${stamp(recording?.started_at ?? report.recording?.started_at)}` : ""}` : recordingStatus === "expired" ? "Recording retention period ended" : recordingStatus === "failed" ? "Video upload failed" : recordingStatus === "unavailable" || recordingStatus === "not_configured" ? "No recording is available for this attempt" : `Recording ${displayName(show(recordingStatus))}`}</p></div><details className="text-xs text-slate-500"><summary className="cursor-pointer">Session details</summary><p className="mt-1 break-all">{report.session_id || "Session ID unavailable"}</p></details></div>
-            {!videoReady ? <div className="mt-3 flex flex-wrap items-center justify-between gap-3 rounded-xl border border-slate-200 bg-slate-50 p-4"><div><p className="text-sm text-slate-700">{recordingLoading ? "Checking recording availability…" : recordingStatus === "processing" || recordingStatus === "recording" ? "Recording is being prepared" : "Video is unavailable for this attempt"}</p><p className="mt-1 text-xs text-slate-500">{show(recording?.message, "The saved answers and feedback remain available.")}</p>{recordingError && <p role="alert" className="mt-2 text-xs text-rose-700">{recordingError}</p>}</div>{report.session_id && recordingStatus !== "expired" && <button type="button" className={`${btn} inline-flex items-center gap-2 whitespace-nowrap`} disabled={recordingLoading} onClick={() => void loadRecording()}>Refresh recording</button>}</div> : <>
-            <div className="mt-4 grid gap-4 2xl:grid-cols-[minmax(0,1.5fr)_minmax(15rem,1fr)]">
+            {!videoReady ? <div className="mt-3 flex flex-wrap items-center justify-between gap-3 rounded-xl border border-slate-200 bg-slate-50 p-4"><div><p className="text-sm text-slate-700">{recordingLoading ? "Checking recording availability…" : ["processing","recording","uploading"].includes(String(recordingStatus)) ? "Recording is being prepared" : "Video is unavailable for this attempt"}</p><p className="mt-1 text-xs text-slate-500">{show(recording?.message, "The saved answers and feedback remain available.")}</p>{recordingError && <p role="alert" className="mt-2 text-xs text-rose-700">{recordingError}</p>}</div>{report.session_id && recordingStatus !== "expired" && <button type="button" className={`${btn} inline-flex items-center gap-2 whitespace-nowrap`} disabled={recordingLoading} onClick={() => {refreshedPlayback.current=false;recordingRetries.current=0;void loadRecording();}}>Refresh recording</button>}</div> : <>
+            <div className="mt-5 grid items-start gap-5 2xl:grid-cols-[minmax(0,1.5fr)_minmax(15rem,1fr)]">
               <div className="min-w-0">
                 <div className={`relative overflow-hidden rounded-xl ${videoReady ? "aspect-video bg-slate-950 text-white" : "min-h-36 border border-slate-200 bg-slate-50 text-slate-700"}`}>
-                  {videoReady ? <video ref={videoRef} className="h-full w-full object-contain" src={recording.playback_url as string} controls playsInline preload="metadata" onError={recoverPlayback} aria-label="Interview recording" onTimeUpdate={event => setPlaybackTime(event.currentTarget.currentTime)} onPlay={() => setIsPlaying(true)} onPause={() => setIsPlaying(false)} /> : <div className="absolute inset-0 grid place-items-center px-5 text-center"><div><p className="text-sm font-semibold">{recordingLoading ? "Loading private recording…" : recordingStatus === "expired" ? "Recording is no longer available" : recordingStatus === "failed" ? "Recording could not be saved" : "No recording is available"}</p><p className="mt-1 text-xs text-slate-500">{recordingStatus === "expired" || recordingStatus === "failed" ? "Transcript and assessment evidence remain available below." : recordingLoading ? "Requesting secure playback." : "Review the saved answers and assessment below."}</p></div></div>}
+                  {videoReady ? <video ref={videoRef} className="h-full w-full object-contain" src={recording.playback_url as string} controls playsInline preload="metadata" onLoadedMetadata={restoreVideoPosition} onError={recoverPlayback} aria-label="Interview recording" onTimeUpdate={event => setPlaybackTime(event.currentTarget.currentTime)} onPlay={() => setIsPlaying(true)} onPause={() => setIsPlaying(false)} /> : <div className="absolute inset-0 grid place-items-center px-5 text-center"><div><p className="text-sm font-semibold">{recordingLoading ? "Loading private recording…" : recordingStatus === "expired" ? "Recording is no longer available" : recordingStatus === "failed" ? "Recording could not be saved" : "No recording is available"}</p><p className="mt-1 text-xs text-slate-500">{recordingStatus === "expired" || recordingStatus === "failed" ? "Transcript and assessment evidence remain available below." : recordingLoading ? "Requesting secure playback." : "Review the saved answers and assessment below."}</p></div></div>}
                   {videoReady && <button type="button" disabled={!videoReady} title={videoReady ? (isPlaying ? "Pause interview video" : "Play interview video") : "Video unavailable for this candidate"} aria-label={videoReady ? (isPlaying ? "Pause interview video" : "Play interview video") : "Video unavailable for this candidate"} className={`absolute inset-0 m-auto grid h-14 w-14 place-items-center rounded-full bg-white/90 text-xl text-slate-900 shadow transition disabled:cursor-not-allowed disabled:opacity-60 ${isPlaying ? "pointer-events-none opacity-0" : "hover:bg-white"}`} onClick={() => { if (!videoRef.current) return; if (videoRef.current.paused) void videoRef.current.play(); else videoRef.current.pause(); }}>{isPlaying ? "Ⅱ" : "▶"}</button>}
                   {videoReady && <span className="absolute left-3 top-3 rounded-md bg-black/60 px-2 py-1 text-[10px] font-semibold">Interview recording</span>}
                 </div>
