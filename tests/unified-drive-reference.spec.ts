@@ -1,6 +1,30 @@
 import { test, expect, type Page } from '@playwright/test';
 import { readFileSync } from 'node:fs';
 import { previewDrive,previewCandidate,previewBundle,previewRecording } from '../preview/drive-data';
+
+test('ATS scoring and sorting are available before interview in cards and table',async({page})=>{
+ await setup(page);
+ await expect(page.getByLabel('Sort results')).toBeVisible();
+ const invited={...previewCandidate,assignment_status:'invited',report_ready:false,overall_score:null,ranking_score:null,job_fit_score:null,readiness:undefined,publication:{state:'hidden'},cgpa:8.2};
+ const rows=[{...invited,student_id:'low',full_name:'Low Match',ats_fit_score:25,ats_status:'evaluated',skills:[{skill:'SQL',priority:'mandatory',match_status:'NO_EVIDENCE'}]},
+ {...invited,student_id:'high',full_name:'High Match',ats_fit_score:90,ats_status:'evaluated',skills:[{skill:'Python',match_status:'FULL_MATCH',evidence_text:'Built Python APIs'}]},
+ {...invited,student_id:'missing',full_name:'Missing Resume',ats_fit_score:null,ats_status:'resume_not_available',skills:[]}];
+ const sorts:string[]=[];
+ await page.route('**/v3/college/drives/preview-drive/dashboard/ranking?*',route=>{const url=new URL(route.request().url()),sort=url.searchParams.get('sort_by')||'rank';sorts.push(sort);return route.fulfill({json:{candidates:sort==='ats_desc'?[rows[1],rows[0],rows[2]]:rows,pagination:{total:3}}})});
+ await page.goto('/dashboard/placement-management?drive=preview-drive&section=results');
+ await expect(page.getByLabel('ATS resume fit for Low Match')).toContainText('25/100');
+ await expect(page.getByLabel('ATS resume fit for Missing Resume')).toContainText('Resume Not Available');
+ await page.getByLabel('Sort results').selectOption('ats_desc');
+ await expect(page.locator('#result-candidate-cards>article').first()).toContainText('High Match');
+ await page.screenshot({path:'/root/voicedots/artifacts/candidate-filters-20261014/automatic-ats-cards.png',fullPage:true});
+ await page.getByLabel('Sort results').selectOption('ats_asc');
+ await expect(page.locator('#result-candidate-cards>article').first()).toContainText('Low Match');
+ await page.getByRole('button',{name:'Table',exact:true}).click();
+ await expect(page.getByLabel('Sort results')).toHaveValue('ats_asc');
+ await expect(page.locator('#result-candidate-table tbody tr').first()).toContainText('Low Match');
+ await page.screenshot({path:'/root/voicedots/artifacts/candidate-filters-20261014/automatic-ats-table.png',fullPage:true});
+ expect(sorts).toContain('ats_desc');expect(sorts).toContain('ats_asc');
+});
 async function setup(page:Page,section='candidates') {
  await page.addInitScript(()=>localStorage.setItem('access_token','local-test'));
  await page.route(/\/v[13]\//,route=>{
