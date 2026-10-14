@@ -70,3 +70,29 @@ test('merged view and report fit mobile, expand with sidebar and retain feedback
  for(const width of [768,390,320]){await page.setViewportSize({width,height:1000});await expect.poll(()=>page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth)).toBeTruthy();}
  await page.screenshot({path:'/root/voicedots/artifacts/unified-drive-reference-20261013/full-report-mobile.png',fullPage:true});
 });
+
+test('attempt selector changes report and recording without mixing evidence',async({page})=>{
+ await setup(page);
+ const first=previewBundle.reports[0];
+ await page.route('**/v3/college/students/preview-student/reports',route=>route.fulfill({json:{...previewBundle,reports:[{...first,session_id:'second-session',attempt_number:2,overall_score:91},first]}}));
+ await page.route('**/v3/college/students/preview-student/reports/second-session/recording',route=>route.fulfill({json:{status:'missing'}}));
+ await page.getByRole('button',{name:'Full report',exact:true}).click();
+ await expect(page.getByLabel('Interview attempt')).toHaveValue('second-session');
+ await expect(page.locator('.assessment-reference-kpi').first()).toContainText('91');
+ await page.getByLabel('Interview attempt').selectOption('preview-session');
+ await expect(page.locator('.assessment-reference-kpi').first()).toContainText('78');
+ await expect(page.locator('video')).toHaveAttribute('src',previewRecording.playback_url);
+ const decision=page.locator('#decision');
+ await expect.poll(()=>decision.evaluate(e=>getComputedStyle(e).display)).toBe('grid');
+ const followup=page.locator('.scorecard-evidence-panels').last().locator('section').last();
+ await expect.poll(()=>followup.evaluate(e=>getComputedStyle(e).display)).toBe('block');
+ await page.screenshot({path:'/root/voicedots/artifacts/candidate-filters-20261014/report-aligned.png',fullPage:true});
+});
+test('ATS fit opens mandatory core preferred evidence and resume details',async({page})=>{
+ await setup(page);
+ await page.route('**/v3/college/drives/preview-drive/dashboard/ats-fit?*',route=>route.fulfill({json:{candidates:[{...previewCandidate,mandatory_coverage:'1/1',core_coverage:'0/1',preferred_coverage:'1/1',skills:[{skill:'SQL',priority:'mandatory',match_status:'FULL_MATCH',evidence_text:'Built SQL queries'},{skill:'Testing',priority:'core',match_status:'NO_EVIDENCE'},{skill:'Git',priority:'preferred',match_status:'RELATED_EVIDENCE'}]}]}}));
+ await page.getByRole('button',{name:'ATS fit',exact:true}).click();
+ const dialog=page.getByRole('dialog',{name:'ATS fit details for Ananya Sharma'});
+ await expect(dialog).toContainText('mandatory skills');await expect(dialog).toContainText('core skills');await expect(dialog).toContainText('preferred skills');await expect(dialog).toContainText('Built SQL queries');await expect(dialog).toContainText('Candidate resume');
+ await page.getByRole('button',{name:'Close ATS fit'}).click();await expect(dialog).toHaveCount(0);
+});

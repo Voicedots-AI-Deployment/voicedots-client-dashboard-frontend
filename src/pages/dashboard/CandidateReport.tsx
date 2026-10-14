@@ -328,13 +328,10 @@ export default function CandidateReport({
     void load();
     return () => { loadRequest.current += 1; };
   }, [driveId, studentId]);
-  const report = useMemo(
-    () =>
-      ((bundle?.reports || []) as Report[]).find(
-        (item) => item.drive_id === driveId,
-      ),
-    [bundle, driveId],
-  );
+  const [selectedSession, setSelectedSession] = useState('');
+  useEffect(()=>{setSelectedSession('')},[driveId,studentId]);
+  const driveReports = useMemo(()=>((bundle?.reports || []) as Report[]).filter(item=>item.drive_id===driveId).sort((a,b)=>Number(b.attempt_number||1)-Number(a.attempt_number||1)),[bundle,driveId]);
+  const report = useMemo(()=>driveReports.find(item=>item.session_id===selectedSession)||driveReports[0],[driveReports,selectedSession]);
   function openAnswer(index: number) {
     setActiveTab("answers"); setAnswerFilter("all"); setAnswerSearch(""); setExpanded(current => ({...current, answers:true}));
     window.setTimeout(() => {const item=document.getElementById(`answer-${index}`) as HTMLDetailsElement|null;if(item){item.open=true;item.scrollIntoView({behavior:"smooth",block:"center"});}},0);
@@ -688,6 +685,7 @@ export default function CandidateReport({
         </div>
       </div>
 
+      <label className="flex flex-wrap items-center gap-3 rounded-xl border border-slate-200 bg-white p-4 text-sm font-semibold">Interview attempt<select aria-label="Interview attempt" className={reportField+" !mt-0 !w-auto max-w-full"} value={report.session_id||''} onChange={event=>{setSelectedSession(event.target.value);setPlaybackTime(0);setIsPlaying(false);setBookmarkNotes([]);setBookmarkNote('');setExpanded({});}}>{driveReports.map(item=><option key={item.session_id} value={item.session_id}>Attempt {item.attempt_number||1} · {item.overall_score==null?'Not scored':`${item.overall_score}/100`} · {stamp(item.completed_at)}</option>)}</select><span className="text-xs font-normal text-slate-500">Report and recording for the selected attempt</span></label>
       <AssessmentReportHeader student={{...student,student_id:studentId}} report={{...report,overall_score:report.overall_score??detail.overall_score}} drive={drive} competencyCount={dimensionsWithScore.length} questionCount={reviews.length} duration={recordingDuration}/>
       <details className="rounded-xl border border-slate-200 bg-white p-3 text-xs text-slate-600"><summary className="cursor-pointer font-semibold">Candidate details & assessment status</summary><dl className="mt-3 grid gap-2 sm:grid-cols-2">{studentDetailRows.map(([label,value])=><div key={String(label)}><dt className="font-semibold">{String(label)}</dt><dd>{String(value)}</dd></div>)}</dl><p className="mt-3">{report.completed_at?'Interview completed':interviewEnded?'Interview ended':'Interview in progress'} · Result {displayName(show(publication.state,'hidden'))} · {decision?decisionLabel(decision):'Decision pending'}</p>{driveError&&<p role="alert">{driveError}</p>}</details>
 

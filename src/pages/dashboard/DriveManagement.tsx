@@ -601,6 +601,13 @@ function CandidateDetails({
   );
 }
 
+function ATSFitDetails({driveId,candidate,onClose}:{driveId:string;candidate:Candidate;onClose:()=>void}) {
+  const [result,setResult]=useState<Data|null>(null),[error,setError]=useState(''),[version,setVersion]=useState(0);
+  useEffect(()=>{let active=true;setResult(null);setError('');loadResumeMatch(driveId,candidate.student_id).then(data=>{if(active)setResult(((data.candidates||[]) as Data[]).find(item=>String(item.student_id)===candidate.student_id)||{})}).catch(e=>{if(active)setError(collegeError(e))});return()=>{active=false}},[driveId,candidate.student_id,version]);
+  useEffect(()=>{const key=(e:KeyboardEvent)=>{if(e.key==='Escape')onClose()};document.addEventListener('keydown',key);return()=>document.removeEventListener('keydown',key)},[onClose]);
+  return <div className="fixed inset-0 z-50 flex justify-end bg-slate-950/40" onMouseDown={e=>{if(e.target===e.currentTarget)onClose()}}><section role="dialog" aria-modal="true" aria-label={`ATS fit details for ${candidate.full_name}`} className="h-full w-full max-w-4xl overflow-y-auto bg-white p-6 dark:bg-slate-950"><header className="mb-5 flex items-center justify-between gap-4"><div><h2 className="text-lg font-bold">ATS fit · {candidate.full_name}</h2><p className="text-sm text-slate-500">Job requirements matched against resume evidence</p></div><button autoFocus className={btn} onClick={onClose}>Close ATS fit</button></header>{error?<div role="alert">{error}<button className={btn} onClick={()=>setVersion(v=>v+1)}>Retry ATS fit</button></div>:!result?<p role="status">Loading ATS fit…</p>:<><div className="mb-5"><span className="text-sm font-semibold">ATS fit score </span><ScoreBadge score={result.ats_fit_score as number}/></div>{['mandatory','core','preferred'].map(priority=><section className="mb-4 rounded-xl border border-slate-200 p-4" key={priority}><h3 className="mb-3 font-semibold capitalize">{priority} skills <span className="text-sm text-slate-500">{String(result[`${priority}_coverage`]||'Not assessed')}</span></h3>{((result.skills||[]) as Data[]).filter(skill=>String(skill.priority||'core').toLowerCase()===priority).map((skill,index)=><article className="border-t border-slate-100 py-3" key={index}><div className="flex flex-wrap justify-between gap-2"><strong className="text-sm">{String(skill.skill||skill.requirement||'Requirement')}</strong><StatusBadge value={String(skill.match_status||'not assessed')}/></div><p className="mt-2 text-sm leading-6 text-slate-600">{String(skill.evidence_text||skill.reason||'No resume evidence recorded.')}</p></article>)}{!((result.skills||[]) as Data[]).some(skill=>String(skill.priority||'core').toLowerCase()===priority)&&<p className="text-sm text-slate-500">No {priority} requirements were recorded.</p>}</section>)}</>}<h3 className="mb-3 mt-6 font-semibold">Candidate resume</h3><ATSResumeFile driveId={driveId} studentId={candidate.student_id}/></section></div>;
+}
+
 function ATSResumeFile({ driveId, studentId }: { driveId: string; studentId: string }) {
   const [state, setState] = useState<"loading" | "ready" | "missing" | "error">("loading");
   const [url, setUrl] = useState("");
@@ -1644,6 +1651,7 @@ export default function DriveManagement({
   back: () => void;
 }) {
   const [params, setParams] = useSearchParams();
+  const [atsCandidate,setAtsCandidate]=useState<Candidate|null>(null);
   const reportStudentId = params.get("candidate");
   const requestedSection = params.get("section");
   const tab = (
@@ -2397,13 +2405,13 @@ export default function DriveManagement({
               <header className="flex flex-wrap items-center gap-3 border-b border-slate-100 px-5 py-4">
                 <input type="checkbox" className="h-4 w-4 accent-violet-600" aria-label={`Select ${candidate.full_name}`} checked={checked.includes(candidate.student_id)} onChange={event=>setChecked(current=>event.target.checked ? [...new Set([...current,candidate.student_id])] : current.filter(id=>id!==candidate.student_id))}/>
                 <StudentAvatar student={candidate} size="h-11 w-11"/>
-                <div className="min-w-0 flex-1"><div className="flex flex-wrap items-center gap-2"><h4 className="text-base font-medium text-slate-900">{candidate.full_name}</h4>{candidate.rank != null && <span className="rounded-full bg-violet-50 px-2 py-0.5 text-xs text-violet-700">#{candidate.rank} in drive</span>}<InterviewStatusBadge value={candidateInterviewStatus(candidate)}/></div><p className="mt-1 text-xs text-slate-500">{candidate.roll_number} · {[candidate.program,candidate.department_code].filter(Boolean).join(' · ')}</p></div>
-                <button className={`${btn} inline-flex shrink-0 items-center gap-2 whitespace-nowrap border-violet-200 text-violet-700`} disabled={busy || !candidate.report_ready} onClick={()=>void inspect(candidate,'reports')}>{candidate.report_ready?'Full report':'Report pending'} <ExternalLink size={14}/></button>
+                <div className="min-w-0 flex-1"><div className="flex flex-wrap items-center gap-2"><h4 className="text-base font-medium text-slate-900">{candidate.full_name}</h4>{candidate.rank != null && <span className="rounded-full bg-violet-50 px-2 py-0.5 text-xs text-violet-700">#{candidate.rank} in drive</span>}<InterviewStatusBadge value={candidateInterviewStatus(candidate)}/></div><p className="mt-1 text-xs text-slate-500">{candidate.roll_number} · {[candidate.program,candidate.department_code].filter(Boolean).join(' · ')} · CGPA {candidate.cgpa==null?'Not available':candidate.cgpa}</p></div>
+                <button className={`${btn} inline-flex shrink-0 items-center gap-2 whitespace-nowrap border-violet-200 text-violet-700`} disabled={busy || !(candidate.report_ready || candidate.has_report_history)} onClick={()=>void inspect(candidate,'reports')}>{candidate.report_ready || candidate.has_report_history?'Full report':'Report pending'} <ExternalLink size={14}/></button>
               </header>
               <div className="result-assessment-band flex flex-wrap items-center gap-3 border-b border-violet-100 bg-violet-50/60 px-5 py-3">
                 <span className="text-xs font-medium text-slate-600">AI recommendation</span><StatusBadge value={candidate.report_ready ? candidate.recommendation || 'Not assessed' : 'Not assessed'}/>
                 {candidate.report_ready && <CandidateStrengthGap driveId={driveId} candidate={candidate} onOpenReport={()=>void inspect(candidate,'reports')}/>}
-                <button className={`${btn} ml-auto`} onClick={()=>openCandidateDetails(candidate)}>View details</button>
+                <button className={btn} onClick={()=>setAtsCandidate(candidate)}>ATS fit</button><button className={`${btn} ml-auto`} onClick={()=>openCandidateDetails(candidate)}>View details</button>
               </div>
               <dl className="result-evidence-rows">
                 <div><dt>Profile, ATS fit & attempts</dt><dd className="flex flex-wrap items-center gap-3"><span className="text-xs text-slate-600">{candidate.email || "Email unavailable"}</span><AttemptBadge candidate={candidate} driveMaxAttempts={drive?.max_attempts}/><ResumeMatchSummary key={`resume-${version}`} driveId={driveId} candidate={candidate}/></dd></div>
@@ -2484,7 +2492,7 @@ export default function DriveManagement({
                       </td>
                       {tab === "results" ? (
                         <>
-                          <td className="p-3"><InterviewStatusBadge value={candidateInterviewStatus(c)}/><div className="mt-2"><AttemptBadge candidate={c} driveMaxAttempts={drive?.max_attempts} compact/></div><p className="mt-2 text-xs text-slate-500">{[c.program,c.department_code].filter(Boolean).join(" · ") || "Academic details unavailable"}</p></td>
+                          <td className="p-3"><InterviewStatusBadge value={candidateInterviewStatus(c)}/><div className="mt-2"><AttemptBadge candidate={c} driveMaxAttempts={drive?.max_attempts} compact/></div><p className="mt-2 text-xs text-slate-500">{[c.program,c.department_code].filter(Boolean).join(" · ") || "Academic details unavailable"} · CGPA {c.cgpa==null?'Not available':c.cgpa}</p></td>
                           <td className="p-3"><span className="text-base font-medium">{c.overall_score==null?'—':`${c.overall_score}/100`}</span><p className="mt-1 text-xs text-slate-500">PRI {c.ranking_score==null?'—':`${c.ranking_score}/100`}</p></td>
                           <td className="p-3"><p>{c.job_fit_score==null?'—':`${c.job_fit_score}/100`}</p><p className="mt-1 text-xs text-slate-500">{displayName(c.readiness || 'Not assessed')}</p></td>
                           <td className="p-3"><p>{c.proctoring_score==null?'—':`${c.proctoring_score}/100`}</p><div className="mt-1"><StatusBadge value={c.integrity_review_label || c.integrity_review_status || 'not assessed'}/></div></td>
@@ -2533,11 +2541,11 @@ export default function DriveManagement({
                         {tab === "results" ? (
                           <div className="flex flex-wrap gap-2"><button
                             className={btn}
-                            disabled={busy || !c.report_ready}
+                            disabled={busy || !(c.report_ready || c.has_report_history)}
                             onClick={() => void inspect(c, "reports")}
                           >
-                            {c.report_ready ? "Full report" : "Report pending"}
-                          </button><button className={btn} onClick={()=>openCandidateDetails(c)}>View details</button><ResumeMatchSummary key={`resume-table-${version}`} driveId={driveId} candidate={c}/></div>
+                            {c.report_ready || c.has_report_history ? "Full report" : "Report pending"}
+                          </button><button className={btn} onClick={()=>setAtsCandidate(c)}>ATS fit</button><button className={btn} onClick={()=>openCandidateDetails(c)}>View details</button><ResumeMatchSummary key={`resume-table-${version}`} driveId={driveId} candidate={c}/></div>
                         ) : (
                           <button
                             className={btn}
@@ -2619,6 +2627,7 @@ export default function DriveManagement({
           }}
         />}</div>
       )}
+      {atsCandidate && <ATSFitDetails driveId={driveId} candidate={atsCandidate} onClose={()=>setAtsCandidate(null)}/>}
       {selected && (
         <div
           className="fixed inset-0 z-50 bg-slate-950/40"

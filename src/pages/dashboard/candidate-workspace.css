@@ -15,18 +15,41 @@
 #result-candidate-table[data-layout=results] td:last-child>div{display:flex;flex-wrap:wrap;align-items:start;gap:8px}
 #result-candidate-table[data-layout=results] td:last-child button{font-size:11px;padding:6px 8px;white-space:normal}
 .assessment-report-reference .assessment-reference-summary,.assessment-reference-layout{gap:16px}
-.assessment-report-reference .scorecard-chart-grid{gap:16px;align-items:start}
-.candidate-full-reference .scorecard-chart-grid>section:nth-child(2){display:grid;grid-template-columns:140px minmax(0,1fr);gap:12px 16px;align-items:center}
-.candidate-full-reference .scorecard-chart-grid>section:nth-child(2)>h3,.candidate-full-reference .scorecard-chart-grid>section:nth-child(2)>.scorecard-note{grid-column:1/-1;margin-bottom:0}
+.candidate-review .scorecard-chart-grid{gap:16px;align-items:start}
+.candidate-full-reference .scorecard-chart-grid:not(.scorecard-evidence-panels)>section:nth-child(2){display:grid;grid-template-columns:140px minmax(0,1fr);gap:12px 16px;align-items:center}
+.candidate-full-reference .scorecard-chart-grid:not(.scorecard-evidence-panels)>section:nth-child(2)>h3,.candidate-full-reference .scorecard-chart-grid:not(.scorecard-evidence-panels)>section:nth-child(2)>.scorecard-note{grid-column:1/-1;margin-bottom:0}
 .candidate-full-reference .scorecard-breakdown-chart{width:140px;margin:0}.candidate-full-reference .scorecard-legend{gap:8px;margin:0}
 .candidate-full-reference .scorecard-ring{max-width:160px;margin:8px auto 16px}.candidate-full-reference .scorecard-card{padding:20px;border-radius:16px}
-.assessment-report-reference #decision{grid-column:1/-1;display:grid;grid-template-columns:1.2fr 1fr;gap:16px;align-items:start}
-.assessment-report-reference #decision>div:first-child,.assessment-report-reference #decision>[role=alert]{grid-column:1/-1}
-.assessment-report-reference #decision>form{grid-column:1;grid-row:span 2;margin-top:0}.assessment-report-reference #decision>article{margin-top:0}
-@media(max-width:700px){.cf-drawer>header,.cf-drawer>footer,.cf-body{padding:16px}.cf-drawer>footer button{flex:1}.cf-drawer>footer>button:first-child{margin-right:0}.assessment-report-reference #decision{grid-template-columns:minmax(0,1fr)}.assessment-report-reference #decision>form{grid-column:auto;grid-row:auto}.candidate-full-reference .scorecard-chart-grid>section:nth-child(2){grid-template-columns:minmax(0,1fr)}.candidate-full-reference .scorecard-breakdown-chart{justify-self:center}.cf-chips{gap:6px}#result-candidate-cards .result-evidence-rows>div{grid-template-columns:minmax(0,1fr);gap:6px;padding:12px 16px}}
+.candidate-review #decision{grid-column:1/-1;display:grid;grid-template-columns:1.2fr 1fr;gap:16px;align-items:start}
+.candidate-review #decision>div:first-child,.candidate-review #decision>[role=alert]{grid-column:1/-1}
+.candidate-review #decision>form{grid-column:1;grid-row:span 2;margin-top:0}.candidate-review #decision>article{margin-top:0}
+@media(max-width:700px){.cf-drawer>header,.cf-drawer>footer,.cf-body{padding:16px}.cf-drawer>footer button{flex:1}.cf-drawer>footer>button:first-child{margin-right:0}.candidate-review #decision{grid-template-columns:minmax(0,1fr)}.candidate-review #decision>form{grid-column:auto;grid-row:auto}.candidate-full-reference .scorecard-chart-grid:not(.scorecard-evidence-panels)>section:nth-child(2){grid-template-columns:minmax(0,1fr)}.candidate-full-reference .scorecard-breakdown-chart{justify-self:center}.cf-chips{gap:6px}#result-candidate-cards .result-evidence-rows>div{grid-template-columns:minmax(0,1fr);gap:6px;padding:12px 16px}}
 
 .candidate-filter-bar{display:grid;grid-template-columns:minmax(180px,1.4fr) repeat(4,minmax(130px,1fr)) auto;gap:16px;align-items:end}
 .candidate-filter-bar>label{min-width:0;width:auto}.candidate-filter-bar>.cf-control{display:contents}.candidate-filter-bar>.cf-control>button{order:2;min-height:40px}.candidate-filter-bar .cf-chips{grid-column:1/-1;order:3;margin-top:0}.candidate-filter-bar input,.candidate-filter-bar select{min-height:40px}
 @media(max-width:1250px){.candidate-filter-bar{grid-template-columns:repeat(3,minmax(0,1fr))}}
 @media(max-width:700px){.candidate-filter-bar{grid-template-columns:repeat(2,minmax(0,1fr));gap:12px}.candidate-filter-bar>label:first-child,.candidate-filter-bar>.cf-control>button{grid-column:1/-1}}
 .dark .cf-body legend{color:#c4b5fd}.dark .cf-note{color:#94a3b8}.dark .cf-drawer>header,.dark .cf-drawer>footer,.dark .cf-body fieldset,.dark .cf-choice-scroll{border-color:#334155}
+
+.assessment-report-reference .assessment-reference-summary{grid-template-columns:minmax(0,1fr);gap:16px}.assessment-report-reference .assessment-reference-profile{grid-column:1/-1}.assessment-report-reference .assessment-reference-kpi{min-width:0}.candidate-review .scorecard-evidence-panels>section{display:block;min-width:0}.candidate-review .scorecard-evidence-panels ol,.candidate-review .scorecard-evidence-panels li{overflow-wrap:break-word}.candidate-review .scorecard-evidence-panels .scorecard-table-wrap table{min-width:0;width:100%;table-layout:fixed}.candidate-review .scorecard-evidence-panels th:first-child{width:90px}.candidate-review .scorecard-evidence-panels th:last-child{width:80px}.candidate-review .scorecard-evidence-panels td{overflow-wrap:break-word}@media(min-width:700px){.assessment-report-reference .assessment-reference-summary{grid-template-columns:repeat(3,minmax(0,1fr))}}
+/* Compact report rhythm: content determines height, with one shared gap. */
+.candidate-review{--report-gap:16px;display:grid;gap:var(--report-gap)}
+.candidate-review>*,.candidate-review .candidate-report-content>*,.candidate-review .assessment-reference-layout>aside>*{margin-top:0!important;margin-bottom:0!important}
+.candidate-review .candidate-report-content{display:grid;gap:var(--report-gap)}
+.candidate-review .assessment-reference-layout{gap:var(--report-gap)}
+.candidate-review .scorecard-main{gap:16px}
+.candidate-review .scorecard-card h3{margin-bottom:12px}
+.candidate-review .scorecard-evidence-panels{align-items:start;gap:16px}
+.candidate-review .scorecard-evidence-panels ul,.candidate-review .scorecard-evidence-panels ol{margin-bottom:8px}
+.candidate-review .scorecard-evidence-panels li{margin-bottom:8px}
+.candidate-review .scorecard-evidence-panels li:last-child{margin-bottom:0}
+.candidate-review .client-assessment-scorecard .scorecard-executive{margin-bottom:16px}
+.candidate-review .recording-score-charts{margin:12px 0}
+.candidate-review .recording-score-charts .scorecard-card{padding:16px}
+.candidate-review .recording-score-charts .scorecard-ring{max-width:128px;margin:4px auto 12px}
+.candidate-review .recording-score-charts .scorecard-ring strong{font-size:36px}
+.candidate-review .assessment-report-reference>header{padding-bottom:12px;margin-bottom:16px}
+.candidate-review .assessment-reference-profile img,.candidate-review .assessment-reference-avatar{width:80px;height:104px}
+.candidate-review .assessment-reference-kpi{padding:16px;gap:6px}
+.candidate-review .assessment-reference-kpi strong{font-size:30px}
+@media(max-width:700px){.candidate-review{--report-gap:12px}.candidate-review .scorecard-main,.candidate-review .scorecard-evidence-panels{gap:12px}.candidate-review .assessment-reference-kpi{padding:12px}.candidate-review .assessment-reference-profile img,.candidate-review .assessment-reference-avatar{width:60px;height:80px}}
