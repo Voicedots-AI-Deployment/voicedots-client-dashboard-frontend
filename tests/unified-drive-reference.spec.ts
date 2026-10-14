@@ -17,7 +17,7 @@ async function setup(page:Page,section='candidates') {
   };
   return route.fulfill({json:values[path]??(path.includes('/dashboard/')?{candidates:[previewCandidate],pagination:{total:1},interview_progress:{completed:1}}:{})});
  });
- await page.route('**/preview-media.webm',route=>route.fulfill({contentType:'video/webm',body:readFileSync(new URL('./fixtures/interview-test.webm',import.meta.url))}));
+ await page.route('**/preview-media.webm',route=>route.fulfill({contentType:'video/mp4',body:readFileSync(new URL('./fixtures/interview-seek-test.mp4',import.meta.url))}));
  await page.goto(`/dashboard/placement-management?drive=preview-drive&section=${section}`);
 }
 test('one workspace replaces the three sections and retains profile, ATS and full report actions',async({page})=>{
@@ -121,6 +121,17 @@ test('report review player, timeline and attempt navigation work without a page 
  await expect.poll(()=>page.locator('video').evaluate((video:HTMLVideoElement)=>video.volume)).toBeCloseTo(0.5,1);
  await page.getByRole('combobox',{name:'Playback speed'}).selectOption('1.5');
  await expect.poll(()=>page.locator('video').evaluate((video:HTMLVideoElement)=>video.playbackRate)).toBe(1.5);
+ await page.getByRole('button',{name:'Fullscreen',exact:true}).click();
+ await expect.poll(()=>page.evaluate(()=>!!document.fullscreenElement)).toBe(true);
+ const viewport=await page.evaluate(()=>({width:innerWidth,height:innerHeight}));
+ const fullscreenVideo=await page.locator('video').boundingBox();
+ expect(fullscreenVideo!.width).toBeCloseTo(viewport.width,0);
+ expect(fullscreenVideo!.height).toBeCloseTo(viewport.height,0);
+ await page.locator('.evidence-marker.question').first().click();
+ await expect.poll(()=>page.locator('video').evaluate((video:HTMLVideoElement)=>video.currentTime)).toBeGreaterThanOrEqual(2);
+ await expect(page.getByRole('button',{name:'Pause',exact:true})).toBeVisible();
+ await page.getByRole('button',{name:'Exit fullscreen',exact:true}).click();
+ await expect.poll(()=>page.evaluate(()=>document.fullscreenElement)).toBe(null);
 });
 
 test('full report layout holds at desktop tablet and phone widths',async({page})=>{
