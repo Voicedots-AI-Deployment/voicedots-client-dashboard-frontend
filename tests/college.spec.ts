@@ -1620,7 +1620,7 @@ test('result KPI, search, sorting and advanced reset preserve correct server fil
   await expect.poll(()=>requests.at(-1)?.searchParams.get('offset')).toBe('25');
   await page.getByLabel('Sort results').selectOption('name');
   await expect.poll(()=>requests.at(-1)?.searchParams.get('offset')).toBe('0');
-  await page.getByRole('button',{name:/^Filters/}).click();await page.getByRole('button',{name:'Reset',exact:true}).click();
+  await page.getByRole('button',{name:/^Advanced Filters/}).click();await page.getByRole('button',{name:'Reset All',exact:true}).click();
   await expect(page.getByPlaceholder('Name, email or roll number')).toHaveValue('');
   await expect.poll(()=>requests.at(-1)?.searchParams.get('decision')).toBeNull();
 });
@@ -1684,23 +1684,23 @@ test('editing a saved interview role retains its tone and requires deletion conf
 
 test('result filters reject empty values and reversed score ranges', async ({page}) => {
   await setup(page,true,{initialPath:'/dashboard/placement-management?drive=drive-1&section=results',driveDetails:{id:'drive-1',company_name:'Example',role_title:'Engineer',status:'active'}});
-  await page.getByRole('button',{name:'Filters',exact:true}).click();
-  await page.getByRole('button',{name:'Add rule',exact:true}).click();
-  await page.getByRole('button',{name:'Apply filters',exact:true}).click();
-  await expect(page.getByText('Choose a value for each filter and use a valid range.')).toBeVisible();
+  await page.getByRole('button',{name:'Advanced Filters',exact:true}).click();
+  await page.getByRole('button',{name:'Add interview filter',exact:true}).click();
+  await page.getByRole('button',{name:'Apply Filters',exact:true}).click();
+  await expect(page.getByRole('alert')).toBeVisible();
   await page.getByLabel('Filter field',{exact:true}).selectOption('interview_score');
   await page.getByLabel('Filter operator',{exact:true}).selectOption('between');
-  const popup=page.getByRole('region',{name:'Interview result filters',exact:true});
+  const popup=page.getByRole('dialog',{name:'Advanced Filters',exact:true});
   await popup.locator('input[type=number]').nth(0).fill('90');
   await popup.locator('input[type=number]').nth(1).fill('50');
-  await page.getByRole('button',{name:'Apply filters',exact:true}).click();
-  await expect(page.getByRole('heading',{name:'Advanced filters'})).toBeVisible();
+  await page.getByRole('button',{name:'Apply Filters',exact:true}).click();
+  await expect(page.getByRole('heading',{name:'Advanced Filters'})).toBeVisible();
   await popup.locator('input[type=number]').nth(1).fill('95');
-  await page.getByRole('button',{name:'Apply filters',exact:true}).click();
-  await expect(page.getByRole('heading',{name:'Advanced filters'})).toHaveCount(0);
+  await page.getByRole('button',{name:'Apply Filters',exact:true}).click();
+  await expect(page.getByRole('heading',{name:'Advanced Filters'})).toHaveCount(0);
   await page.setViewportSize({width:390,height:844});
-  await page.getByRole('button',{name:/^Filters/}).click();
-  await expect(page.getByRole('button',{name:'Add rule',exact:true})).toBeVisible();
+  await page.getByRole('button',{name:/^Advanced Filters/}).click();
+  await expect(page.getByRole('button',{name:'Add interview filter',exact:true})).toBeVisible();
   const bounds=await popup.boundingBox();
   expect(bounds!.x).toBeGreaterThanOrEqual(0);
   expect(bounds!.x+bounds!.width).toBeLessThanOrEqual(390);

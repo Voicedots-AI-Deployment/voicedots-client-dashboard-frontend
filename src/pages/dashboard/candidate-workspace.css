@@ -1,0 +1,32 @@
+/* The drawer is portalled so dashboard overflow and sticky headers cannot clip it. */
+.cf-control{min-width:0}.cf-backdrop{position:fixed;inset:0;background:#0f172a66;z-index:100;display:flex;justify-content:flex-end}.cf-drawer{width:min(600px,100%);height:100dvh;background:white;color:#334155;display:flex;flex-direction:column;box-shadow:-12px 0 40px #0f172a20}.cf-drawer>header,.cf-drawer>footer{padding:20px 24px;display:flex;align-items:center;gap:12px;border-bottom:1px solid #e2e8f0;flex-shrink:0}.cf-drawer>header>div{flex:1;min-width:0}.cf-drawer h2{font-size:20px;font-weight:650}.cf-drawer p{font-size:12px;line-height:1.6}.cf-body{padding:24px;overflow:auto;display:grid;gap:20px}.cf-body fieldset{border-top:1px solid #e2e8f0;padding-top:16px;display:grid;gap:12px}.cf-body legend{font-size:14px;font-weight:650;color:#6d28d9;padding-right:8px}.cf-rule{background:#f8fafc;border:1px solid #e2e8f0;border-radius:12px;padding:16px;display:grid;gap:12px}.cf-rule-heading{display:flex;align-items:end;gap:12px}.cf-rule-heading>label{flex:1;min-width:0}.cf-body label{font-size:12px;font-weight:500;display:grid;gap:6px}.cf-range{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px}.cf-choice-scroll{max-height:180px;overflow:auto;padding:8px;border:1px solid #e2e8f0;border-radius:8px;margin-top:8px}.cf-choice-scroll label,.cf-body .cf-check{display:flex;align-items:center;gap:8px;padding:6px 0}.cf-drawer>footer{border-top:1px solid #e2e8f0;border-bottom:0;flex-wrap:wrap}.cf-drawer>footer>button:first-child{margin-right:auto}.cf-chips{display:flex;flex-wrap:wrap;gap:8px;margin-top:8px}.cf-chips button{display:flex;gap:6px;align-items:center;border:1px solid #ddd6fe;background:#f5f3ff;color:#6d28d9;border-radius:20px;padding:5px 10px;font-size:11px;max-width:100%}.cf-chips span{overflow-wrap:anywhere}.cf-error{color:#b91c1c;background:#fff1f2;padding:12px;border-radius:8px}.cf-note{color:#64748b}.cf-drawer :focus-visible{outline:3px solid #a78bfa;outline-offset:2px}.dark .cf-drawer{background:#0f172a;color:#e2e8f0}.dark .cf-rule{background:#1e293b;border-color:#334155}
+#result-candidate-cards.candidate-card-grid{grid-template-columns:minmax(0,1fr);gap:16px;align-items:start}
+#result-candidate-cards>article{min-width:0;border-radius:16px;overflow:hidden}
+#result-candidate-cards header{padding:20px;gap:12px}#result-candidate-cards header>div{overflow-wrap:anywhere}
+#result-candidate-cards .result-assessment-band{padding:12px 20px;gap:8px}
+#result-candidate-cards .result-evidence-rows>div{grid-template-columns:115px minmax(0,1fr);gap:12px;padding:12px 20px;align-items:start}
+#result-candidate-cards .result-evidence-rows dd{overflow-wrap:anywhere;line-height:1.5}
+#result-candidate-cards .result-score-chip{border-radius:8px;gap:6px;padding:6px 8px;font-size:11px}
+#result-candidate-cards .result-decision-footer{padding:16px 20px}
+#result-candidate-table[data-layout=results] table{table-layout:fixed;min-width:1280px;font-size:12px}
+#result-candidate-table[data-layout=results] th,#result-candidate-table[data-layout=results] td{padding:16px 12px;vertical-align:top;overflow-wrap:anywhere;line-height:1.5}
+#result-candidate-table[data-layout=results] th:first-child{width:260px}#result-candidate-table[data-layout=results] th:last-child{width:230px}
+#result-candidate-table[data-layout=results] td:first-child>div{min-width:0}
+#result-candidate-table[data-layout=results] td:last-child>div{display:flex;flex-wrap:wrap;align-items:start;gap:8px}
+#result-candidate-table[data-layout=results] td:last-child button{font-size:11px;padding:6px 8px;white-space:normal}
+.assessment-report-reference .assessment-reference-summary,.assessment-reference-layout{gap:16px}
+.assessment-report-reference .scorecard-chart-grid{gap:16px;align-items:start}
+.candidate-full-reference .scorecard-chart-grid>section:nth-child(2){display:grid;grid-template-columns:140px minmax(0,1fr);gap:12px 16px;align-items:center}
+.candidate-full-reference .scorecard-chart-grid>section:nth-child(2)>h3,.candidate-full-reference .scorecard-chart-grid>section:nth-child(2)>.scorecard-note{grid-column:1/-1;margin-bottom:0}
+.candidate-full-reference .scorecard-breakdown-chart{width:140px;margin:0}.candidate-full-reference .scorecard-legend{gap:8px;margin:0}
+.candidate-full-reference .scorecard-ring{max-width:160px;margin:8px auto 16px}.candidate-full-reference .scorecard-card{padding:20px;border-radius:16px}
+.assessment-report-reference #decision{grid-column:1/-1;display:grid;grid-template-columns:1.2fr 1fr;gap:16px;align-items:start}
+.assessment-report-reference #decision>div:first-child,.assessment-report-reference #decision>[role=alert]{grid-column:1/-1}
+.assessment-report-reference #decision>form{grid-column:1;grid-row:span 2;margin-top:0}.assessment-report-reference #decision>article{margin-top:0}
+@media(max-width:700px){.cf-drawer>header,.cf-drawer>footer,.cf-body{padding:16px}.cf-drawer>footer button{flex:1}.cf-drawer>footer>button:first-child{margin-right:0}.assessment-report-reference #decision{grid-template-columns:minmax(0,1fr)}.assessment-report-reference #decision>form{grid-column:auto;grid-row:auto}.candidate-full-reference .scorecard-chart-grid>section:nth-child(2){grid-template-columns:minmax(0,1fr)}.candidate-full-reference .scorecard-breakdown-chart{justify-self:center}.cf-chips{gap:6px}#result-candidate-cards .result-evidence-rows>div{grid-template-columns:minmax(0,1fr);gap:6px;padding:12px 16px}}
+
+.candidate-filter-bar{display:grid;grid-template-columns:minmax(180px,1.4fr) repeat(4,minmax(130px,1fr)) auto;gap:16px;align-items:end}
+.candidate-filter-bar>label{min-width:0;width:auto}.candidate-filter-bar>.cf-control{display:contents}.candidate-filter-bar>.cf-control>button{order:2;min-height:40px}.candidate-filter-bar .cf-chips{grid-column:1/-1;order:3;margin-top:0}.candidate-filter-bar input,.candidate-filter-bar select{min-height:40px}
+@media(max-width:1250px){.candidate-filter-bar{grid-template-columns:repeat(3,minmax(0,1fr))}}
+@media(max-width:700px){.candidate-filter-bar{grid-template-columns:repeat(2,minmax(0,1fr));gap:12px}.candidate-filter-bar>label:first-child,.candidate-filter-bar>.cf-control>button{grid-column:1/-1}}
+.dark .cf-body legend{color:#c4b5fd}.dark .cf-note{color:#94a3b8}.dark .cf-drawer>header,.dark .cf-drawer>footer,.dark .cf-body fieldset,.dark .cf-choice-scroll{border-color:#334155}
