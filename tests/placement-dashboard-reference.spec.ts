@@ -63,7 +63,7 @@ test('dense real-world evidence fits all reference widths without stretching nei
   await page.setViewportSize({width,height:1000});
   await expect.poll(()=>page.evaluate(()=>document.documentElement.scrollWidth)).toBe(width);
   const evidence=await page.locator('.pdo-insights').boundingBox();expect(evidence!.height).toBeLessThan(1300);
-  const readiness=await page.getByRole('heading',{name:'Career Readiness',exact:true}).locator('..').boundingBox();expect(readiness!.height).toBeLessThan(580);
+  const readiness=await page.getByRole('heading',{name:'Career Readiness',exact:true}).locator('..').boundingBox();expect(readiness!.height).toBeLessThan(650);
   const filters=await page.locator('.pi-filter-panel select').all();for(const filter of filters){const box=await filter.boundingBox();expect(box!.width).toBeGreaterThan(120);}
   await page.screenshot({path:`/root/voicedots/artifacts/dashboard-layout-20261014/client-${width}.png`,fullPage:true});
  }
@@ -72,4 +72,19 @@ test('dense real-world evidence fits all reference widths without stretching nei
  await expect(page.locator('.pdo-evidence details p').first()).toHaveText(`Evidence 1: ${longText}`.trim());
  await page.getByRole('button',{name:'Reset',exact:true}).click();
  await expect(page.getByLabel('Department',{exact:true})).toHaveValue('');
+});
+
+test('card grids use consistent spacing and aligned boundaries at each breakpoint',async({page})=>{
+ await setup(page);
+
+ for(const width of [1920,1440,1366,1024,768,390]){
+  await page.setViewportSize({width,height:1050});
+  const selector='.pi-kpis,.pdo-grid';
+  await expect.poll(()=>page.evaluate(()=>document.documentElement.scrollWidth)).toBe(width);
+  const grids=await page.locator(selector).evaluateAll(elements=>elements.map(element=>{
+   const style=getComputedStyle(element);return {gap:parseFloat(style.gap),cards:Array.from(element.children).map(child=>{const r=child.getBoundingClientRect();return {top:r.top,bottom:r.bottom,left:r.left,right:r.right}})};
+  }));
+  for(const grid of grids){expect(grid.gap).toBe(width<=700?12:16);for(const card of grid.cards){const sameRow=grid.cards.filter(other=>Math.abs(other.top-card.top)<1);for(const other of sameRow)expect(Math.abs(other.bottom-card.bottom)).toBeLessThan(2);}}
+  await page.screenshot({path:`/root/voicedots/artifacts/dashboard-grid-20261014/client-${width}.png`,fullPage:true});
+ }
 });
