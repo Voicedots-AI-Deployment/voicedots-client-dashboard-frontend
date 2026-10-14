@@ -84,8 +84,8 @@ test('attempt selector changes report and recording without mixing evidence',asy
  await expect(page.locator('video')).toHaveAttribute('src',previewRecording.playback_url);
  const decision=page.locator('#decision');
  await expect.poll(()=>decision.evaluate(e=>getComputedStyle(e).display)).toBe('grid');
- const followup=page.locator('.scorecard-evidence-panels').last().locator('section').last();
- await expect.poll(()=>followup.evaluate(e=>getComputedStyle(e).display)).toBe('block');
+ const followup=page.locator('.scorecard-employer-followup');
+ await expect.poll(()=>followup.evaluate(e=>getComputedStyle(e).display)).toBe('flex');
  await page.screenshot({path:'/root/voicedots/artifacts/candidate-filters-20261014/report-aligned.png',fullPage:true});
 });
 test('ATS fit opens mandatory core preferred evidence and resume details',async({page})=>{
@@ -95,4 +95,42 @@ test('ATS fit opens mandatory core preferred evidence and resume details',async(
  const dialog=page.getByRole('dialog',{name:'ATS fit details for Ananya Sharma'});
  await expect(dialog).toContainText('Mandatory / Core / Preferred');await expect(dialog).toContainText('Full evidence (1)');await expect(dialog).toContainText('Related evidence (1)');await expect(dialog).toContainText('No evidence (1)');await expect(dialog.getByText('SQL',{exact:true})).toHaveClass(/bg-emerald-100/);await expect(dialog.getByText('Git',{exact:true})).toHaveClass(/bg-amber-100/);await expect(dialog.getByText('Testing',{exact:true})).toHaveClass(/bg-rose-100/);await expect(dialog).toContainText('Original resume');
  await page.getByRole('button',{name:'Close ATS fit'}).click();await expect(dialog).toHaveCount(0);
+});
+
+test('report review player, timeline and attempt navigation work without a page reload',async({page})=>{
+ await setup(page);
+ const first=previewBundle.reports[0];
+ await page.route('**/v3/college/students/preview-student/reports',route=>route.fulfill({json:{...previewBundle,reports:[{...first,session_id:'second-session',attempt_number:2,overall_score:91,assignment_status:'completed',detail:{...first.detail,overall_score:91,question_reviews:[{question:'Second attempt only question',answer:'Second attempt answer',asked_at:'2026-10-11T09:42:02Z'}]}},first]}}));
+ await page.route('**/v3/college/students/preview-student/reports/second-session/recording',route=>route.fulfill({json:previewRecording}));
+ await page.getByRole('button',{name:'Full report',exact:true}).click();
+ const navigator=page.getByRole('region',{name:'Attempt navigator'});
+ await expect(navigator).toContainText('Attempt 2');
+ await expect(page.locator('.assessment-reference-kpi').first()).toContainText('91');
+ await navigator.getByRole('button',{name:'Previous attempt'}).click();
+ await expect(page.locator('.assessment-reference-kpi').first()).toContainText('78');
+ await expect(page.getByRole('group',{name:'Interview evidence timeline'})).toBeVisible();
+ await expect(page.getByRole('group',{name:'Video playback controls'})).toBeVisible();
+ await expect(page.locator('video')).not.toHaveAttribute('controls','');
+ await expect.poll(()=>page.locator('video').evaluate((video:HTMLVideoElement)=>video.readyState)).toBeGreaterThan(0);
+ await expect(page.getByRole('slider',{name:'Seek recording'})).toBeEnabled();
+ await page.getByRole('slider',{name:'Seek recording'}).fill('1.5');
+ await expect.poll(async()=>Number(await page.getByRole('slider',{name:'Seek recording'}).inputValue())).toBeGreaterThan(1);
+ await page.getByRole('button',{name:'Mute',exact:true}).click();
+ expect(await page.locator('video').evaluate((video:HTMLVideoElement)=>video.muted)).toBe(true);
+ await page.getByRole('slider',{name:'Video volume'}).fill('0.5');
+ await expect.poll(()=>page.locator('video').evaluate((video:HTMLVideoElement)=>video.volume)).toBeCloseTo(0.5,1);
+ await page.getByRole('combobox',{name:'Playback speed'}).selectOption('1.5');
+ await expect.poll(()=>page.locator('video').evaluate((video:HTMLVideoElement)=>video.playbackRate)).toBe(1.5);
+});
+
+test('full report layout holds at desktop tablet and phone widths',async({page})=>{
+ await setup(page);
+ await page.getByRole('button',{name:'Full report',exact:true}).click();
+ for(const width of [1920,1440,1366,1024,768,390]){
+  await page.setViewportSize({width,height:900});
+  await expect(page.getByRole('group',{name:'Interview evidence timeline'})).toBeVisible();
+  const overflow=await page.evaluate(()=>document.documentElement.scrollWidth>window.innerWidth+2);
+  expect(overflow,`${width}px viewport has horizontal scrolling`).toBe(false);
+  await page.screenshot({path:`/root/voicedots/artifacts/candidate-filters-20261014/report-review-${width}.png`,fullPage:true});
+ }
 });
