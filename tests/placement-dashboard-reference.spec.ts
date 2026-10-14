@@ -51,3 +51,25 @@ test('empty assessments never invent readiness or competency metrics', async ({ 
  await expect(page.locator('.pdo-ring')).toHaveCount(0);
  await expect(page.getByText('No competency evidence saved yet.')).toBeVisible();
 });
+
+test('dense real-world evidence fits all reference widths without stretching neighbouring cards', async ({ page }) => {
+ await setup(page);
+ const longText = 'You connected the project manager role to guiding teams, handling clients and keeping delivery on track from start to production. Explain the checks and your own contribution clearly. '.repeat(3);
+ const names = ['Communication','Role Fit','Confidence Conduct','Resume Ownership','Structured Thinking','Domain Knowledge','Applied Evidence','Role Awareness','Practical Application','Analytical Reasoning','Problem Solving','Communication Evidence','Technical Knowledge'];
+ await page.route('**/v3/college/intelligence/dashboard?**', route => route.fulfill({json:{...placementSample,competencies:names.map((name,index)=>({key:`dimension_${index}`,name,score:25+index,responses:30,weight:null,target:null})),strengths:Array.from({length:5},(_,i)=>({text:`Evidence ${i+1}: ${longText}`,count:i+1}))}}));
+ await page.getByRole('button',{name:'Refresh analytics'}).click();
+ await expect(page.locator('.pdo-metric-row')).toHaveCount(13);
+ for (const width of [1920,1440,1366,1024,768,390]) {
+  await page.setViewportSize({width,height:1000});
+  await expect.poll(()=>page.evaluate(()=>document.documentElement.scrollWidth)).toBe(width);
+  const evidence=await page.locator('.pdo-insights').boundingBox();expect(evidence!.height).toBeLessThan(1300);
+  const readiness=await page.getByRole('heading',{name:'Career Readiness',exact:true}).locator('..').boundingBox();expect(readiness!.height).toBeLessThan(580);
+  const filters=await page.locator('.pi-filter-panel select').all();for(const filter of filters){const box=await filter.boundingBox();expect(box!.width).toBeGreaterThan(120);}
+  await page.screenshot({path:`/root/voicedots/artifacts/dashboard-layout-20261014/client-${width}.png`,fullPage:true});
+ }
+ await page.locator('.pdo-evidence summary').first().click();
+ await expect(page.locator('.pdo-evidence details').first()).toHaveAttribute('open','');
+ await expect(page.locator('.pdo-evidence details p').first()).toHaveText(`Evidence 1: ${longText}`.trim());
+ await page.getByRole('button',{name:'Reset',exact:true}).click();
+ await expect(page.getByLabel('Department',{exact:true})).toHaveValue('');
+});
