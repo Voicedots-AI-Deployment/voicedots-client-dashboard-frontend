@@ -131,6 +131,11 @@ test('full report layout holds at desktop tablet and phone widths',async({page})
   await expect(page.getByRole('group',{name:'Interview evidence timeline'})).toBeVisible();
   const overflow=await page.evaluate(()=>document.documentElement.scrollWidth>window.innerWidth+2);
   expect(overflow,`${width}px viewport has horizontal scrolling`).toBe(false);
+  const frame=await page.locator('.review-video-shell').boundingBox();
+  const controls=await page.getByRole('group',{name:'Video playback controls'}).boundingBox();
+  expect(controls!.y+controls!.height).toBeLessThanOrEqual(frame!.y+frame!.height+2);
+  expect(Math.abs(frame!.height-frame!.width*9/16)).toBeLessThan(2);
+  await expect(page.locator('.review-video-shell .review-marker-legend')).toContainText('Officer notes');
   await page.screenshot({path:`/root/voicedots/artifacts/candidate-filters-20261014/report-review-${width}.png`,fullPage:true});
  }
 });
