@@ -53,3 +53,12 @@ test('clear server errors and correction table fit mobile without page overflow'
 test('templates have friendly download names and upload guide distinguishes Sheets and CGPA format',async({page})=>{
  await setup(page);await expect(page.getByRole('region',{name:'Student upload guide'})).toContainText('Google Sheets');await page.route('**/v3/college/students/template?**',route=>route.fulfill({contentType:'text/csv',body:'Student ID,CGPA\n'}));await page.getByLabel('Student import action').selectOption('cgpa');const download=page.waitForEvent('download');await page.getByRole('button',{name:'Download CSV template',exact:true}).click();expect((await download).suggestedFilename()).toBe('student-cgpa-template.csv');await expect(page.getByRole('region',{name:'Student upload guide'})).toContainText('2027CS001,8.25');
 });
+
+test('roster guide explains the requested nine columns and distinguishes passing year from admission year',async({page})=>{
+ await setup(page);const guide=page.getByRole('region',{name:'Student upload guide'});
+ await expect(guide).toContainText('S. No, Student Reg. No, Student Name, Batch Year, Degree, Department, Email ID, Mobile No, CGPA');
+ await expect(guide).toContainText('graduation / passing year (2027), not admission year');
+ await expect(guide).toContainText('CGPA is optional');await expect(guide).toContainText('+919876543210');
+ await page.route('**/v3/college/students/template?**',route=>route.fulfill({contentType:'text/csv',body:'S. No,Student Reg. No,Student Name,Batch Year,Degree,Department,Email ID,Mobile No,CGPA\n'}));
+ const download=page.waitForEvent('download');await page.getByRole('button',{name:'Download CSV template',exact:true}).click();expect((await download).suggestedFilename()).toBe('student-roster-template.csv');
+});
